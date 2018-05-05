@@ -4,3 +4,6 @@ version = "0.1.0"
 authors = ["335g <actionstar620@yahoo.co.jp>"]
 
 [dependencies]
+byteorder = "1.2"
+failure = "0.1"
+lzw = "0.10"

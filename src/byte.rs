@@ -8,11 +8,6 @@ use byteorder::{
     BigEndian,
     ReadBytesExt,
 };
-use num::{
-    Unsigned,
-    NumCast,
-};
-
 use error::Result;
 
 use std::{
@@ -70,8 +65,8 @@ pub trait ReadExt: Read {
 impl<R: Read> ReadExt for R {}
 
 pub trait SeekExt: Seek {
-    fn goto<N: Unsigned + NumCast>(&mut self, x: N) -> Result<()> {
-        let x = x.to_u64().unwrap();
+    // jump memory address.
+    fn goto(&mut self, x: u64) -> Result<()> {
         self.seek(io::SeekFrom::Start(x))?;
         Ok(())
     }

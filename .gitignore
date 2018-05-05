@@ -4,4 +4,4 @@
 Cargo.lock
 *.tiff
 .DS_Store
-
+samples/*

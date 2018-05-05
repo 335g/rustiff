@@ -8,6 +8,7 @@ extern crate num;
 mod error;
 mod byte;
 mod decode;
+mod ifd;
 
 pub mod prelude {
     pub use error::{

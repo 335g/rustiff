@@ -1,0 +1,6 @@
+[package]
+name = "tiff"
+version = "0.1.0"
+authors = ["335g <actionstar620@yahoo.co.jp>"]
+
+[dependencies]

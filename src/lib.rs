@@ -10,11 +10,13 @@ mod byte;
 mod decode;
 mod ifd;
 
-pub mod prelude {
-    pub use error::{
-        EncodeError,
-        DecodeError,
-    };
+pub use decode::{
+    Decoder,
+    IFDs,
+};
 
-    pub use decode::Decoder;
-}
+pub use ifd::{
+    IFD,
+    Tag,
+    Entry,
+};

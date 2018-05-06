@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 macro_rules! tags {
     {$($tag:ident $val:expr;)*} => {
-        #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq)]
+        #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
         pub enum Tag {
             $($tag,)*
             Unknown(u16),
@@ -26,7 +26,7 @@ macro_rules! tags {
 }
 
 tags!{
-    // must have
+    // must ?
     ImageWidth 256;
     ImageLength 257;
     BitsPerSample 258;
@@ -40,7 +40,27 @@ tags!{
     ResolutionUnit 296;
     ColorMap 320;
     
-    // option TODO: more tags
+    // options
+    NewSubfileType 254;
+    Thresholding 263;
+    CellWidth 264;
+    CellLength 265;
+    FillOrder 266;
+    ImageDescription 270;
+    Make 271;
+    Model 272;
+    Orientation 274;
+    SamplesPerPixel 277;
+    MinSampleValue 280;
+    MaxSampleValue 281;
+    PlanarConfiguration 284;
+    GrayResponseUnit 290;
+    GrayResponseCurve 291;
+    Software 305;
+    DateTime 306;
+    HostComputer 316;
+    ExtraSamples 338;
+    Copyright 33432;
 }
 
 #[derive(Debug, Clone, Copy)]

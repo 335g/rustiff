@@ -33,12 +33,14 @@ use std::{
 pub struct Decoder<R> {
     reader: R,
     endian: Endian,
+    next: u32,
 }
 
 impl<R> Decoder<R> where R: Read + Seek {
     pub fn new(mut reader: R) -> Result<Decoder<R>> {
         let mut byte_order = [0u8; 2];
-        reader.read(&mut byte_order)?;
+        reader.read_exact(&mut byte_order)?;
+
         let endian = match &byte_order {
             b"II" => Ok(Endian::Little),
             b"MM" => Ok(Endian::Big),
@@ -50,6 +52,7 @@ impl<R> Decoder<R> where R: Read + Seek {
         }
 
         let decoder = Decoder {
+            next: reader.read_u32(&endian)?,
             reader: reader,
             endian: endian,
         };
@@ -57,10 +60,11 @@ impl<R> Decoder<R> where R: Read + Seek {
         Ok(decoder)
     }
 
-    pub fn ifds<'a>(&'a mut self) -> Result<IFDs<'a, R>> {
-        match IFDs::new(&mut self.reader, self.endian) {
-            Ok(ifds) => Ok(ifds),
-            Err(e) => Err(Error::from(DecodeError::IncorrectHeader{ reason: "Not 5-8byte index".to_string() }))
+    pub fn ifds<'a>(&'a mut self) -> IFDs<'a, R> {
+        IFDs {
+            reader: &mut self.reader,
+            endian: self.endian,
+            next: self.next,
         }
     }
 }
@@ -72,19 +76,6 @@ pub struct IFDs<'a, R: 'a> {
 }
 
 impl<'a, R> IFDs<'a, R> where R: Read + Seek + 'a {
-    pub fn new(reader: &'a mut R, endian: Endian) -> Result<IFDs<'a, R>> {
-        reader.goto(4)?;
-        let next = reader.read_u32(&endian)?;
-
-        let x = IFDs {
-            reader: reader,
-            endian: endian,
-            next: next,
-        };
-
-        Ok(x)
-    }
-    
     #[inline]
     fn read_ifd(&mut self) -> Result<IFD>  {
         self.reader.goto(self.next as u64)?;

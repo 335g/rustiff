@@ -52,19 +52,19 @@ impl<R> Decoder<R> where R: Read + Seek {
         Ok(decoder)
     }
 
-    //pub ifds(&self) -> IFDs<R> {
-    //    IFDs::new(self.reader, self.endian)
-    //}
+    pub fn ifds<'a>(&'a mut self) -> IFDs<'a, R> {
+        IFDs::new(&mut self.reader, self.endian)
+    }
 }
 
-pub struct IFDs<R> {
-    reader: R,
+pub struct IFDs<'a, R: 'a> {
+    reader: &'a mut R,
     endian: Endian,
     next: u32,
 }
 
-impl<R> IFDs<R> where R: Read + Seek {
-    pub fn new(reader: R, endian: Endian) -> IFDs<R> {
+impl<'a, R> IFDs<'a, R> where R: Read + Seek + 'a {
+    pub fn new(reader: &'a mut R, endian: Endian) -> IFDs<'a, R> {
         IFDs {
             reader: reader,
             endian: endian,
@@ -95,7 +95,7 @@ impl<R> IFDs<R> where R: Read + Seek {
 
 }
 
-impl<R> Iterator for IFDs<R> where R: Read + Seek {
+impl<'a, R> Iterator for IFDs<'a, R> where R: Read + Seek + 'a {
     type Item = IFD;
 
     fn next(&mut self) -> Option<IFD> {

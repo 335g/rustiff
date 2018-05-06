@@ -21,13 +21,13 @@ use std::{
         Read,
         Seek,
     },
+    marker::PhantomData,
 };
 
 #[derive(Debug)]
 pub struct Decoder<R> {
     reader: R,
     endian: Endian,
-    ifds: Vec<IFD>,
 }
 
 impl<R> Decoder<R> where R: Read + Seek {
@@ -44,57 +44,74 @@ impl<R> Decoder<R> where R: Read + Seek {
             bail!("Not tiff");
         }
 
-        let ifds = Decoder::read_ifds(&mut reader, &endian)?;
-
         let decoder = Decoder {
             reader: reader,
             endian: endian,
-            ifds: ifds,
         };
 
         Ok(decoder)
     }
 
-    fn read_ifds(mut reader: R, endian: &Endian) -> Result<Vec<IFD>> {
-        fn read_ifd<R>(mut reader: R, endian: &Endian, next: &mut u32) -> Result<IFD> 
-        where 
-            R: Read + Seek 
-        {
-            fn read_entry<R>(mut reader: R, endian: &Endian) -> Result<(ifd::Tag, ifd::Entry)>
-            where
-                R: Read + Seek,
-            {
-                unimplemented!()
-            }
+    //pub ifds(&self) -> IFDs<R> {
+    //    IFDs::new(self.reader, self.endian)
+    //}
+}
 
-            reader.goto(*next as u64)?;
+pub struct IFDs<R> {
+    reader: R,
+    endian: Endian,
+    next: u32,
+}
 
-            let mut ifd = IFD::new();
-            for _ in 0..reader.read_u16(&endian)? {
-                let (tag, entry) = read_entry(&mut reader, &endian)?;
-                ifd.insert(tag, entry);
-            }
-            
-            // Update next addr
-            *next = reader.read_u32(&endian)?;
-            
-            Ok(ifd)
+impl<R> IFDs<R> where R: Read + Seek {
+    pub fn new(reader: R, endian: Endian) -> IFDs<R> {
+        IFDs {
+            reader: reader,
+            endian: endian,
+            next: 4, // initial IFD address
         }
-        
-        // `4` is the address for the initial IFD
-        let mut next: u32 = 4;
-        let mut ifds = vec![];
-        loop {
-            let ifd = read_ifd(&mut reader, &endian, &mut next)?;
-            ifds.push(ifd);
+    }
+    
+    #[inline]
+    fn read_ifd(&mut self) -> Result<IFD>  {
+        self.reader.goto(self.next as u64)?;
 
-            next = reader.read_u32(&endian)?;
-            if next == 0 {
-                break
-            }
+        let mut ifd = IFD::new();
+        for _ in 0..self.reader.read_u16(&self.endian)? {
+            let (tag, entry) = self.read_entry()?;
+            ifd.insert(tag, entry);
         }
 
-        Ok(ifds)
+        // Update next addr
+        self.next = self.reader.read_u32(&self.endian)?;
+
+        Ok(ifd)
+    }
+
+    #[inline]
+    fn read_entry(&mut self) -> Result<(ifd::Tag, ifd::Entry)> {
+        unimplemented!()
+    }
+
+}
+
+impl<R> Iterator for IFDs<R> where R: Read + Seek {
+    type Item = IFD;
+
+    fn next(&mut self) -> Option<IFD> {
+        if self.next == 0 {
+            None
+        } else {
+            let ifd = self.read_ifd();
+            let next = self.reader.read_u32(&self.endian);
+
+            self.next = match next {
+                Ok(next) => next,
+                Err(_) => 0,
+            };
+
+            ifd.ok()
+        }
     }
 }
 

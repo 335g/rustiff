@@ -3,7 +3,11 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
-use error::Result;
+use error::{
+    Result,
+    DecodeError,
+    Error,
+};
 use byte::{
     Endian,
     EndianReadExt,
@@ -13,6 +17,7 @@ use byte::{
 use ifd::{
     self,
     IFD,
+    Entry,
 };
 
 use std::{
@@ -35,13 +40,13 @@ impl<R> Decoder<R> where R: Read + Seek {
         let mut byte_order = [0u8; 2];
         reader.read(&mut byte_order)?;
         let endian = match &byte_order {
-            b"II" => Endian::Little,
-            b"MM" => Endian::Big,
-            _ => bail!("Not tiff"),
-        };
+            b"II" => Ok(Endian::Little),
+            b"MM" => Ok(Endian::Big),
+            _ => Err(Error::from(DecodeError::IncorrectHeader{ reason: "byteorder".to_string() })),
+        }?;
 
         if reader.read_u16(&endian)? != 42 {
-            bail!("Not tiff");
+            return Err(Error::from(DecodeError::IncorrectHeader{ reason: "Not 42".to_string() }));
         }
 
         let decoder = Decoder {
@@ -52,8 +57,11 @@ impl<R> Decoder<R> where R: Read + Seek {
         Ok(decoder)
     }
 
-    pub fn ifds<'a>(&'a mut self) -> IFDs<'a, R> {
-        IFDs::new(&mut self.reader, self.endian)
+    pub fn ifds<'a>(&'a mut self) -> Result<IFDs<'a, R>> {
+        match IFDs::new(&mut self.reader, self.endian) {
+            Ok(ifds) => Ok(ifds),
+            Err(e) => Err(Error::from(DecodeError::IncorrectHeader{ reason: "Not 5-8byte index".to_string() }))
+        }
     }
 }
 
@@ -64,12 +72,17 @@ pub struct IFDs<'a, R: 'a> {
 }
 
 impl<'a, R> IFDs<'a, R> where R: Read + Seek + 'a {
-    pub fn new(reader: &'a mut R, endian: Endian) -> IFDs<'a, R> {
-        IFDs {
+    pub fn new(reader: &'a mut R, endian: Endian) -> Result<IFDs<'a, R>> {
+        reader.goto(4)?;
+        let next = reader.read_u32(&endian)?;
+
+        let x = IFDs {
             reader: reader,
             endian: endian,
-            next: 4, // initial IFD address
-        }
+            next: next,
+        };
+
+        Ok(x)
     }
     
     #[inline]
@@ -90,9 +103,17 @@ impl<'a, R> IFDs<'a, R> where R: Read + Seek + 'a {
 
     #[inline]
     fn read_entry(&mut self) -> Result<(ifd::Tag, ifd::Entry)> {
-        unimplemented!()
-    }
+        let tag = ifd::Tag::from_u16(self.reader.read_u16(&self.endian)?);
+        let datatype = ifd::DataType::from_u16(self.reader.read_u16(&self.endian)?);
+        
+        let entry = Entry::new(
+            datatype,
+            self.reader.read_u32(&self.endian)?,
+            self.reader.read_4byte()?,
+        );
 
+        Ok((tag, entry))
+    }
 }
 
 impl<'a, R> Iterator for IFDs<'a, R> where R: Read + Seek + 'a {
@@ -114,5 +135,4 @@ impl<'a, R> Iterator for IFDs<'a, R> where R: Read + Seek + 'a {
         }
     }
 }
-
 

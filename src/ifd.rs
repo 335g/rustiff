@@ -115,5 +115,19 @@ impl Entry {
     }
 }
 
-pub type IFD = HashMap<Tag, Entry>;
+pub struct IFD(HashMap<Tag, Entry>);
+
+impl IFD {
+    pub fn new() -> IFD {
+        IFD(HashMap::new())
+    }
+
+    pub fn insert(&mut self, k: Tag, v: Entry) -> Option<Entry> {
+        self.0.insert(k, v)
+    }
+
+    pub fn get(&self, k: &Tag) -> Option<&Entry> {
+        self.0.get(k)
+    }
+}
 

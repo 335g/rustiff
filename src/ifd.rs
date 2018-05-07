@@ -63,7 +63,7 @@ tags!{
     Copyright 33432;
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum DataType {
     Byte,
     Ascii,
@@ -100,6 +100,18 @@ impl Entry {
             count: count,
             offset: offset,
         }
+    }
+
+    pub fn datatype(&self) -> &DataType {
+        &self.datatype
+    }
+
+    pub fn count(&self) -> u32 {
+        self.count
+    }
+
+    pub fn offset(&self) -> &[u8; 4] {
+        &self.offset
     }
 }
 

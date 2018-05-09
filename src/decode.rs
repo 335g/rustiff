@@ -17,7 +17,9 @@ use byte::{
 use ifd::{
     self,
     IFD,
+    Tag,
     Entry,
+    DataType,
 };
 
 use std::{
@@ -67,6 +69,62 @@ impl<R> Decoder<R> where R: Read + Seek {
             next: self.next,
         }
     }
+
+    pub fn get<'a>(&mut self, ifd: &'a IFD, tag: &Tag) -> Result<&'a Entry> {
+        let entry = ifd.get(tag)
+            .ok_or(Error::from(DecodeError::CannotFindTheTag{ tag: tag.clone() }))?;
+        Ok(entry)
+    }
+    
+    #[inline]
+    fn going_to_get_it(&mut self, mut offset: &[u8], n: u32) -> Result<Vec<u32>> {
+        self.reader.goto(offset.read_u32(&self.endian)? as u64)?;
+        let mut data = Vec::with_capacity(n as usize);
+        for _ in 0..n {
+            data.push(self.reader.read_u16(&self.endian)? as u32);
+        }
+
+        Ok(data)
+    }
+    
+    #[inline]
+    fn get_values(&mut self, ifd: &IFD, tag: &Tag) -> Result<Vec<u32>> {
+        let entry = self.get(&ifd, &tag)?;
+
+        let mut offset = entry.offset();
+
+        match (entry.datatype(), entry.count()) {
+            (&DataType::Short, 2) => {
+                Ok(vec![
+                    offset.read_u16(&self.endian)? as u32,
+                    offset.read_u16(&self.endian)? as u32
+                ])
+            }
+            (&DataType::Short, n) if n >= 3 => self.going_to_get_it(&mut offset, n),
+            (&DataType::Long, n) if n >= 2 => self.going_to_get_it(&mut offset, n),
+            (&DataType::Byte, _) |
+            (&DataType::Short, 1) |
+            (&DataType::Long, 1) => Err(Error::from(DecodeError::Few{ tag: tag.clone() })),
+            (dt, _) => Err(Error::from(DecodeError::UnsupportedDataType { datatype: dt.clone() })),
+        }
+    }
+    
+    #[inline]
+    fn get_value(&mut self, ifd: &IFD, tag: &Tag) -> Result<u32> {
+        let entry = self.get(&ifd, &tag)?;
+
+        let mut offset = entry.offset();
+
+        match (entry.datatype(), entry.count()) {
+            (&DataType::Byte, 1) => Ok(offset.read_u8()? as u32),
+            (&DataType::Short, 1) => Ok(offset.read_u16(&self.endian)? as u32),
+            (&DataType::Long, 1) => Ok(offset.read_u32(&self.endian)? as u32),
+            (&DataType::Byte, _) | 
+            (&DataType::Short, _) | 
+            (&DataType::Long, _) => Err(Error::from(DecodeError::ALot{ tag: tag.clone() })),
+            (dt, _) => Err(Error::from(DecodeError::UnsupportedDataType{ datatype: dt.clone() })),
+        }
+    }
 }
 
 pub struct IFDs<'a, R: 'a> {
@@ -93,9 +151,9 @@ impl<'a, R> IFDs<'a, R> where R: Read + Seek + 'a {
     }
 
     #[inline]
-    fn read_entry(&mut self) -> Result<(ifd::Tag, ifd::Entry)> {
-        let tag = ifd::Tag::from_u16(self.reader.read_u16(&self.endian)?);
-        let datatype = ifd::DataType::from_u16(self.reader.read_u16(&self.endian)?);
+    fn read_entry(&mut self) -> Result<(Tag, Entry)> {
+        let tag = Tag::from_u16(self.reader.read_u16(&self.endian)?);
+        let datatype = DataType::from_u16(self.reader.read_u16(&self.endian)?);
         
         let entry = Entry::new(
             datatype,

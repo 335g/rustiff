@@ -66,10 +66,8 @@ tags!{
 #[derive(Debug, Clone)]
 pub enum DataType {
     Byte,
-    Ascii,
     Short,
     Long,
-    Rational,
     Unknown(u16),
 }
 
@@ -77,10 +75,8 @@ impl DataType {
     pub fn from_u16(n: u16) -> DataType {
         match n {
             1 => DataType::Byte,
-            2 => DataType::Ascii,
             3 => DataType::Short,
             4 => DataType::Long,
-            5 => DataType::Rational,
             n => DataType::Unknown(n),
         }
     }
@@ -110,7 +106,7 @@ impl Entry {
         self.count
     }
 
-    pub fn offset(&self) -> &[u8; 4] {
+    pub fn offset(&self) -> &[u8] {
         &self.offset
     }
 }
@@ -125,7 +121,8 @@ impl IFD {
     pub fn insert(&mut self, k: Tag, v: Entry) -> Option<Entry> {
         self.0.insert(k, v)
     }
-
+    
+    #[inline]
     pub fn get(&self, k: &Tag) -> Option<&Entry> {
         self.0.get(k)
     }

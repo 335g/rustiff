@@ -25,6 +25,11 @@ pub enum Endian {
 }
 
 pub trait EndianReadExt: Read {
+    fn read_u8(&mut self) -> Result<u8> {
+        let value = <Self as ReadBytesExt>::read_u8(self)?;
+        Ok(value)
+    }
+
     fn read_u16(&mut self, byte_order: &Endian) -> Result<u16> {
         let value = match *byte_order {
             Endian::Big => <Self as ReadBytesExt>::read_u16::<BigEndian>(self),

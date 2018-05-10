@@ -88,12 +88,14 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
     
     #[inline]
-    fn get_values(&mut self, ifd: &IFD, tag: &Tag) -> Result<Vec<u32>> {
+    pub fn get_values(&mut self, ifd: &IFD, tag: &Tag) -> Result<Vec<u32>> {
         let entry = self.get(&ifd, &tag)?;
 
         let mut offset = entry.offset();
 
         match (entry.datatype(), entry.count()) {
+            (&DataType::Byte, 1) => Ok(vec![offset.read_u8()? as u32]),
+            (&DataType::Short, 1) => Ok(vec![offset.read_u16(&self.endian)? as u32]),
             (&DataType::Short, 2) => {
                 Ok(vec![
                     offset.read_u16(&self.endian)? as u32,
@@ -101,28 +103,23 @@ impl<R> Decoder<R> where R: Read + Seek {
                 ])
             }
             (&DataType::Short, n) if n >= 3 => self.going_to_get_it(&mut offset, n),
+            (&DataType::Long, 1) => Ok(vec![offset.read_u32(&self.endian)? as u32]),
             (&DataType::Long, n) if n >= 2 => self.going_to_get_it(&mut offset, n),
-            (&DataType::Byte, _) |
-            (&DataType::Short, 1) |
-            (&DataType::Long, 1) => Err(Error::from(DecodeError::Few{ tag: tag.clone() })),
             (dt, _) => Err(Error::from(DecodeError::UnsupportedDataType { datatype: dt.clone() })),
         }
     }
     
     #[inline]
-    fn get_value(&mut self, ifd: &IFD, tag: &Tag) -> Result<u32> {
-        let entry = self.get(&ifd, &tag)?;
+    pub fn get_value(&mut self, ifd: &IFD, tag: &Tag) -> Result<u32> {
+        let values = self.get_values(&ifd, &tag)?;
 
-        let mut offset = entry.offset();
-
-        match (entry.datatype(), entry.count()) {
-            (&DataType::Byte, 1) => Ok(offset.read_u8()? as u32),
-            (&DataType::Short, 1) => Ok(offset.read_u16(&self.endian)? as u32),
-            (&DataType::Long, 1) => Ok(offset.read_u32(&self.endian)? as u32),
-            (&DataType::Byte, _) | 
-            (&DataType::Short, _) | 
-            (&DataType::Long, _) => Err(Error::from(DecodeError::ALot{ tag: tag.clone() })),
-            (dt, _) => Err(Error::from(DecodeError::UnsupportedDataType{ datatype: dt.clone() })),
+        if values.len() > 1 {
+            Err(Error::from(DecodeError::ALot{ tag: tag.clone() }))
+        } else if let Some(value) = values.first() {
+            Ok(*value)
+        } else {
+            // It should not come here, because `get_values` will not return empty `Ok(vec)`.
+            Err(Error::from(DecodeError::Few{ tag: tag.clone() }))
         }
     }
 }

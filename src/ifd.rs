@@ -21,6 +21,12 @@ macro_rules! tags {
                     Tag::Unknown(n)
                 }
             }
+
+            pub fn all() -> Vec<Tag> {
+                vec![
+                    $(Tag::$tag,)*
+                ]
+            }
         }
     }
 }

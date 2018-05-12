@@ -92,7 +92,7 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
     
     #[inline]
-    pub fn get_values(&mut self, ifd: &IFD, tag: &Tag) -> Result<Vec<u32>> {
+    pub fn get_ifd_values(&mut self, ifd: &IFD, tag: &Tag) -> Result<Vec<u32>> {
         let entry = self.get(&ifd, &tag)?;
 
         let mut offset = entry.offset();
@@ -115,8 +115,8 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
     
     #[inline]
-    pub fn get_value(&mut self, ifd: &IFD, tag: &Tag) -> Result<u32> {
-        let values = self.get_values(&ifd, &tag)?;
+    pub fn get_ifd_value(&mut self, ifd: &IFD, tag: &Tag) -> Result<u32> {
+        let values = self.get_ifd_values(&ifd, &tag)?;
 
         if values.len() > 1 {
             Err(Error::from(DecodeError::ALot{ tag: tag.clone() }))

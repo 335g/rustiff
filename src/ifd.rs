@@ -26,7 +26,6 @@ macro_rules! tags {
 }
 
 tags!{
-    // must ?
     ImageWidth 256;
     ImageLength 257;
     BitsPerSample 258;
@@ -39,28 +38,6 @@ tags!{
     YResolusion 283;
     ResolutionUnit 296;
     ColorMap 320;
-    
-    // options
-    NewSubfileType 254;
-    Thresholding 263;
-    CellWidth 264;
-    CellLength 265;
-    FillOrder 266;
-    ImageDescription 270;
-    Make 271;
-    Model 272;
-    Orientation 274;
-    SamplesPerPixel 277;
-    MinSampleValue 280;
-    MaxSampleValue 281;
-    PlanarConfiguration 284;
-    GrayResponseUnit 290;
-    GrayResponseCurve 291;
-    Software 305;
-    DateTime 306;
-    HostComputer 316;
-    ExtraSamples 338;
-    Copyright 33432;
 }
 
 #[derive(Debug, Clone)]
@@ -68,6 +45,7 @@ pub enum DataType {
     Byte,
     Short,
     Long,
+    Rational,
     Unknown(u16),
 }
 
@@ -77,6 +55,7 @@ impl DataType {
             1 => DataType::Byte,
             3 => DataType::Short,
             4 => DataType::Long,
+            5 => DataType::Rational,
             n => DataType::Unknown(n),
         }
     }
@@ -111,6 +90,7 @@ impl Entry {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct IFD(HashMap<Tag, Entry>);
 
 impl IFD {

@@ -105,6 +105,7 @@ impl<R> Decoder<R> where R: Read + Seek {
             (&DataType::Short, n) if n >= 3 => self.going_to_get_it(&mut offset, n),
             (&DataType::Long, 1) => Ok(vec![offset.read_u32(&self.endian)? as u32]),
             (&DataType::Long, n) if n >= 2 => self.going_to_get_it(&mut offset, n),
+            (&DataType::Rational, n) => self.going_to_get_it(&mut offset, n),
             (dt, _) => Err(Error::from(DecodeError::UnsupportedDataType { datatype: dt.clone() })),
         }
     }

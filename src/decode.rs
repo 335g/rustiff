@@ -35,7 +35,7 @@ use std::{
 pub struct Decoder<R> {
     reader: R,
     endian: Endian,
-    next: u32,
+    start: u32,
 }
 
 impl<R> Decoder<R> where R: Read + Seek {
@@ -54,7 +54,7 @@ impl<R> Decoder<R> where R: Read + Seek {
         }
 
         let decoder = Decoder {
-            next: reader.read_u32(&endian)?,
+            start: reader.read_u32(&endian)?,
             reader: reader,
             endian: endian,
         };
@@ -66,8 +66,12 @@ impl<R> Decoder<R> where R: Read + Seek {
         IFDs {
             reader: &mut self.reader,
             endian: self.endian,
-            next: self.next,
+            next: self.start,
         }
+    }
+
+    pub fn ifd(&mut self) -> Option<IFD> {
+        self.ifds().into_iter().next()
     }
 
     pub fn get<'a>(&mut self, ifd: &'a IFD, tag: &Tag) -> Result<&'a Entry> {

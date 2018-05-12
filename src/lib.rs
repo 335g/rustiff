@@ -12,7 +12,6 @@ mod ifd;
 
 pub use decode::{
     Decoder,
-    IFDs,
 };
 
 pub use ifd::{

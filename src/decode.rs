@@ -36,6 +36,7 @@ pub struct Decoder<R> {
     reader: R,
     endian: Endian,
     start: u32,
+    next: u32,
 }
 
 impl<R> Decoder<R> where R: Read + Seek {
@@ -53,8 +54,11 @@ impl<R> Decoder<R> where R: Read + Seek {
             return Err(Error::from(DecodeError::IncorrectHeader{ reason: "Not 42".to_string() }));
         }
 
+        let start = reader.read_u32(&endian)?;
+
         let decoder = Decoder {
-            start: reader.read_u32(&endian)?,
+            start: start,
+            next: start,
             reader: reader,
             endian: endian,
         };
@@ -62,16 +66,12 @@ impl<R> Decoder<R> where R: Read + Seek {
         Ok(decoder)
     }
 
-    pub fn ifds<'a>(&'a mut self) -> IFDs<'a, R> {
-        IFDs {
-            reader: &mut self.reader,
-            endian: self.endian,
-            next: self.start,
-        }
+    pub fn ifds(&mut self) {
+        self.next = self.start;
     }
 
     pub fn ifd(&mut self) -> Option<IFD> {
-        self.ifds().into_iter().next()
+        self.into_iter().next()
     }
 
     pub fn get<'a>(&mut self, ifd: &'a IFD, tag: &Tag) -> Result<&'a Entry> {
@@ -127,15 +127,7 @@ impl<R> Decoder<R> where R: Read + Seek {
             Err(Error::from(DecodeError::Few{ tag: tag.clone() }))
         }
     }
-}
-
-pub struct IFDs<'a, R: 'a> {
-    reader: &'a mut R,
-    endian: Endian,
-    next: u32,
-}
-
-impl<'a, R> IFDs<'a, R> where R: Read + Seek + 'a {
+    
     #[inline]
     fn read_ifd(&mut self) -> Result<IFD>  {
         self.reader.goto(self.next as u64)?;
@@ -167,7 +159,7 @@ impl<'a, R> IFDs<'a, R> where R: Read + Seek + 'a {
     }
 }
 
-impl<'a, R> Iterator for IFDs<'a, R> where R: Read + Seek + 'a {
+impl<R> Iterator for Decoder<R> where R: Read + Seek {
     type Item = IFD;
 
     fn next(&mut self) -> Option<IFD> {

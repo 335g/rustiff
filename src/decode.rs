@@ -74,7 +74,7 @@ impl<R> Decoder<R> where R: Read + Seek {
         self.into_iter().next()
     }
 
-    fn get<'a>(&mut self, ifd: &'a IFD, tag: &Tag) -> Result<&'a Entry> {
+    pub fn get_entry<'a>(&mut self, ifd: &'a IFD, tag: &Tag) -> Result<&'a Entry> {
         let entry = ifd.get(tag)
             .ok_or(Error::from(DecodeError::CannotFindTheTag{ tag: tag.clone() }))?;
         Ok(entry)
@@ -92,8 +92,8 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
     
     #[inline]
-    pub fn get_ifd_values(&mut self, ifd: &IFD, tag: &Tag) -> Result<Vec<u32>> {
-        let entry = self.get(&ifd, &tag)?;
+    pub fn get_entry_values(&mut self, ifd: &IFD, tag: &Tag) -> Result<Vec<u32>> {
+        let entry = self.get_entry(&ifd, &tag)?;
 
         let mut offset = entry.offset();
 
@@ -115,8 +115,8 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
     
     #[inline]
-    pub fn get_ifd_value(&mut self, ifd: &IFD, tag: &Tag) -> Result<u32> {
-        let values = self.get_ifd_values(&ifd, &tag)?;
+    pub fn get_entry_value(&mut self, ifd: &IFD, tag: &Tag) -> Result<u32> {
+        let values = self.get_entry_values(&ifd, &tag)?;
 
         if values.len() > 1 {
             Err(Error::from(DecodeError::ALot{ tag: tag.clone() }))

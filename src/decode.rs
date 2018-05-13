@@ -47,7 +47,7 @@ impl<R> Decoder<R> where R: Read + Seek {
         let endian = match &byte_order {
             b"II" => Ok(Endian::Little),
             b"MM" => Ok(Endian::Big),
-            _ => Err(Error::from(DecodeError::IncorrectHeader{ reason: "byteorder".to_string() })),
+            _ => Err(Error::from(DecodeError::IncorrectHeader{ reason: "Not byteorder".to_string() })),
         }?;
 
         if reader.read_u16(&endian)? != 42 {
@@ -66,7 +66,7 @@ impl<R> Decoder<R> where R: Read + Seek {
         Ok(decoder)
     }
 
-    pub fn ifds(&mut self) {
+    pub fn load_ifds(&mut self) {
         self.next = self.start;
     }
 
@@ -74,7 +74,7 @@ impl<R> Decoder<R> where R: Read + Seek {
         self.into_iter().next()
     }
 
-    pub fn get<'a>(&mut self, ifd: &'a IFD, tag: &Tag) -> Result<&'a Entry> {
+    fn get<'a>(&mut self, ifd: &'a IFD, tag: &Tag) -> Result<&'a Entry> {
         let entry = ifd.get(tag)
             .ok_or(Error::from(DecodeError::CannotFindTheTag{ tag: tag.clone() }))?;
         Ok(entry)

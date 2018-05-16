@@ -31,6 +31,10 @@ use std::{
     marker::PhantomData,
 };
 
+use image::{
+    Image,
+};
+
 #[derive(Debug)]
 pub struct Decoder<R> {
     reader: R,
@@ -157,6 +161,14 @@ impl<R> Decoder<R> where R: Read + Seek {
 
         Ok((tag, entry))
     }
+
+    pub fn image(&mut self, ifd: &IFD) -> Result<Image> {
+        let width = self.get_entry_value(ifd, &Tag::ImageWidth)?;
+        let height = self.get_entry_value(ifd, &Tag::ImageLength)?;
+
+        unimplemented!()
+    }
+
 }
 
 impl<R> Iterator for Decoder<R> where R: Read + Seek {

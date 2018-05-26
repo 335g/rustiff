@@ -49,16 +49,17 @@ impl<R> Decoder<R> where R: Read + Seek {
         reader.read_exact(&mut byte_order)?;
 
         let endian = match &byte_order {
-            b"II" => Ok(Endian::Little),
-            b"MM" => Ok(Endian::Big),
-            _ => Err(Error::from(DecodeError::IncorrectHeader{ detail: IncorrectDetail::NoByteOrder })),
-        }?;
+            b"II" => Endian::Little,
+            b"MM" => Endian::Big,
+            _ => return Err(Error::from(DecodeError::IncorrectHeader{ detail: IncorrectDetail::NoByteOrder })),
+        };
 
         if reader.read_u16(&endian)? != 42 {
             return Err(Error::from(DecodeError::IncorrectHeader{ detail: IncorrectDetail::NoVersion }));
         }
 
-        let start = reader.read_u32(&endian)?;
+        let start = reader.read_u32(&endian)
+            .map_err(|_| DecodeError::IncorrectHeader{ detail: IncorrectDetail::NoIFDAddress, })?;
 
         let decoder = Decoder {
             start: start,

@@ -8,16 +8,42 @@ use byte::{
     StrictReader,
 };
 
-#[derive(Debug, Clone, Copy, FromPrimitive)]
+#[derive(Debug, Clone, Copy)]
 pub enum PhotometricInterpretation {
-    WhiteIsZero = 0,
-    RGB = 2,
-    CMYK = 5,
+    WhiteIsZero,
+    RGB,
+    CMYK,
+    Unknown(u16),
 }
 
-#[derive(Debug, Clone, Copy, FromPrimitive)]
+impl PhotometricInterpretation {
+    pub fn from_u16(n: u16) -> PhotometricInterpretation {
+        use self::PhotometricInterpretation::*;
+
+        match n {
+            0 => WhiteIsZero,
+            2 => RGB,
+            5 => CMYK,
+            n => Unknown(n),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 pub enum Compression {
-    No = 1,
+    No,
+    Unknown(u16),
+}
+
+impl Compression {
+    pub fn from_u16(n: u16) -> Compression {
+        use self::Compression::*;
+
+        match n {
+            1 => No,
+            n => Unknown(n),
+        }
+    }
 }
 
 pub enum Image {

@@ -19,6 +19,9 @@ pub enum IncorrectDetail {
 
     #[fail(display = "No ver42")]
     NoVersion,
+
+    #[fail(display = "No IFD address")]
+    NoIFDAddress,
 }
 
 #[derive(Debug, Fail)]

@@ -7,5 +7,3 @@ authors = ["335g <actionstar620@yahoo.co.jp>"]
 byteorder = "1.2"
 failure = "0.1"
 lzw = "0.10"
-num-traits = "0.2"
-num-derive = "0.2"

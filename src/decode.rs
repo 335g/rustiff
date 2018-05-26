@@ -6,6 +6,7 @@
 use error::{
     Result,
     DecodeError,
+    IncorrectDetail,
     Error,
 };
 use byte::{
@@ -50,11 +51,11 @@ impl<R> Decoder<R> where R: Read + Seek {
         let endian = match &byte_order {
             b"II" => Ok(Endian::Little),
             b"MM" => Ok(Endian::Big),
-            _ => Err(Error::from(DecodeError::IncorrectHeader{ reason: "Not byteorder".to_string() })),
+            _ => Err(Error::from(DecodeError::IncorrectHeader{ detail: IncorrectDetail::NoByteOrder })),
         }?;
 
         if reader.read_u16(&endian)? != 42 {
-            return Err(Error::from(DecodeError::IncorrectHeader{ reason: "Not 42".to_string() }));
+            return Err(Error::from(DecodeError::IncorrectHeader{ detail: IncorrectDetail::NoVersion }));
         }
 
         let start = reader.read_u32(&endian)?;
@@ -122,12 +123,16 @@ impl<R> Decoder<R> where R: Read + Seek {
         let values = self.get_entry_values(&ifd, &tag)?;
 
         if values.len() > 1 {
-            Err(Error::from(DecodeError::ALot{ tag: tag.clone() }))
-        } else if let Some(value) = values.first() {
-            Ok(*value)
+            let entry = self.get_entry(&ifd, &tag)?;
+            let err = DecodeError::UnsupportedDataTypeForThisTag {
+                tag: tag.clone(), 
+                datatype: entry.datatype().clone()
+            };
+
+            Err(Error::from(err))
         } else {
             // It should not come here, because `get_values` will not return empty `Ok(vec)`.
-            Err(Error::from(DecodeError::Few{ tag: tag.clone() }))
+            Ok(*values.first().unwrap())
         }
     }
     

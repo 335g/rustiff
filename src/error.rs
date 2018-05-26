@@ -13,26 +13,26 @@ use ifd::{
 };
 
 #[derive(Debug, Fail)]
+pub enum IncorrectDetail {
+    #[fail(display = "No ByteOrder")]
+    NoByteOrder,
+
+    #[fail(display = "No ver42")]
+    NoVersion,
+}
+
+#[derive(Debug, Fail)]
 pub enum DecodeError {
-    #[fail(display = "Incorrect Header: {:?}", reason)]
-    IncorrectHeader { reason: String, },
-
-    #[fail(display = "Cannot decode byte code to IFD.")]
-    NoIFD,
-
-    #[fail(display = "Cannot decode byte code to IFD entry.")]
-    NoIFDEntry,
+    #[fail(display = "Incorrect: {:?}", detail)]
+    IncorrectHeader{ detail: IncorrectDetail },
 
     #[fail(display = "Cannot find the tag ({:?}) in the IFD.", tag)]
     CannotFindTheTag { tag: Tag },
 
-    #[fail(display = "The value for this tag ({:?}) is many in the data field.", tag)]
-    ALot { tag: Tag, },
+    #[fail(display = "Unsupported data type for the tag, (tag: {:?}, datatype: {:?}", datatype, tag)]
+    UnsupportedDataTypeForThisTag { tag: Tag, datatype: DataType },
 
-    #[fail(display = "There are only a few values for this tag ({:?}) in the data field.", tag)]
-    Few { tag: Tag, },
-
-    #[fail(display = "Unsupported data type ({:?}) for ifd::Entry", datatype)]
+    #[fail(display = "Unsupported data type: {:?}", datatype)]
     UnsupportedDataType { datatype: DataType },
 }
 

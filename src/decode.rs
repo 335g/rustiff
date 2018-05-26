@@ -28,7 +28,6 @@ use std::{
         Read,
         Seek,
     },
-    marker::PhantomData,
 };
 
 use image::{

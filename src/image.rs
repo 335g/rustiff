@@ -3,6 +3,11 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
+use byte::{
+    EndianReader,
+    StrictReader,
+};
+
 #[derive(Debug, Clone, Copy, FromPrimitive)]
 pub enum PhotometricInterpretation {
     WhiteIsZero = 0,

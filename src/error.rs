@@ -14,7 +14,7 @@ use ifd::{
 
 #[derive(Debug, Fail)]
 pub enum DecodeError {
-    #[fail(display = "Incorrect header : ({:?})", reason)]
+    #[fail(display = "Incorrect Header: {:?}", reason)]
     IncorrectHeader { reason: String, },
 
     #[fail(display = "Cannot decode byte code to IFD.")]

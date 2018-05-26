@@ -79,3 +79,26 @@ pub trait SeekExt: Seek {
 
 impl<S: Seek> SeekExt for S {}
 
+
+
+pub trait EndianReader<R: Read + Seek>: Sized {
+    fn new(reader: R, endian: Endian, length: usize) -> Result<(usize, Self)>;
+}
+
+#[derive(Debug)]
+pub struct StrictReader<R> {
+    reader: R,
+    endian: Endian,
+}
+
+impl<R> EndianReader<R> for StrictReader<R> where R: Read + Seek {
+    fn new(reader: R, endian: Endian, length: usize) -> Result<(usize, Self)> {
+        let r = StrictReader {
+            reader: reader,
+            endian: endian,
+        };
+
+        Ok((length, r))
+    }
+}
+

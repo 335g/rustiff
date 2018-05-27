@@ -37,6 +37,12 @@ pub enum DecodeError {
 
     #[fail(display = "Unsupported data type: {:?}", datatype)]
     UnsupportedDataType { datatype: DataType },
+
+    #[fail(display = "Unsupported data(u16): {:?}", data)]
+    UnsupportedU16 { data: u16 },
+
+    #[fail(display = "`SamplesPerPixel`({:?}) and the number of `BitsPerSample`({:?}) should be the same.", samples, bits)]
+    NotMatchNumberOfSamples { samples: u8, bits: Vec<u8>, },
 }
 
 pub enum EncodeError {}

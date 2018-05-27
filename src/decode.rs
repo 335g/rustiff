@@ -33,6 +33,10 @@ use std::{
 
 use image::{
     Image,
+    ImageHeader,
+    Compression,
+    PhotometricInterpretation,
+    BitsPerSample,
 };
 
 #[derive(Debug)]
@@ -170,7 +174,29 @@ impl<R> Decoder<R> where R: Read + Seek {
     pub fn image(&mut self, ifd: &IFD) -> Result<Image> {
         let width = self.get_entry_value(ifd, &Tag::ImageWidth)?;
         let height = self.get_entry_value(ifd, &Tag::ImageLength)?;
+        let samples = self.get_entry_value(ifd, &Tag::SamplesPerPixel).unwrap_or(1);
+        let compression = self.get_entry_value(ifd, &Tag::Compression).unwrap_or(1);
+        let compression = Compression::from_u16(compression as u16)?;
+        let interpretation = self.get_entry_value(ifd, &Tag::PhotometricInterpretation)?;
+        let interpretation = PhotometricInterpretation::from_u16(interpretation as u16)?;
+        let bits = self.get_entry_values(ifd, &Tag::BitsPerSample).unwrap_or(vec![1]);
 
+        let bits_len = bits.len();
+        let bits_per_sample = if samples == 1 && bits_len == 1 {
+            BitsPerSample::one(bits[0] as u8)
+        } else if samples == 3 && bits_len == 3 {
+            BitsPerSample::three([bits[0] as u8, bits[1] as u8, bits[2] as u8])
+        } else if samples == 4 && bits_len == 4 {
+            BitsPerSample::four([bits[0] as u8, bits[1] as u8, bits[2] as u8, bits[3] as u8])
+        } else {
+            let err = DecodeError::NotMatchNumberOfSamples { 
+                samples: samples as u8, 
+                bits: bits.into_iter().map(|x| x as u8).collect::<Vec<u8>>() };
+            return Err(Error::from(err));
+        };
+
+        let header = ImageHeader::new(width, height, compression, interpretation, bits_per_sample);
+        
         unimplemented!()
     }
 

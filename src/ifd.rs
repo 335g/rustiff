@@ -38,12 +38,12 @@ tags!{
     Compression 259;
     PhotometricInterpretation 262;
     StripOffsets 273;
+    SamplesPerPixel 277;
     RowsPerStrip 278;
     StripByteCounts 279;
     XResolusion 282;
     YResolusion 283;
     ResolutionUnit 296;
-    ColorMap 320;
 }
 
 #[derive(Debug, Clone)]

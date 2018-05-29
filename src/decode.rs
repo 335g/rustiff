@@ -83,9 +83,9 @@ impl<R> Decoder<R> where R: Read + Seek {
         self.into_iter().next()
     }
 
-    pub fn get_entry<'a>(&mut self, ifd: &'a IFD, tag: &Tag) -> Result<&'a Entry> {
-        let entry = ifd.get(tag)
-            .ok_or(Error::from(DecodeError::CannotFindTheTag{ tag: tag.clone() }))?;
+    pub fn get_entry<'a>(&mut self, ifd: &'a IFD, tag: Tag) -> Result<&'a Entry> {
+        let entry = ifd.get(&tag)
+            .ok_or(Error::from(DecodeError::CannotFindTheTag{ tag: tag }))?;
         Ok(entry)
     }
     
@@ -101,37 +101,37 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
     
     #[inline]
-    pub fn get_entry_values(&mut self, ifd: &IFD, tag: &Tag) -> Result<Vec<u32>> {
-        let entry = self.get_entry(&ifd, &tag)?;
+    pub fn get_entry_values(&mut self, ifd: &IFD, tag: Tag) -> Result<Vec<u32>> {
+        let entry = self.get_entry(&ifd, tag)?;
 
         let mut offset = entry.offset();
 
         match (entry.datatype(), entry.count()) {
-            (&DataType::Byte, 1) => Ok(vec![offset.read_u8()? as u32]),
-            (&DataType::Short, 1) => Ok(vec![offset.read_u16(&self.endian)? as u32]),
-            (&DataType::Short, 2) => {
+            (DataType::Byte, 1) => Ok(vec![offset.read_u8()? as u32]),
+            (DataType::Short, 1) => Ok(vec![offset.read_u16(&self.endian)? as u32]),
+            (DataType::Short, 2) => {
                 Ok(vec![
                     offset.read_u16(&self.endian)? as u32,
                     offset.read_u16(&self.endian)? as u32
                 ])
             }
-            (&DataType::Short, n) if n >= 3 => self.going_to_get_it(&mut offset, n),
-            (&DataType::Long, 1) => Ok(vec![offset.read_u32(&self.endian)? as u32]),
-            (&DataType::Long, n) if n >= 2 => self.going_to_get_it(&mut offset, n),
-            (&DataType::Rational, n) => self.going_to_get_it(&mut offset, n),
-            (dt, _) => Err(Error::from(DecodeError::UnsupportedDataType { datatype: dt.clone() })),
+            (DataType::Short, n) if n >= 3 => self.going_to_get_it(&mut offset, n),
+            (DataType::Long, 1) => Ok(vec![offset.read_u32(&self.endian)? as u32]),
+            (DataType::Long, n) if n >= 2 => self.going_to_get_it(&mut offset, n),
+            (DataType::Rational, n) => self.going_to_get_it(&mut offset, n),
+            (dt, _) => Err(Error::from(DecodeError::UnsupportedDataType { datatype: dt })),
         }
     }
     
     #[inline]
-    pub fn get_entry_value(&mut self, ifd: &IFD, tag: &Tag) -> Result<u32> {
-        let values = self.get_entry_values(&ifd, &tag)?;
+    pub fn get_entry_value(&mut self, ifd: &IFD, tag: Tag) -> Result<u32> {
+        let values = self.get_entry_values(&ifd, tag)?;
 
         if values.len() > 1 {
-            let entry = self.get_entry(&ifd, &tag)?;
+            let entry = self.get_entry(&ifd, tag)?;
             let err = DecodeError::UnsupportedDataTypeForThisTag {
-                tag: tag.clone(), 
-                datatype: entry.datatype().clone()
+                tag: tag, 
+                datatype: entry.datatype()
             };
 
             Err(Error::from(err))
@@ -171,16 +171,16 @@ impl<R> Decoder<R> where R: Read + Seek {
         Ok((tag, entry))
     }
 
-    pub fn image(&mut self, ifd: &IFD) -> Result<Image> {
-        let width = self.get_entry_value(ifd, &Tag::ImageWidth)?;
-        let height = self.get_entry_value(ifd, &Tag::ImageLength)?;
-        let samples = self.get_entry_value(ifd, &Tag::SamplesPerPixel).unwrap_or(1);
-        let compression = self.get_entry_value(ifd, &Tag::Compression).unwrap_or(1);
+    pub fn header(&mut self, ifd: &IFD) -> Result<ImageHeader> {
+        let width = self.get_entry_value(ifd, Tag::ImageWidth)?;
+        let height = self.get_entry_value(ifd, Tag::ImageLength)?;
+        let samples = self.get_entry_value(ifd, Tag::SamplesPerPixel).unwrap_or(1);
+        let compression = self.get_entry_value(ifd, Tag::Compression).unwrap_or(1);
         let compression = Compression::from_u16(compression as u16)?;
-        let interpretation = self.get_entry_value(ifd, &Tag::PhotometricInterpretation)?;
+        let interpretation = self.get_entry_value(ifd, Tag::PhotometricInterpretation)?;
         let interpretation = PhotometricInterpretation::from_u16(interpretation as u16)?;
-        let bits = self.get_entry_values(ifd, &Tag::BitsPerSample).unwrap_or(vec![1]);
-
+        
+        let bits = self.get_entry_values(ifd, Tag::BitsPerSample).unwrap_or(vec![1]);
         let bits_len = bits.len();
         let bits_per_sample = if samples == 1 && bits_len == 1 {
             BitsPerSample::one(bits[0] as u8)
@@ -191,15 +191,22 @@ impl<R> Decoder<R> where R: Read + Seek {
         } else {
             let err = DecodeError::NotMatchNumberOfSamples { 
                 samples: samples as u8, 
-                bits: bits.into_iter().map(|x| x as u8).collect::<Vec<u8>>() };
+                bits: bits.into_iter().map(|x| x as u8).collect::<Vec<u8>>() 
+            };
+            
             return Err(Error::from(err));
         };
 
         let header = ImageHeader::new(width, height, compression, interpretation, bits_per_sample);
+        Ok(header)
+    }
+
+    pub fn image(&mut self, ifd: &IFD) -> Result<Image> {
+        let header = self.header(ifd)?;
+
         
         unimplemented!()
     }
-
 }
 
 impl<R> Iterator for Decoder<R> where R: Read + Seek {

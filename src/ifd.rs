@@ -46,7 +46,7 @@ tags!{
     ResolutionUnit 296;
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum DataType {
     Byte,
     Short,
@@ -83,8 +83,8 @@ impl Entry {
         }
     }
 
-    pub fn datatype(&self) -> &DataType {
-        &self.datatype
+    pub fn datatype(&self) -> DataType {
+        self.datatype
     }
 
     pub fn count(&self) -> u32 {

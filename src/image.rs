@@ -69,6 +69,7 @@ impl BitsPerSample {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ImageHeader {
     width: u32,
     height: u32,

@@ -86,6 +86,7 @@ impl<R> Decoder<R> where R: Read + Seek {
         Ok(v)
     }
 
+    #[inline]
     pub fn ifd(&mut self) -> Result<IFD> {
         let start = self.start;
         let (ifd, _) = self.read_ifd(start)?;
@@ -180,7 +181,8 @@ impl<R> Decoder<R> where R: Read + Seek {
         Ok((tag, entry))
     }
 
-    pub fn header(&mut self, ifd: &IFD) -> Result<ImageHeader> {
+    #[inline]
+    pub fn header_from(&mut self, ifd: &IFD) -> Result<ImageHeader> {
         let width = self.get_entry_value(ifd, Tag::ImageWidth)?;
         let height = self.get_entry_value(ifd, Tag::ImageLength)?;
         let samples = self.get_entry_value(ifd, Tag::SamplesPerPixel).unwrap_or(1);
@@ -209,9 +211,15 @@ impl<R> Decoder<R> where R: Read + Seek {
         let header = ImageHeader::new(width, height, compression, interpretation, bits_per_sample);
         Ok(header)
     }
+    
+    #[inline]
+    pub fn header(&mut self) -> Result<ImageHeader> {
+        let ifd = self.ifd()?;
+        self.header_from(&ifd)
+    }
 
     pub fn image_from(&mut self, ifd: &IFD) -> Result<Image> {
-        let header = self.header(ifd)?;
+        let header = self.header_from(ifd)?;
         
         
         unimplemented!()

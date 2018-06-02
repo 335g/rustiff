@@ -97,20 +97,30 @@ impl Entry {
 }
 
 #[derive(Debug, Clone)]
-pub struct IFD(HashMap<Tag, Entry>);
+pub struct IFD {
+    from: u32,
+    map: HashMap<Tag, Entry>,
+}
 
 impl IFD {
-    pub fn new() -> IFD {
-        IFD(HashMap::new())
+    pub fn new(from: u32) -> IFD {
+        IFD {
+            from: from,
+            map: HashMap::new(),
+        }
+    }
+
+    pub fn from(&self) -> u32 {
+        self.from
     }
 
     pub fn insert(&mut self, k: Tag, v: Entry) -> Option<Entry> {
-        self.0.insert(k, v)
+        self.map.insert(k, v)
     }
     
     #[inline]
     pub fn get(&self, k: &Tag) -> Option<&Entry> {
-        self.0.get(k)
+        self.map.get(k)
     }
 }
 

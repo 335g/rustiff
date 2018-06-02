@@ -43,6 +43,9 @@ pub enum DecodeError {
 
     #[fail(display = "`SamplesPerPixel`({:?}) and the number of `BitsPerSample`({:?}) should be the same.", samples, bits)]
     NotMatchNumberOfSamples { samples: u8, bits: Vec<u8>, },
+
+    #[fail(display = "No image")]
+    NoImage,
 }
 
 pub enum EncodeError {}

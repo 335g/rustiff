@@ -44,7 +44,6 @@ pub struct Decoder<R> {
     reader: R,
     endian: Endian,
     start: u32,
-    next: u32,
 }
 
 impl<R> Decoder<R> where R: Read + Seek {
@@ -67,7 +66,6 @@ impl<R> Decoder<R> where R: Read + Seek {
 
         let decoder = Decoder {
             start: start,
-            next: start,
             reader: reader,
             endian: endian,
         };
@@ -75,14 +73,20 @@ impl<R> Decoder<R> where R: Read + Seek {
         Ok(decoder)
     }
 
-    pub fn load_ifds(&mut self) {
-        self.next = self.start;
+    pub fn ifds(&mut self) -> Result<Vec<IFD>> {
+        let mut v = vec![];
+        let mut next = self.start;
+
+        while next != 0 {
+            let (ifd, n) = self.read_ifd(next)?;
+            v.push(ifd);
+            next = n;
+        }
+
+        Ok(v)
     }
 
-    pub fn ifd(&mut self) -> Option<IFD> {
-        self.into_iter().next()
-    }
-
+    #[inline]
     pub fn get_entry<'a>(&mut self, ifd: &'a IFD, tag: Tag) -> Result<&'a Entry> {
         let entry = ifd.get(&tag)
             .ok_or(Error::from(DecodeError::CannotFindTheTag{ tag: tag }))?;
@@ -142,21 +146,20 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
     
     #[inline]
-    fn read_ifd(&mut self) -> Result<IFD>  {
-        self.reader.goto(self.next as u64)?;
+    fn read_ifd(&mut self, from: u32) -> Result<(IFD, u32)>  {
+        self.reader.goto(from as u64)?;
 
-        let mut ifd = IFD::new();
+        let mut ifd = IFD::new(from);
         for _ in 0..self.reader.read_u16(&self.endian)? {
             let (tag, entry) = self.read_entry()?;
             ifd.insert(tag, entry);
         }
 
-        // Update next addr
-        self.next = self.reader.read_u32(&self.endian)?;
+        let next = self.reader.read_u32(&self.endian)?;
 
-        Ok(ifd)
+        Ok((ifd, next))
     }
-
+    
     #[inline]
     fn read_entry(&mut self) -> Result<(Tag, Entry)> {
         let tag = Tag::from_u16(self.reader.read_u16(&self.endian)?);
@@ -201,31 +204,20 @@ impl<R> Decoder<R> where R: Read + Seek {
         Ok(header)
     }
 
-    pub fn image(&mut self, ifd: &IFD) -> Result<Image> {
+    pub fn image_from(&mut self, ifd: &IFD) -> Result<Image> {
         let header = self.header(ifd)?;
 
         
         unimplemented!()
     }
-}
-
-impl<R> Iterator for Decoder<R> where R: Read + Seek {
-    type Item = IFD;
-
-    fn next(&mut self) -> Option<IFD> {
-        if self.next == 0 {
-            None
-        } else {
-            let ifd = self.read_ifd();
-            let next = self.reader.read_u32(&self.endian);
-
-            self.next = match next {
-                Ok(next) => next,
-                Err(_) => 0,
-            };
-
-            ifd.ok()
-        }
+    
+    /// 1st image data
+    pub fn image(&mut self) -> Result<Image> {
+        self.ifds()?
+            .iter()
+            .nth(0)
+            .ok_or(Error::from(DecodeError::NoImage))
+            .and_then(|ifd| self.image_from(ifd))
     }
 }
 

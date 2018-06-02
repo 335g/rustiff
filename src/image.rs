@@ -37,6 +37,7 @@ impl PhotometricInterpretation {
 #[derive(Debug, Clone, Copy)]
 pub enum Compression {
     No,
+    LZW,
 }
 
 impl Compression {
@@ -45,6 +46,7 @@ impl Compression {
 
         match n {
             1 => Ok(No),
+            5 => Ok(LZW),
             n => Err(Error::from(DecodeError::UnsupportedU16{ data: n })),
         }
     }

@@ -86,6 +86,12 @@ impl<R> Decoder<R> where R: Read + Seek {
         Ok(v)
     }
 
+    pub fn ifd(&mut self) -> Result<IFD> {
+        let start = self.start;
+        let (ifd, _) = self.read_ifd(start)?;
+        Ok(ifd)
+    }
+
     #[inline]
     pub fn get_entry<'a>(&mut self, ifd: &'a IFD, tag: Tag) -> Result<&'a Entry> {
         let entry = ifd.get(&tag)
@@ -206,18 +212,15 @@ impl<R> Decoder<R> where R: Read + Seek {
 
     pub fn image_from(&mut self, ifd: &IFD) -> Result<Image> {
         let header = self.header(ifd)?;
-
+        
         
         unimplemented!()
     }
     
     /// 1st image data
     pub fn image(&mut self) -> Result<Image> {
-        self.ifds()?
-            .iter()
-            .nth(0)
-            .ok_or(Error::from(DecodeError::NoImage))
-            .and_then(|ifd| self.image_from(ifd))
+        let ifd = self.ifd()?;
+        self.image_from(&ifd)
     }
 }
 

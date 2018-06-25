@@ -32,11 +32,11 @@ use std::{
 };
 
 use image::{
+    BitsPerSample,
     Image,
     ImageHeader,
     Compression,
     PhotometricInterpretation,
-    BitsPerSample,
 };
 
 #[derive(Debug)]
@@ -94,9 +94,9 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
 
     #[inline]
-    pub fn get_entry<'a>(&mut self, ifd: &'a IFD, tag: Tag) -> Result<&'a Entry> {
-        let entry = ifd.get(&tag)
-            .ok_or(Error::from(DecodeError::CannotFindTheTag{ tag: tag }))?;
+    pub fn get_entry<'a>(&mut self, ifd: &'a IFD, tag: &Tag) -> Result<&'a Entry> {
+        let entry = ifd.get(tag)
+            .ok_or(Error::from(DecodeError::CannotFindTheTag{ tag: tag.clone() }))?;
         Ok(entry)
     }
     
@@ -112,8 +112,8 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
     
     #[inline]
-    pub fn get_entry_values(&mut self, ifd: &IFD, tag: Tag) -> Result<Vec<u32>> {
-        let entry = self.get_entry(&ifd, tag)?;
+    pub fn get_entry_values(&mut self, ifd: &IFD, tag: &Tag) -> Result<Vec<u32>> {
+        let entry = self.get_entry(ifd, tag)?;
 
         let mut offset = entry.offset();
 
@@ -130,25 +130,53 @@ impl<R> Decoder<R> where R: Read + Seek {
             (DataType::Long, 1) => Ok(vec![offset.read_u32(&self.endian)? as u32]),
             (DataType::Long, n) if n >= 2 => self.going_to_get_it(&mut offset, n),
             (DataType::Rational, n) => self.going_to_get_it(&mut offset, n),
-            (dt, _) => Err(Error::from(DecodeError::UnsupportedDataType { datatype: dt })),
+            _ => {
+                Err(Error::from(
+                    DecodeError::UnsupportedIFDEntry { 
+                        entry: entry.clone(),
+                        reason: "A suitable `DataType` & entry.count does not exist.".to_string(),
+                    }))
+            },
         }
+    }
+
+    #[inline]
+    fn get_entry_values_u8(&mut self, ifd: &IFD, tag: &Tag) -> Result<Vec<u8>> {
+        let values = self.get_entry_values(ifd, tag)?;
+        let mut v = vec![];
+        for val in values {
+            if val > u8::max_value() as u32 {
+                return Err(Error::from(DecodeError::UnwantedData{ tag: tag.clone(), data: val }))
+            } else {
+                v.push(val as u8);
+            }
+        }
+        Ok(v)
     }
     
     #[inline]
-    pub fn get_entry_value(&mut self, ifd: &IFD, tag: Tag) -> Result<u32> {
-        let values = self.get_entry_values(&ifd, tag)?;
+    pub fn get_entry_value(&mut self, ifd: &IFD, tag: &Tag) -> Result<u32> {
+        let values = self.get_entry_values(ifd, tag)?;
 
         if values.len() > 1 {
-            let entry = self.get_entry(&ifd, tag)?;
-            let err = DecodeError::UnsupportedDataTypeForThisTag {
-                tag: tag, 
-                datatype: entry.datatype()
-            };
-
-            Err(Error::from(err))
+            Err(Error::from(
+                DecodeError::UnsupportedIFDEntry { 
+                    entry: self.get_entry(&ifd, tag)?.clone(),
+                    reason: format!("tag({:?}) is need to some values.", tag),
+                }))
         } else {
             // It should not come here, because `get_values` will not return empty `Ok(vec)`.
             Ok(*values.first().unwrap())
+        }
+    }
+
+    #[inline]
+    pub fn get_entry_value_u8(&mut self, ifd: &IFD, tag: &Tag) -> Result<u8> {
+        let value = self.get_entry_value(ifd, tag)?;
+        if value > u8::max_value() as u32 {
+            Err(Error::from(DecodeError::UnwantedData{ tag: tag.clone(), data: value }))
+        } else {
+            Ok(value as u8)
         }
     }
     
@@ -183,22 +211,18 @@ impl<R> Decoder<R> where R: Read + Seek {
 
     #[inline]
     pub fn header_from(&mut self, ifd: &IFD) -> Result<ImageHeader> {
-        let width = self.get_entry_value(ifd, Tag::ImageWidth)?;
-        let height = self.get_entry_value(ifd, Tag::ImageLength)?;
-        let samples = self.get_entry_value(ifd, Tag::SamplesPerPixel).unwrap_or(1);
-        let compression = self.get_entry_value(ifd, Tag::Compression).unwrap_or(1);
+        let width = self.get_entry_value(ifd, &Tag::ImageWidth)?;
+        let height = self.get_entry_value(ifd, &Tag::ImageLength)?;
+        let samples = self.get_entry_value(ifd, &Tag::SamplesPerPixel).unwrap_or(1);
+        let compression = self.get_entry_value(ifd, &Tag::Compression).unwrap_or(1);
         let compression = Compression::from_u16(compression as u16)?;
-        let interpretation = self.get_entry_value(ifd, Tag::PhotometricInterpretation)?;
+        let interpretation = self.get_entry_value(ifd, &Tag::PhotometricInterpretation)?;
         let interpretation = PhotometricInterpretation::from_u16(interpretation as u16)?;
         
-        let bits = self.get_entry_values(ifd, Tag::BitsPerSample).unwrap_or(vec![1]);
+        let bits = self.get_entry_values_u8(ifd, &Tag::BitsPerSample).unwrap_or(vec![1]);
         let bits_len = bits.len();
-        let bits_per_sample = if samples == 1 && bits_len == 1 {
-            BitsPerSample::one(bits[0] as u8)
-        } else if samples == 3 && bits_len == 3 {
-            BitsPerSample::three([bits[0] as u8, bits[1] as u8, bits[2] as u8])
-        } else if samples == 4 && bits_len == 4 {
-            BitsPerSample::four([bits[0] as u8, bits[1] as u8, bits[2] as u8, bits[3] as u8])
+        let bits_per_sample = if samples == bits_len as u32 {
+            BitsPerSample::new(bits)
         } else {
             let err = DecodeError::NotMatchNumberOfSamples { 
                 samples: samples as u8, 
@@ -218,14 +242,33 @@ impl<R> Decoder<R> where R: Read + Seek {
         self.header_from(&ifd)
     }
 
+    #[inline]
     pub fn image_from(&mut self, ifd: &IFD) -> Result<Image> {
         let header = self.header_from(ifd)?;
+        let width = header.width();
+        let height = header.height();
+
+        let bits_per_pixel = header.bits_per_sample()
+            .into_iter()
+            .map(|x| *x as u32)
+            .sum::<u32>();
+        let scanline_size = (width * bits_per_pixel + 7)/8;
+        let rows_per_strip = self.get_entry_value(ifd, &Tag::RowsPerStrip).unwrap_or(height);
+
+        let offsets = self.get_entry_values(ifd, &Tag::StripOffsets)?;
+        let strip_byte_counts = self.get_entry_values(ifd, &Tag::StripByteCounts)?;
         
-        
+        for (i, (&offset, &byte_count)) in offsets.iter()
+            .zip(strip_byte_counts.iter())
+            .enumerate()
+        {
+            let uncompressed_strip_size = scanline_size * (height - i as u32 * rows_per_strip);
+            
+        }
+
         unimplemented!()
     }
     
-    /// 1st image data
     pub fn image(&mut self) -> Result<Image> {
         let ifd = self.ifd()?;
         self.image_from(&ifd)

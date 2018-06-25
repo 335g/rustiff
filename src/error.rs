@@ -10,6 +10,7 @@ pub type Result<T> = ::std::result::Result<T, Error>;
 use ifd::{
     Tag,
     DataType,
+    Entry,
 };
 
 #[derive(Debug, Fail)]
@@ -32,14 +33,14 @@ pub enum DecodeError {
     #[fail(display = "Cannot find the tag ({:?}) in the IFD.", tag)]
     CannotFindTheTag { tag: Tag },
 
-    #[fail(display = "Unsupported data type for the tag, (tag: {:?}, datatype: {:?}", datatype, tag)]
-    UnsupportedDataTypeForThisTag { tag: Tag, datatype: DataType },
+    #[fail(display = "Unsupported IFD Entry: {:?}\n  because of: {:?}", entry, reason)]
+    UnsupportedIFDEntry { entry: Entry, reason: String, },
 
-    #[fail(display = "Unsupported data type: {:?}", datatype)]
-    UnsupportedDataType { datatype: DataType },
+    #[fail(display = "Unsupported data(u32): {:?}, in tag: {:?}", data, tag)]
+    UnsupportedData { tag: Tag, data: u32 },
 
-    #[fail(display = "Unsupported data(u16): {:?}", data)]
-    UnsupportedU16 { data: u16 },
+    #[fail(display = "Want u8 data, but got {:?} [tag: {:?}]", data, tag)]
+    UnwantedData { tag: Tag, data: u32 },
 
     #[fail(display = "`SamplesPerPixel`({:?}) and the number of `BitsPerSample`({:?}) should be the same.", samples, bits)]
     NotMatchNumberOfSamples { samples: u8, bits: Vec<u8>, },

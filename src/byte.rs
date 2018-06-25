@@ -79,8 +79,6 @@ pub trait SeekExt: Seek {
 
 impl<S: Seek> SeekExt for S {}
 
-
-
 pub trait EndianReader<R: Read + Seek>: Sized {
     fn new(reader: R, endian: Endian, length: usize) -> Result<(usize, Self)>;
 }

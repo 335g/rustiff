@@ -1,7 +1,6 @@
 
 extern crate byteorder;
 extern crate lzw;
-
 #[macro_use] extern crate failure;
 
 mod error;

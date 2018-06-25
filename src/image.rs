@@ -13,12 +13,22 @@ use error::{
     Error,
     DecodeError,
 };
+use ifd::Tag;
+
+use std::{
+    fmt::Debug,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub enum PhotometricInterpretation {
     WhiteIsZero,
+    BlackIsZero,
     RGB,
+    Palette,
+    TransparencyMask,
     CMYK,
+    YCbCr,
+    CIELab,
 }
 
 impl PhotometricInterpretation {
@@ -27,9 +37,14 @@ impl PhotometricInterpretation {
 
         match n {
             0 => Ok(WhiteIsZero),
+            1 => Ok(BlackIsZero),
             2 => Ok(RGB),
+            3 => Ok(Palette),
+            4 => Ok(TransparencyMask),
             5 => Ok(CMYK),
-            n => Err(Error::from(DecodeError::UnsupportedU16{ data: n })),
+            6 => Ok(YCbCr),
+            7 => Ok(CIELab),
+            n => Err(Error::from(DecodeError::UnsupportedData{ tag: Tag::PhotometricInterpretation, data: n as u32 })),
         }
     }
 }
@@ -47,27 +62,21 @@ impl Compression {
         match n {
             1 => Ok(No),
             5 => Ok(LZW),
-            n => Err(Error::from(DecodeError::UnsupportedU16{ data: n })),
+            n => Err(Error::from(DecodeError::UnsupportedData{ tag: Tag::Compression, data: n as u32 })),
         }
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct BitsPerSample {
-    bits: Vec<u8>,
-}
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BitsPerSample(Vec<u8>);
 
 impl BitsPerSample {
-    pub fn one(n: u8) -> BitsPerSample {
-        BitsPerSample { bits: vec![n] }
+    pub fn new<T: AsRef<[u8]>>(value: T) -> BitsPerSample {
+        BitsPerSample(value.as_ref().to_vec())
     }
 
-    pub fn three(xs: [u8; 3]) -> BitsPerSample {
-        BitsPerSample { bits: vec![xs[0], xs[1], xs[2]] }
-    }
-
-    pub fn four(xs: [u8; 4]) -> BitsPerSample {
-        BitsPerSample { bits: vec![xs[0], xs[1], xs[2], xs[3]] }
+    pub fn all_bits(&self) -> &[u8] {
+        &self.0
     }
 }
 
@@ -95,6 +104,18 @@ impl ImageHeader {
             photometric_interpretation: interpretation,
             bits_per_sample: bits_per_sample,
         }
+    }
+
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+
+    pub fn bits_per_sample(&self) -> &Vec<u8> {
+        &self.bits_per_sample.0
     }
 }
 

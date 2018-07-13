@@ -44,6 +44,7 @@ pub struct Decoder<R> {
     reader: R,
     endian: Endian,
     start: u32,
+    next: u32,
 }
 
 impl<R> Decoder<R> where R: Read + Seek {
@@ -66,6 +67,7 @@ impl<R> Decoder<R> where R: Read + Seek {
 
         let decoder = Decoder {
             start: start,
+            next: start,
             reader: reader,
             endian: endian,
         };
@@ -73,17 +75,8 @@ impl<R> Decoder<R> where R: Read + Seek {
         Ok(decoder)
     }
 
-    pub fn ifds(&mut self) -> Result<Vec<IFD>> {
-        let mut v = vec![];
-        let mut next = self.start;
-
-        while next != 0 {
-            let (ifd, n) = self.read_ifd(next)?;
-            v.push(ifd);
-            next = n;
-        }
-
-        Ok(v)
+    pub fn ifds(&mut self) -> Vec<IFD> {
+        self.collect::<Vec<_>>()
     }
 
     #[inline]
@@ -275,3 +268,17 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
 }
 
+impl<R> Iterator for Decoder<R> where R: Read + Seek {
+    type Item = IFD;
+
+    fn next(&mut self) -> Option<IFD> {
+        let next = self.next;
+        if let Some((ifd, next)) = self.read_ifd(next).ok() {
+            self.next = next;
+
+            Some(ifd)
+        } else {
+            None
+        }
+    }
+}

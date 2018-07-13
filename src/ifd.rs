@@ -5,46 +5,7 @@
 
 use std::collections::HashMap;
 
-macro_rules! tags {
-    {$($tag:ident $val:expr;)*} => {
-        #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
-        pub enum Tag {
-            $($tag,)*
-            Unknown(u16),
-        }
-
-        impl Tag {
-            pub fn from_u16(n: u16) -> Tag {
-                $(if n == $val {
-                    Tag::$tag
-                } else)* {
-                    Tag::Unknown(n)
-                }
-            }
-
-            pub fn all() -> Vec<Tag> {
-                vec![
-                    $(Tag::$tag,)*
-                ]
-            }
-        }
-    }
-}
-
-tags!{
-    ImageWidth 256;
-    ImageLength 257;
-    BitsPerSample 258;
-    Compression 259;
-    PhotometricInterpretation 262;
-    StripOffsets 273;
-    SamplesPerPixel 277;
-    RowsPerStrip 278;
-    StripByteCounts 279;
-    XResolusion 282;
-    YResolusion 283;
-    ResolutionUnit 296;
-}
+use tag::TagKind;
 
 #[derive(Debug, Clone, Copy)]
 pub enum DataType {
@@ -99,7 +60,7 @@ impl Entry {
 #[derive(Debug, Clone)]
 pub struct IFD {
     from: u32,
-    map: HashMap<Tag, Entry>,
+    map: HashMap<TagKind, Entry>,
 }
 
 impl IFD {
@@ -114,12 +75,12 @@ impl IFD {
         self.from
     }
 
-    pub fn insert(&mut self, k: Tag, v: Entry) -> Option<Entry> {
+    pub fn insert(&mut self, k: TagKind, v: Entry) -> Option<Entry> {
         self.map.insert(k, v)
     }
     
     #[inline]
-    pub fn get(&self, k: &Tag) -> Option<&Entry> {
+    pub fn get(&self, k: &TagKind) -> Option<&Entry> {
         self.map.get(k)
     }
 }

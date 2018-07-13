@@ -8,10 +8,10 @@ pub use failure::Error;
 pub type Result<T> = ::std::result::Result<T, Error>;
 
 use ifd::{
-    Tag,
     DataType,
     Entry,
 };
+use tag::TagKind;
 
 #[derive(Debug, Fail)]
 pub enum IncorrectDetail {
@@ -31,16 +31,16 @@ pub enum DecodeError {
     IncorrectHeader{ detail: IncorrectDetail },
 
     #[fail(display = "Cannot find the tag ({:?}) in the IFD.", tag)]
-    CannotFindTheTag { tag: Tag },
+    CannotFindTheTag { tag: TagKind },
 
     #[fail(display = "Unsupported IFD Entry: {:?}\n  because of: {:?}", entry, reason)]
     UnsupportedIFDEntry { entry: Entry, reason: String, },
 
     #[fail(display = "Unsupported data(u32): {:?}, in tag: {:?}", data, tag)]
-    UnsupportedData { tag: Tag, data: u32 },
+    UnsupportedData { tag: TagKind, data: u32 },
 
     #[fail(display = "Want u8 data, but got {:?} [tag: {:?}]", data, tag)]
-    UnwantedData { tag: Tag, data: u32 },
+    UnwantedData { tag: TagKind, data: u32 },
 
     #[fail(display = "`SamplesPerPixel`({:?}) and the number of `BitsPerSample`({:?}) should be the same.", samples, bits)]
     NotMatchNumberOfSamples { samples: u8, bits: Vec<u8>, },

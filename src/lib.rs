@@ -8,6 +8,7 @@ mod byte;
 mod decode;
 mod ifd;
 mod image;
+mod tag;
 
 pub use decode::{
     Decoder,
@@ -15,6 +16,8 @@ pub use decode::{
 
 pub use ifd::{
     IFD,
-    Tag,
     Entry,
+};
+pub use tag::{
+    TagKind,
 };

@@ -13,7 +13,7 @@ use error::{
     Error,
     DecodeError,
 };
-use ifd::Tag;
+use tag::TagKind;
 
 use std::{
     fmt::Debug,
@@ -44,7 +44,7 @@ impl PhotometricInterpretation {
             5 => Ok(CMYK),
             6 => Ok(YCbCr),
             7 => Ok(CIELab),
-            n => Err(Error::from(DecodeError::UnsupportedData{ tag: Tag::PhotometricInterpretation, data: n as u32 })),
+            n => Err(Error::from(DecodeError::UnsupportedData{ tag: TagKind::PhotometricInterpretation, data: n as u32 })),
         }
     }
 }
@@ -62,7 +62,7 @@ impl Compression {
         match n {
             1 => Ok(No),
             5 => Ok(LZW),
-            n => Err(Error::from(DecodeError::UnsupportedData{ tag: Tag::Compression, data: n as u32 })),
+            n => Err(Error::from(DecodeError::UnsupportedData{ tag: TagKind::Compression, data: n as u32 })),
         }
     }
 }

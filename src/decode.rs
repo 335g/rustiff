@@ -18,9 +18,11 @@ use byte::{
 use ifd::{
     self,
     IFD,
-    Tag,
     Entry,
     DataType,
+};
+use tag::{
+    TagKind,
 };
 
 use std::{
@@ -87,7 +89,7 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
 
     #[inline]
-    pub fn get_entry<'a>(&mut self, ifd: &'a IFD, tag: &Tag) -> Result<&'a Entry> {
+    pub fn get_entry<'a>(&mut self, ifd: &'a IFD, tag: &TagKind) -> Result<&'a Entry> {
         let entry = ifd.get(tag)
             .ok_or(Error::from(DecodeError::CannotFindTheTag{ tag: tag.clone() }))?;
         Ok(entry)
@@ -105,7 +107,7 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
     
     #[inline]
-    pub fn get_entry_values(&mut self, ifd: &IFD, tag: &Tag) -> Result<Vec<u32>> {
+    pub fn get_entry_values(&mut self, ifd: &IFD, tag: &TagKind) -> Result<Vec<u32>> {
         let entry = self.get_entry(ifd, tag)?;
 
         let mut offset = entry.offset();
@@ -134,7 +136,7 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
 
     #[inline]
-    fn get_entry_values_u8(&mut self, ifd: &IFD, tag: &Tag) -> Result<Vec<u8>> {
+    fn get_entry_values_u8(&mut self, ifd: &IFD, tag: &TagKind) -> Result<Vec<u8>> {
         let values = self.get_entry_values(ifd, tag)?;
         let mut v = vec![];
         for val in values {
@@ -148,7 +150,7 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
     
     #[inline]
-    pub fn get_entry_value(&mut self, ifd: &IFD, tag: &Tag) -> Result<u32> {
+    pub fn get_entry_value(&mut self, ifd: &IFD, tag: &TagKind) -> Result<u32> {
         let values = self.get_entry_values(ifd, tag)?;
 
         if values.len() > 1 {
@@ -164,7 +166,7 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
 
     #[inline]
-    pub fn get_entry_value_u8(&mut self, ifd: &IFD, tag: &Tag) -> Result<u8> {
+    pub fn get_entry_value_u8(&mut self, ifd: &IFD, tag: &TagKind) -> Result<u8> {
         let value = self.get_entry_value(ifd, tag)?;
         if value > u8::max_value() as u32 {
             Err(Error::from(DecodeError::UnwantedData{ tag: tag.clone(), data: value }))
@@ -189,8 +191,8 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
     
     #[inline]
-    fn read_entry(&mut self) -> Result<(Tag, Entry)> {
-        let tag = Tag::from_u16(self.reader.read_u16(&self.endian)?);
+    fn read_entry(&mut self) -> Result<(TagKind, Entry)> {
+        let tag = TagKind::from_u16(self.reader.read_u16(&self.endian)?);
         let datatype = DataType::from_u16(self.reader.read_u16(&self.endian)?);
         
         let entry = Entry::new(
@@ -204,15 +206,15 @@ impl<R> Decoder<R> where R: Read + Seek {
 
     #[inline]
     pub fn header_from(&mut self, ifd: &IFD) -> Result<ImageHeader> {
-        let width = self.get_entry_value(ifd, &Tag::ImageWidth)?;
-        let height = self.get_entry_value(ifd, &Tag::ImageLength)?;
-        let samples = self.get_entry_value(ifd, &Tag::SamplesPerPixel).unwrap_or(1);
-        let compression = self.get_entry_value(ifd, &Tag::Compression).unwrap_or(1);
+        let width = self.get_entry_value(ifd, &TagKind::ImageWidth)?;
+        let height = self.get_entry_value(ifd, &TagKind::ImageLength)?;
+        let samples = self.get_entry_value(ifd, &TagKind::SamplesPerPixel).unwrap_or(1);
+        let compression = self.get_entry_value(ifd, &TagKind::Compression).unwrap_or(1);
         let compression = Compression::from_u16(compression as u16)?;
-        let interpretation = self.get_entry_value(ifd, &Tag::PhotometricInterpretation)?;
+        let interpretation = self.get_entry_value(ifd, &TagKind::PhotometricInterpretation)?;
         let interpretation = PhotometricInterpretation::from_u16(interpretation as u16)?;
         
-        let bits = self.get_entry_values_u8(ifd, &Tag::BitsPerSample).unwrap_or(vec![1]);
+        let bits = self.get_entry_values_u8(ifd, &TagKind::BitsPerSample).unwrap_or(vec![1]);
         let bits_len = bits.len();
         let bits_per_sample = if samples == bits_len as u32 {
             BitsPerSample::new(bits)
@@ -246,10 +248,10 @@ impl<R> Decoder<R> where R: Read + Seek {
             .map(|x| *x as u32)
             .sum::<u32>();
         let scanline_size = (width * bits_per_pixel + 7)/8;
-        let rows_per_strip = self.get_entry_value(ifd, &Tag::RowsPerStrip).unwrap_or(height);
+        let rows_per_strip = self.get_entry_value(ifd, &TagKind::RowsPerStrip).unwrap_or(height);
 
-        let offsets = self.get_entry_values(ifd, &Tag::StripOffsets)?;
-        let strip_byte_counts = self.get_entry_values(ifd, &Tag::StripByteCounts)?;
+        let offsets = self.get_entry_values(ifd, &TagKind::StripOffsets)?;
+        let strip_byte_counts = self.get_entry_values(ifd, &TagKind::StripByteCounts)?;
         
         for (i, (&offset, &byte_count)) in offsets.iter()
             .zip(strip_byte_counts.iter())

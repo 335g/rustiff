@@ -4,6 +4,10 @@
 #![allow(dead_code)]
 
 use std::collections::HashMap;
+use std::fmt::{
+    self,
+    Display,
+};
 
 use tag::TagKind;
 
@@ -28,7 +32,7 @@ impl DataType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Fail)]
 pub struct Entry {
     datatype: DataType,
     count: u32,
@@ -54,6 +58,12 @@ impl Entry {
 
     pub fn offset(&self) -> &[u8] {
         &self.offset
+    }
+}
+
+impl Display for Entry {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Entry(datatype: {:?}, count: {}, offset: {:?}", self.datatype, self.count, self.offset)
     }
 }
 

@@ -9,9 +9,8 @@ use byte::{
 };
 
 use error::{
-    Result,
-    Error,
     DecodeError,
+    DecodeErrorKind,
 };
 use tag::TagKind;
 
@@ -32,7 +31,7 @@ pub enum PhotometricInterpretation {
 }
 
 impl PhotometricInterpretation {
-    pub fn from_u16(n: u16) -> Result<PhotometricInterpretation> {
+    pub fn from_u16(n: u16) -> Result<PhotometricInterpretation, DecodeError> {
         use self::PhotometricInterpretation::*;
 
         match n {
@@ -44,7 +43,7 @@ impl PhotometricInterpretation {
             5 => Ok(CMYK),
             6 => Ok(YCbCr),
             7 => Ok(CIELab),
-            n => Err(Error::from(DecodeError::UnsupportedData{ tag: TagKind::PhotometricInterpretation, data: n as u32 })),
+            n => Err(DecodeError::from(DecodeErrorKind::UnsupportedData{ tag: TagKind::PhotometricInterpretation, data: n as u32 })),
         }
     }
 }
@@ -56,13 +55,11 @@ pub enum Compression {
 }
 
 impl Compression {
-    pub fn from_u16(n: u16) -> Result<Compression> {
-        use self::Compression::*;
-
+    pub fn from_u16(n: u16) -> Result<Compression, DecodeError> {
         match n {
-            1 => Ok(No),
-            5 => Ok(LZW),
-            n => Err(Error::from(DecodeError::UnsupportedData{ tag: TagKind::Compression, data: n as u32 })),
+            1 => Ok(Compression::No),
+            5 => Ok(Compression::LZW),
+            n => Err(DecodeError::from(DecodeErrorKind::UnsupportedData{ tag: TagKind::Compression, data: n as u32 })),
         }
     }
 }

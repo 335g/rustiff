@@ -3,9 +3,17 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
+use failure::{
+    Fail,
+};
+use std::fmt::{
+    self,
+    Display,
+};
+
 macro_rules! tags {
     {$($tag:ident $val:expr;)*} => {
-        #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
+        #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd, Fail)]
         pub enum TagKind {
             $($tag,)*
             Unknown(u16),
@@ -24,6 +32,12 @@ macro_rules! tags {
                 vec![
                     $(TagKind::$tag,)*
                 ]
+            }
+        }
+
+        impl Display for TagKind {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                write!(f, "Tag: $tag")
             }
         }
     }

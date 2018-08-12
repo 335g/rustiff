@@ -4,10 +4,9 @@
 #![allow(dead_code)]
 
 use error::{
-    Result,
     DecodeError,
-    IncorrectDetail,
-    Error,
+    DecodeErrorKind,
+    DecodeResult,
 };
 use byte::{
     Endian,
@@ -50,22 +49,27 @@ pub struct Decoder<R> {
 }
 
 impl<R> Decoder<R> where R: Read + Seek {
-    pub fn new(mut reader: R) -> Result<Decoder<R>> {
+    pub fn new(mut reader: R) -> DecodeResult<Decoder<R>> {
         let mut byte_order = [0u8; 2];
-        reader.read_exact(&mut byte_order)?;
+        if let Err(e) = reader.read_exact(&mut byte_order) {
+            return Err(DecodeError::from(DecodeErrorKind::NoByteOrder));
+        }
 
         let endian = match &byte_order {
             b"II" => Endian::Little,
             b"MM" => Endian::Big,
-            _ => return Err(Error::from(DecodeError::IncorrectHeader{ detail: IncorrectDetail::NoByteOrder })),
+            _ => return Err(DecodeError::from(DecodeErrorKind::NoByteOrder)),
         };
 
-        if reader.read_u16(&endian)? != 42 {
-            return Err(Error::from(DecodeError::IncorrectHeader{ detail: IncorrectDetail::NoVersion }));
+        match reader.read_u16(&endian) {
+            Ok(x) if x == 42 => {},
+            _ => return Err(DecodeError::from(DecodeErrorKind::NoVersion))
         }
-
-        let start = reader.read_u32(&endian)
-            .map_err(|_| DecodeError::IncorrectHeader{ detail: IncorrectDetail::NoIFDAddress, })?;
+        
+        let start = match reader.read_u32(&endian) {
+            Ok(x) => x,
+            Err(_) => return Err(DecodeError::from(DecodeErrorKind::NoIFDAddress))
+        };
 
         let decoder = Decoder {
             start: start,
@@ -82,21 +86,20 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
 
     #[inline]
-    pub fn ifd(&mut self) -> Result<IFD> {
+    pub fn ifd(&mut self) -> DecodeResult<IFD> {
         let start = self.start;
         let (ifd, _) = self.read_ifd(start)?;
         Ok(ifd)
     }
 
     #[inline]
-    pub fn get_entry<'a>(&mut self, ifd: &'a IFD, tag: &TagKind) -> Result<&'a Entry> {
-        let entry = ifd.get(tag)
-            .ok_or(Error::from(DecodeError::CannotFindTheTag{ tag: tag.clone() }))?;
-        Ok(entry)
+    pub fn get_entry<'a>(&mut self, ifd: &'a IFD, tag: &TagKind) -> DecodeResult<&'a Entry> {
+        ifd.get(tag)
+            .ok_or(DecodeError::from(DecodeErrorKind::CannotFindTheTag{ tag: tag.clone() }))
     }
     
     #[inline]
-    fn going_to_get_it(&mut self, mut offset: &[u8], n: u32) -> Result<Vec<u32>> {
+    fn going_to_get_it(&mut self, mut offset: &[u8], n: u32) -> DecodeResult<Vec<u32>> {
         self.reader.goto(offset.read_u32(&self.endian)? as u64)?;
         let mut data = Vec::with_capacity(n as usize);
         for _ in 0..n {
@@ -107,7 +110,7 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
     
     #[inline]
-    pub fn get_entry_values(&mut self, ifd: &IFD, tag: &TagKind) -> Result<Vec<u32>> {
+    pub fn get_entry_values(&mut self, ifd: &IFD, tag: &TagKind) -> DecodeResult<Vec<u32>> {
         let entry = self.get_entry(ifd, tag)?;
 
         let mut offset = entry.offset();
@@ -126,8 +129,8 @@ impl<R> Decoder<R> where R: Read + Seek {
             (DataType::Long, n) if n >= 2 => self.going_to_get_it(&mut offset, n),
             (DataType::Rational, n) => self.going_to_get_it(&mut offset, n),
             _ => {
-                Err(Error::from(
-                    DecodeError::UnsupportedIFDEntry { 
+                Err(DecodeError::from(
+                    DecodeErrorKind::UnsupportedIFDEntry { 
                         entry: entry.clone(),
                         reason: "A suitable `DataType` & entry.count does not exist.".to_string(),
                     }))
@@ -136,12 +139,12 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
 
     #[inline]
-    fn get_entry_values_u8(&mut self, ifd: &IFD, tag: &TagKind) -> Result<Vec<u8>> {
+    fn get_entry_values_u8(&mut self, ifd: &IFD, tag: &TagKind) -> DecodeResult<Vec<u8>> {
         let values = self.get_entry_values(ifd, tag)?;
         let mut v = vec![];
         for val in values {
             if val > u8::max_value() as u32 {
-                return Err(Error::from(DecodeError::UnwantedData{ tag: tag.clone(), data: val }))
+                return Err(DecodeError::from(DecodeErrorKind::OverflowValue{ tag: tag.clone(), value: val }))
             } else {
                 v.push(val as u8);
             }
@@ -150,12 +153,12 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
     
     #[inline]
-    pub fn get_entry_value(&mut self, ifd: &IFD, tag: &TagKind) -> Result<u32> {
+    pub fn get_entry_value(&mut self, ifd: &IFD, tag: &TagKind) -> DecodeResult<u32> {
         let values = self.get_entry_values(ifd, tag)?;
 
         if values.len() > 1 {
-            Err(Error::from(
-                DecodeError::UnsupportedIFDEntry { 
+            Err(DecodeError::from(
+                DecodeErrorKind::UnsupportedIFDEntry { 
                     entry: self.get_entry(&ifd, tag)?.clone(),
                     reason: format!("tag({:?}) is need to some values.", tag),
                 }))
@@ -166,17 +169,17 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
 
     #[inline]
-    pub fn get_entry_value_u8(&mut self, ifd: &IFD, tag: &TagKind) -> Result<u8> {
+    pub fn get_entry_value_u8(&mut self, ifd: &IFD, tag: &TagKind) -> DecodeResult<u8> {
         let value = self.get_entry_value(ifd, tag)?;
         if value > u8::max_value() as u32 {
-            Err(Error::from(DecodeError::UnwantedData{ tag: tag.clone(), data: value }))
+            Err(DecodeError::from(DecodeErrorKind::OverflowValue { tag: tag.clone(), value: value }))
         } else {
             Ok(value as u8)
         }
     }
     
     #[inline]
-    fn read_ifd(&mut self, from: u32) -> Result<(IFD, u32)>  {
+    fn read_ifd(&mut self, from: u32) -> DecodeResult<(IFD, u32)>  {
         self.reader.goto(from as u64)?;
 
         let mut ifd = IFD::new(from);
@@ -191,7 +194,7 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
     
     #[inline]
-    fn read_entry(&mut self) -> Result<(TagKind, Entry)> {
+    fn read_entry(&mut self) -> DecodeResult<(TagKind, Entry)> {
         let tag = TagKind::from_u16(self.reader.read_u16(&self.endian)?);
         let datatype = DataType::from_u16(self.reader.read_u16(&self.endian)?);
         
@@ -205,7 +208,7 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
 
     #[inline]
-    pub fn header_from(&mut self, ifd: &IFD) -> Result<ImageHeader> {
+    pub fn header_from(&mut self, ifd: &IFD) -> DecodeResult<ImageHeader> {
         let width = self.get_entry_value(ifd, &TagKind::ImageWidth)?;
         let height = self.get_entry_value(ifd, &TagKind::ImageLength)?;
         let samples = self.get_entry_value(ifd, &TagKind::SamplesPerPixel).unwrap_or(1);
@@ -219,12 +222,12 @@ impl<R> Decoder<R> where R: Read + Seek {
         let bits_per_sample = if samples == bits_len as u32 {
             BitsPerSample::new(bits)
         } else {
-            let err = DecodeError::NotMatchNumberOfSamples { 
+            let err = DecodeErrorKind::NoMatchNumberOfSamples { 
                 samples: samples as u8, 
-                bits: bits.into_iter().map(|x| x as u8).collect::<Vec<u8>>() 
+                bits_per_sample: bits.into_iter().map(|x| x as u8).collect::<Vec<u8>>() 
             };
             
-            return Err(Error::from(err));
+            return Err(DecodeError::from(err));
         };
 
         let header = ImageHeader::new(width, height, compression, interpretation, bits_per_sample);
@@ -232,13 +235,13 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
     
     #[inline]
-    pub fn header(&mut self) -> Result<ImageHeader> {
+    pub fn header(&mut self) -> DecodeResult<ImageHeader> {
         let ifd = self.ifd()?;
         self.header_from(&ifd)
     }
 
     #[inline]
-    pub fn image_from(&mut self, ifd: &IFD) -> Result<Image> {
+    pub fn image_from(&mut self, ifd: &IFD) -> DecodeResult<Image> {
         let header = self.header_from(ifd)?;
         let width = header.width();
         let height = header.height();
@@ -264,7 +267,7 @@ impl<R> Decoder<R> where R: Read + Seek {
         unimplemented!()
     }
     
-    pub fn image(&mut self) -> Result<Image> {
+    pub fn image(&mut self) -> DecodeResult<Image> {
         let ifd = self.ifd()?;
         self.image_from(&ifd)
     }

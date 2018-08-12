@@ -4,49 +4,100 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
-pub use failure::Error;
-pub type Result<T> = ::std::result::Result<T, Error>;
-
 use ifd::{
     DataType,
     Entry,
 };
 use tag::TagKind;
 
+use std::io;
+use std::fmt::{
+    self,
+    Display,
+};
+use std::error::Error as StdError;
+use failure::{
+    Context,
+    Fail,
+    Backtrace,
+};
+
+pub type DecodeResult<T> = ::std::result::Result<T, DecodeError>;
+
 #[derive(Debug, Fail)]
-pub enum IncorrectDetail {
-    #[fail(display = "No ByteOrder")]
+pub enum DecodeErrorKind {
+    #[fail(display = "IO Error: {:?}", error)]
+    IO { error: io::Error },
+
+    #[fail(display = "Incorrect header: No Byte Order")]
     NoByteOrder,
 
-    #[fail(display = "No ver42")]
+    #[fail(display = "Incorrect header: No Version")]
     NoVersion,
 
-    #[fail(display = "No IFD address")]
+    #[fail(display = "Incorrect header: No IFD address")]
     NoIFDAddress,
-}
 
-#[derive(Debug, Fail)]
-pub enum DecodeError {
-    #[fail(display = "Incorrect: {:?}", detail)]
-    IncorrectHeader{ detail: IncorrectDetail },
+    #[fail(display = "No Image address")]
+    NoImage,
 
-    #[fail(display = "Cannot find the tag ({:?}) in the IFD.", tag)]
+    #[fail(display = "Can't find the tag ({})", tag)]
     CannotFindTheTag { tag: TagKind },
 
-    #[fail(display = "Unsupported IFD Entry: {:?}\n  because of: {:?}", entry, reason)]
-    UnsupportedIFDEntry { entry: Entry, reason: String, },
+    #[fail(display = "Unsupported IFD Entry ({})\n  reason: {}", entry, reason)]
+    UnsupportedIFDEntry{ entry: Entry, reason: String },
 
-    #[fail(display = "Unsupported data(u32): {:?}, in tag: {:?}", data, tag)]
+    #[fail(display = "u32: ({}) which is the value of tag: ({}) overflows more than u8::max ", tag, value)]
+    OverflowValue { tag: TagKind, value: u32 },
+    
+    #[fail(display = "samples: {} != length of `bits_per_sample`: {:?}", samples, bits_per_sample)]
+    NoMatchNumberOfSamples { samples: u8, bits_per_sample: Vec<u8> },
+
+    #[fail(display = "tag: ({}) does not support data: ({})", tag, data)]
     UnsupportedData { tag: TagKind, data: u32 },
+}
 
-    #[fail(display = "Want u8 data, but got {:?} [tag: {:?}]", data, tag)]
-    UnwantedData { tag: TagKind, data: u32 },
+#[derive(Debug)]
+pub struct DecodeError {
+    inner: Context<DecodeErrorKind>,
+}
 
-    #[fail(display = "`SamplesPerPixel`({:?}) and the number of `BitsPerSample`({:?}) should be the same.", samples, bits)]
-    NotMatchNumberOfSamples { samples: u8, bits: Vec<u8>, },
+impl Fail for DecodeError {
+    fn cause(&self) -> Option<&Fail> {
+        self.inner.cause()
+    }
 
-    #[fail(display = "No image")]
-    NoImage,
+    fn backtrace(&self) -> Option<&Backtrace> {
+        self.inner.backtrace()
+    }
+}
+
+impl Display for DecodeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        Display::fmt(&self.inner, f)
+    }
+}
+
+impl DecodeError {
+    fn new(kind: DecodeErrorKind) -> DecodeError {
+        DecodeError { inner: Context::new(kind) }
+    }
+    
+    pub fn kind(&self) -> &DecodeErrorKind {
+        self.inner.get_context()
+    }
+}
+
+impl From<io::Error> for DecodeError {
+    fn from(err: io::Error) -> DecodeError {
+        DecodeError::new(DecodeErrorKind::IO { error: err })
+    }
+}
+
+impl From<DecodeErrorKind> for DecodeError {
+    fn from(kind: DecodeErrorKind) -> DecodeError {
+        DecodeError { inner: Context::new(kind) }
+    }
 }
 
 pub enum EncodeError {}

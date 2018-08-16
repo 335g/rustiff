@@ -42,11 +42,43 @@ use image::{
 
 use failure::Fail;
 
+macro_rules! get_entry_values {
+    ($method:ident, $overflow:ident, $t:ident) => {
+        #[inline]
+        pub fn $method(&mut self, ifd: &IFD, tag: &TagKind) -> DecodeResult<Vec<$t>> {
+            let values = self.get_entry_u32_values(ifd, tag)?;
+            let mut v = vec![];
+            for val in values {
+                if val > $t::max_value() as u32 {
+                    return Err(DecodeError::from(DecodeErrorKind::$overflow { tag: tag.clone(), value: val }));
+                } else {
+                    v.push(val as $t);
+                }
+            }
+            Ok(v)
+        }
+    }
+}
+
+macro_rules! get_entry_value {
+    ($method:ident, $overflow:ident, $t:ident) => {
+        #[inline]
+        pub fn $method(&mut self, ifd: &IFD, tag: &TagKind) -> DecodeResult<$t> {
+            let value = self.get_entry_u32_value(ifd, tag)?;
+            if value > $t::max_value() as u32 {
+                Err(DecodeError::from(DecodeErrorKind::$overflow { tag: tag.clone(), value: value }))
+            } else {
+                Ok(value as $t)
+            }
+        }
+    }
+}
+
 macro_rules! set_default_values_when_there_is_no_key {
     ($method:ident, $method2:ident, $t:ty) => {
         #[inline]
-        fn $method2<T: AsRef<[$t]>>(&mut self, ifd: &IFD, tag: &TagKind, def: T) -> DecodeResult<Vec<$t>> {
-            self.$method(ifd, tag)
+        fn $method<T: AsRef<[$t]>>(&mut self, ifd: &IFD, tag: &TagKind, def: T) -> DecodeResult<Vec<$t>> {
+            self.$method2(ifd, tag)
                 .or_else(|e| {
                     match e.kind() {
                         DecodeErrorKind::CannotFindTheTag{ tag: _ } => Ok(def.as_ref().to_vec()),
@@ -60,8 +92,8 @@ macro_rules! set_default_values_when_there_is_no_key {
 macro_rules! set_default_value_when_there_is_no_key {
     ($method:ident, $method2:ident, $t:ty) => {
         #[inline]
-        fn $method2(&mut self, ifd: &IFD, tag: &TagKind, def: $t) -> DecodeResult<$t> {
-            self.$method(ifd, tag)
+        fn $method(&mut self, ifd: &IFD, tag: &TagKind, def: $t) -> DecodeResult<$t> {
+            self.$method2(ifd, tag)
                 .or_else(|e| {
                     match e.kind() {
                         DecodeErrorKind::CannotFindTheTag{ tag: _ } => Ok(def),
@@ -170,37 +202,12 @@ impl<R> Decoder<R> where R: Read + Seek {
         }
     }
 
-    #[inline]
-    fn get_entry_u16_values(&mut self, ifd: &IFD, tag:&TagKind) -> DecodeResult<Vec<u16>> {
-        let values = self.get_entry_u32_values(ifd, tag)?;
-        let mut v = vec![];
-        for val in values {
-            if val > u16::max_value() as u32 {
-                return Err(DecodeError::from(DecodeErrorKind::OverflowU16Value { tag: tag.clone(), value: val }));
-            } else {
-                v.push(val as u16);
-            }
-        }
-        Ok(v)
-    }
+    get_entry_values!(get_entry_u8_values, OverflowU8Value, u8);
+    get_entry_values!(get_entry_u16_values, OverflowU16Value, u16);
 
-    #[inline]
-    fn get_entry_u8_values(&mut self, ifd: &IFD, tag: &TagKind) -> DecodeResult<Vec<u8>> {
-        let values = self.get_entry_u32_values(ifd, tag)?;
-        let mut v = vec![];
-        for val in values {
-            if val > u8::max_value() as u32 {
-                return Err(DecodeError::from(DecodeErrorKind::OverflowU8Value{ tag: tag.clone(), value: val }));
-            } else {
-                v.push(val as u8);
-            }
-        }
-        Ok(v)
-    }
-
-    set_default_values_when_there_is_no_key!(get_entry_u32_values, get_entry_u32_values_or, u32);
-    set_default_values_when_there_is_no_key!(get_entry_u16_values, get_entry_u16_values_or, u16);
-    set_default_values_when_there_is_no_key!(get_entry_u8_values, get_entry_u8_values_or, u8);
+    set_default_values_when_there_is_no_key!(get_entry_u32_values_or, get_entry_u32_values, u32);
+    set_default_values_when_there_is_no_key!(get_entry_u16_values_or, get_entry_u16_values, u16);
+    set_default_values_when_there_is_no_key!(get_entry_u8_values_or, get_entry_u8_values, u8);
 
     #[inline]
     pub fn get_entry_u32_value(&mut self, ifd: &IFD, tag: &TagKind) -> DecodeResult<u32> {
@@ -218,29 +225,12 @@ impl<R> Decoder<R> where R: Read + Seek {
         }
     }
 
-    #[inline]
-    pub fn get_entry_u16_value(&mut self, ifd: &IFD, tag: &TagKind) -> DecodeResult<u16> {
-        let value = self.get_entry_u32_value(ifd, tag)?;
-        if value > u16::max_value() as u32 {
-            Err(DecodeError::from(DecodeErrorKind::OverflowU16Value { tag: tag.clone(), value: value }))
-        } else {
-            Ok(value as u16)
-        }
-    }
+    get_entry_value!(get_entry_u8_value, OverflowU8Value, u8);
+    get_entry_value!(get_entry_u16_value, OverflowU16Value, u16);
 
-    #[inline]
-    pub fn get_entry_u8_value(&mut self, ifd: &IFD, tag: &TagKind) -> DecodeResult<u8> {
-        let value = self.get_entry_u32_value(ifd, tag)?;
-        if value > u8::max_value() as u32 {
-            Err(DecodeError::from(DecodeErrorKind::OverflowU8Value { tag: tag.clone(), value: value }))
-        } else {
-            Ok(value as u8)
-        }
-    }
-
-    set_default_value_when_there_is_no_key!(get_entry_u8_value, get_entry_u8_value_or, u8);
-    set_default_value_when_there_is_no_key!(get_entry_u16_value, get_entry_u16_value_or, u16);
-    set_default_value_when_there_is_no_key!(get_entry_u32_value, get_entry_u32_value_or, u32);
+    set_default_value_when_there_is_no_key!(get_entry_u8_value_or, get_entry_u8_value, u8);
+    set_default_value_when_there_is_no_key!(get_entry_u16_value_or, get_entry_u16_value, u16);
+    set_default_value_when_there_is_no_key!(get_entry_u32_value_or, get_entry_u32_value, u32);
     
     #[inline]
     fn read_ifd(&mut self, from: u32) -> DecodeResult<(IFD, u32)>  {
@@ -281,7 +271,7 @@ impl<R> Decoder<R> where R: Read + Seek {
         let interpretation = self.get_entry_u16_value(ifd, &TagKind::PhotometricInterpretation)?;
         let interpretation = PhotometricInterpretation::from_u16(interpretation)?;
         
-        //let bits = self.get_entry_values_u8_or(ifd, &TagKind::BitsPerSample, vec![1])?;
+        let bits = self.get_entry_u8_values_or(ifd, &TagKind::BitsPerSample, vec![1])?;
         //let bits_len = bits.len();
         //let bits_per_sample = if samples == bits_len as u32 {
         //    BitsPerSample::new(bits)

@@ -80,7 +80,7 @@ pub struct StrictReader<R> {
 }
 
 impl<R> StrictReader<R> where R: Read + Seek {
-    fn new(reader: R, endian: Endian) -> StrictReader<R> {
+    pub fn new(reader: R, endian: Endian) -> StrictReader<R> {
         StrictReader {
             reader: reader,
             endian: endian,

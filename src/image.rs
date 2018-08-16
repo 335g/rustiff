@@ -44,7 +44,7 @@ impl PhotometricInterpretation {
             5 => Ok(CMYK),
             6 => Ok(YCbCr),
             7 => Ok(CIELab),
-            n => Err(DecodeError::from(DecodeErrorKind::UnsupportedData{ tag: TagKind::PhotometricInterpretation, data: n as u32 })),
+            n => Err(DecodeError::from(DecodeErrorKind::UnsupportedData{ tag: TagKind::PhotometricInterpretation, data: vec![n as u32] })),
         }
     }
 }
@@ -60,7 +60,7 @@ impl Compression {
         match n {
             1 => Ok(Compression::No),
             5 => Ok(Compression::LZW),
-            n => Err(DecodeError::from(DecodeErrorKind::UnsupportedData{ tag: TagKind::Compression, data: n as u32 })),
+            n => Err(DecodeError::from(DecodeErrorKind::UnsupportedData{ tag: TagKind::Compression, data: vec![n as u32] })),
         }
     }
 }
@@ -71,8 +71,16 @@ pub enum BitsPerSampleError {
     InvalidValues { values: Vec<u8> }
 }
 
+impl BitsPerSampleError {
+    pub fn values(&self) -> &Vec<u8> {
+        match self {
+            BitsPerSampleError::InvalidValues { values } => values
+        }
+    }
+}
+
 #[allow(non_camel_case_types)]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BitsPerSample {
     U8_3,
     U8_4,
@@ -115,29 +123,22 @@ impl BitsPerSample {
     }
 }
 
-//#[derive(Debug, Clone, PartialEq, Eq)]
-//pub struct BitsPerSample(Vec<u8>);
-//
-//impl BitsPerSample {
-//    pub fn new<T: AsRef<[u8]>>(values: T) -> Result<BitsPerSample, BitsPerSampleError> {
-//        BitsPerSample(value.as_ref().to_vec())
-//    }
-//    
-//    #[inline]
-//    pub fn bits(&self) -> &[u8] {
-//        &self.0
-//    }
-//    
-//    #[inline]
-//    pub fn len(&self) -> usize {
-//        self.bits().len()
-//    }
-//    
-//    #[inline]
-//    pub fn max_values<'a>(&'a self) -> impl Iterator<Item=u16> + 'a {
-//        self.bits().iter().map(|x| 2u16.pow(*x as u32) - 1)
-//    }
-//}
+#[derive(Debug, Clone, Copy)]
+pub enum ColorType {
+    RGB8,
+    RGBA8,
+    RGB16,
+    RGBA16,
+    CMYK8,
+    CMYK16,
+    Gray,
+}
+
+#[derive(Debug, Fail)]
+pub enum ImageHeaderError {
+    #[fail(display = "Incompatible data ({:?}/{:?}", photometric_interpretation, bits_per_sample)]
+    IncompatibleData { photometric_interpretation: PhotometricInterpretation, bits_per_sample: BitsPerSample },
+}
 
 #[derive(Debug, Clone)]
 pub struct ImageHeader {
@@ -154,15 +155,19 @@ impl ImageHeader {
         height: u32, 
         compression: Compression, 
         interpretation: PhotometricInterpretation,
-        bits_per_sample: BitsPerSample) -> ImageHeader {
+        bits_per_sample: BitsPerSample) -> Result<ImageHeader, ImageHeaderError>
+    {
+        let _ = color_type(interpretation, bits_per_sample)?;
 
-        ImageHeader {
+        let header = ImageHeader {
             width: width,
             height: height,
             compression: compression,
             photometric_interpretation: interpretation,
             bits_per_sample: bits_per_sample,
-        }
+        };
+
+        Ok(header)
     }
 
     pub fn width(&self) -> u32 {
@@ -173,12 +178,21 @@ impl ImageHeader {
         self.height
     }
 
-    pub fn bits_per_sample(&self) -> &BitsPerSample {
-        &self.bits_per_sample
+    pub fn bits_per_sample(&self) -> BitsPerSample {
+        self.bits_per_sample
     }
 
     pub fn compression(&self) -> Compression {
         self.compression
+    }
+
+    pub fn photometric_interpretation(&self) -> PhotometricInterpretation {
+        self.photometric_interpretation
+    }
+
+    #[inline]
+    pub fn color_type(&self) -> Result<ColorType, ImageHeaderError> {
+        color_type(self.photometric_interpretation(), self.bits_per_sample())
     }
 }
 
@@ -196,3 +210,21 @@ impl Image {
     }
 }
 
+#[inline]
+fn color_type(photometric_interpretation: PhotometricInterpretation, bits_per_sample: BitsPerSample) -> Result<ColorType, ImageHeaderError> {
+    use self::PhotometricInterpretation::*;
+    use self::BitsPerSample::*;
+    use self::ColorType::*;
+
+    match (photometric_interpretation, bits_per_sample) {
+        (RGB, U8_3) => Ok(RGB8),
+        (RGB, U8_4) => Ok(RGBA8),
+        (RGB, U16_3) => Ok(RGB16),
+        (RGB, U16_4) => Ok(RGBA16),
+        (CMYK, U8_4) => Ok(CMYK8),
+        (CMYK, U16_4) => Ok(CMYK16),
+        (BlackIsZero, N(_)) => Ok(Gray),
+        (WhiteIsZero, N(_)) => Ok(Gray),
+        _ => Err(ImageHeaderError::IncompatibleData { photometric_interpretation, bits_per_sample })
+    }
+}

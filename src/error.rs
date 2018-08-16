@@ -9,6 +9,12 @@ use ifd::{
     Entry,
 };
 use tag::TagKind;
+use image::{
+    PhotometricInterpretation,
+    BitsPerSample,
+    BitsPerSampleError,
+    ImageHeaderError,
+};
 
 use std::io;
 use std::fmt::{
@@ -56,14 +62,17 @@ pub enum DecodeErrorKind {
     #[fail(display = "samples: {} != length of `bits_per_sample`: {:?}", samples, bits_per_sample)]
     IncorrectNumberOfSamples { samples: u8, bits_per_sample: Vec<u8> },
 
-    #[fail(display = "tag: ({}) does not support data: ({})", tag, data)]
-    UnsupportedData { tag: TagKind, data: u32 },
+    #[fail(display = "tag: ({}) does not support data: ({:?})", tag, data)]
+    UnsupportedData { tag: TagKind, data: Vec<u32> },
 
     #[fail(display = "calculated from width and height: {}, sum: {}", calc, sum)]
     IncorrectBufferSize { calc: usize, sum: usize },
 
     #[fail(display = "TagKind::BitsPerSample gets incorrect values: {:?}", values)]
     IncorrectBitsPerSample { values: Vec<u8> },
+
+    #[fail(display = "Incompatible Data ({:?}/{:?}", photometric_interpretation, bits_per_sample)]
+    IncompatibleData { photometric_interpretation: PhotometricInterpretation, bits_per_sample: BitsPerSample },
 }
 
 #[derive(Debug)]
@@ -100,6 +109,28 @@ impl DecodeError {
 impl From<io::Error> for DecodeError {
     fn from(err: io::Error) -> DecodeError {
         DecodeError::new(DecodeErrorKind::IO { error: err })
+    }
+}
+
+impl From<BitsPerSampleError> for DecodeError {
+    fn from(err: BitsPerSampleError) -> DecodeError {
+        let values = err.values();
+        let kind = DecodeErrorKind::UnsupportedData { 
+            tag: TagKind::BitsPerSample, 
+            data: err.values().iter().map(|x| *x as u32).collect::<_>()
+        };
+
+        DecodeError::new(kind)
+    }
+}
+
+impl From<ImageHeaderError> for DecodeError {
+    fn from(err: ImageHeaderError) -> DecodeError {
+        let (photometric_interpretation, bits_per_sample) = match err {
+            ImageHeaderError::IncompatibleData { photometric_interpretation, bits_per_sample } => (photometric_interpretation, bits_per_sample)
+        };
+            
+        DecodeError::new(DecodeErrorKind::IncompatibleData { photometric_interpretation, bits_per_sample })
     }
 }
 

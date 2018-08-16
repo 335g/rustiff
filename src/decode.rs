@@ -40,6 +40,38 @@ use image::{
     PhotometricInterpretation,
 };
 
+use failure::Fail;
+
+macro_rules! set_default_values_when_there_is_no_key {
+    ($method:ident, $method2:ident, $t:ty) => {
+        #[inline]
+        fn $method2<T: AsRef<[$t]>>(&mut self, ifd: &IFD, tag: &TagKind, def: T) -> DecodeResult<Vec<$t>> {
+            self.$method(ifd, tag)
+                .or_else(|e| {
+                    match e.kind() {
+                        DecodeErrorKind::CannotFindTheTag{ tag: _ } => Ok(def.as_ref().to_vec()),
+                        _ => Err(e)
+                    }
+                })
+        }
+    }
+}
+
+macro_rules! set_default_value_when_there_is_no_key {
+    ($method:ident, $method2:ident, $t:ty) => {
+        #[inline]
+        fn $method2(&mut self, ifd: &IFD, tag: &TagKind, def: $t) -> DecodeResult<$t> {
+            self.$method(ifd, tag)
+                .or_else(|e| {
+                    match e.kind() {
+                        DecodeErrorKind::CannotFindTheTag{ tag: _ } => Ok(def),
+                        _ => Err(e)
+                    }
+                })
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Decoder<R> {
     reader: R,
@@ -110,7 +142,7 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
     
     #[inline]
-    pub fn get_entry_values(&mut self, ifd: &IFD, tag: &TagKind) -> DecodeResult<Vec<u32>> {
+    pub fn get_entry_u32_values(&mut self, ifd: &IFD, tag: &TagKind) -> DecodeResult<Vec<u32>> {
         let entry = self.get_entry(ifd, tag)?;
 
         let mut offset = entry.offset();
@@ -139,22 +171,40 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
 
     #[inline]
-    fn get_entry_values_u8(&mut self, ifd: &IFD, tag: &TagKind) -> DecodeResult<Vec<u8>> {
-        let values = self.get_entry_values(ifd, tag)?;
+    fn get_entry_u16_values(&mut self, ifd: &IFD, tag:&TagKind) -> DecodeResult<Vec<u16>> {
+        let values = self.get_entry_u32_values(ifd, tag)?;
+        let mut v = vec![];
+        for val in values {
+            if val > u16::max_value() as u32 {
+                return Err(DecodeError::from(DecodeErrorKind::OverflowU16Value { tag: tag.clone(), value: val }));
+            } else {
+                v.push(val as u16);
+            }
+        }
+        Ok(v)
+    }
+
+    #[inline]
+    fn get_entry_u8_values(&mut self, ifd: &IFD, tag: &TagKind) -> DecodeResult<Vec<u8>> {
+        let values = self.get_entry_u32_values(ifd, tag)?;
         let mut v = vec![];
         for val in values {
             if val > u8::max_value() as u32 {
-                return Err(DecodeError::from(DecodeErrorKind::OverflowU8Value{ tag: tag.clone(), value: val }))
+                return Err(DecodeError::from(DecodeErrorKind::OverflowU8Value{ tag: tag.clone(), value: val }));
             } else {
                 v.push(val as u8);
             }
         }
         Ok(v)
     }
-    
+
+    set_default_values_when_there_is_no_key!(get_entry_u32_values, get_entry_u32_values_or, u32);
+    set_default_values_when_there_is_no_key!(get_entry_u16_values, get_entry_u16_values_or, u16);
+    set_default_values_when_there_is_no_key!(get_entry_u8_values, get_entry_u8_values_or, u8);
+
     #[inline]
-    pub fn get_entry_value(&mut self, ifd: &IFD, tag: &TagKind) -> DecodeResult<u32> {
-        let values = self.get_entry_values(ifd, tag)?;
+    pub fn get_entry_u32_value(&mut self, ifd: &IFD, tag: &TagKind) -> DecodeResult<u32> {
+        let values = self.get_entry_u32_values(ifd, tag)?;
 
         if values.len() > 1 {
             Err(DecodeError::from(
@@ -169,8 +219,18 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
 
     #[inline]
-    pub fn get_entry_value_u8(&mut self, ifd: &IFD, tag: &TagKind) -> DecodeResult<u8> {
-        let value = self.get_entry_value(ifd, tag)?;
+    pub fn get_entry_u16_value(&mut self, ifd: &IFD, tag: &TagKind) -> DecodeResult<u16> {
+        let value = self.get_entry_u32_value(ifd, tag)?;
+        if value > u16::max_value() as u32 {
+            Err(DecodeError::from(DecodeErrorKind::OverflowU16Value { tag: tag.clone(), value: value }))
+        } else {
+            Ok(value as u16)
+        }
+    }
+
+    #[inline]
+    pub fn get_entry_u8_value(&mut self, ifd: &IFD, tag: &TagKind) -> DecodeResult<u8> {
+        let value = self.get_entry_u32_value(ifd, tag)?;
         if value > u8::max_value() as u32 {
             Err(DecodeError::from(DecodeErrorKind::OverflowU8Value { tag: tag.clone(), value: value }))
         } else {
@@ -178,15 +238,9 @@ impl<R> Decoder<R> where R: Read + Seek {
         }
     }
 
-    #[inline]
-    pub fn get_entry_value_u16(&mut self, ifd: &IFD, tag: &TagKind) -> DecodeResult<u16> {
-        let value = self.get_entry_value(ifd, tag)?;
-        if value > u16::max_value() as u32 {
-            Err(DecodeError::from(DecodeErrorKind::OverflowU16Value { tag: tag.clone(), value: value }))
-        } else {
-            Ok(value as u16)
-        }
-    }
+    set_default_value_when_there_is_no_key!(get_entry_u8_value, get_entry_u8_value_or, u8);
+    set_default_value_when_there_is_no_key!(get_entry_u16_value, get_entry_u16_value_or, u16);
+    set_default_value_when_there_is_no_key!(get_entry_u32_value, get_entry_u32_value_or, u32);
     
     #[inline]
     fn read_ifd(&mut self, from: u32) -> DecodeResult<(IFD, u32)>  {
@@ -219,29 +273,33 @@ impl<R> Decoder<R> where R: Read + Seek {
 
     #[inline]
     pub fn header_with(&mut self, ifd: &IFD) -> DecodeResult<ImageHeader> {
-        let width = self.get_entry_value(ifd, &TagKind::ImageWidth)?;
-        let height = self.get_entry_value(ifd, &TagKind::ImageLength)?;
-        let samples = self.get_entry_value(ifd, &TagKind::SamplesPerPixel).unwrap_or(1);
-        let compression = self.get_entry_value_u16(ifd, &TagKind::Compression).unwrap_or(1);
+        let width = self.get_entry_u32_value(ifd, &TagKind::ImageWidth)?;
+        let height = self.get_entry_u32_value(ifd, &TagKind::ImageLength)?;
+        let samples = self.get_entry_u32_value(ifd, &TagKind::SamplesPerPixel).unwrap_or(1);
+        let compression = self.get_entry_u16_value(ifd, &TagKind::Compression).unwrap_or(1);
         let compression = Compression::from_u16(compression)?;
-        let interpretation = self.get_entry_value_u16(ifd, &TagKind::PhotometricInterpretation)?;
+        let interpretation = self.get_entry_u16_value(ifd, &TagKind::PhotometricInterpretation)?;
         let interpretation = PhotometricInterpretation::from_u16(interpretation)?;
         
-        let bits = self.get_entry_values_u8(ifd, &TagKind::BitsPerSample).unwrap_or(vec![1]);
-        let bits_len = bits.len();
-        let bits_per_sample = if samples == bits_len as u32 {
-            BitsPerSample::new(bits)
-        } else {
-            let err = DecodeErrorKind::IncorrectNumberOfSamples { 
-                samples: samples as u8, 
-                bits_per_sample: bits.into_iter().map(|x| x as u8).collect::<Vec<u8>>() 
-            };
-            
-            return Err(DecodeError::from(err));
-        };
+        //let bits = self.get_entry_values_u8_or(ifd, &TagKind::BitsPerSample, vec![1])?;
+        //let bits_len = bits.len();
+        //let bits_per_sample = if samples == bits_len as u32 {
+        //    BitsPerSample::new(bits)
+        //} else {
+        //    let err = DecodeErrorKind::IncorrectNumberOfSamples { 
+        //        samples: samples as u8, 
+        //        bits_per_sample: bits.into_iter().map(|x| x as u8).collect::<Vec<u8>>() 
+        //    };
+        //    
+        //    return Err(DecodeError::from(err));
+        //};
+        
+        //let bits_per_sample = if samples != bits
 
-        let header = ImageHeader::new(width, height, compression, interpretation, bits_per_sample);
-        Ok(header)
+        //let header = ImageHeader::new(width, height, compression, interpretation, bits_per_sample);
+        //Ok(header)
+
+        unimplemented!()
     }
     
     #[inline]
@@ -260,8 +318,8 @@ impl<R> Decoder<R> where R: Read + Seek {
         let mut read: usize = 0;
         let mut read_now: usize = 0;
 
-        let offsets = self.get_entry_values(ifd, &TagKind::StripOffsets)?;
-        let strip_byte_counts = self.get_entry_values(ifd, &TagKind::StripByteCounts)?;
+        let offsets = self.get_entry_u32_values(ifd, &TagKind::StripOffsets)?;
+        let strip_byte_counts = self.get_entry_u32_values(ifd, &TagKind::StripByteCounts)?;
         let compression = header.compression();
 
         match compression {
@@ -280,8 +338,15 @@ impl<R> Decoder<R> where R: Read + Seek {
                 }
             }
             Compression::LZW => {
-                let bits_per_pixel = header.bits_per_sample().all_bits().iter().sum::<u8>();
-                let rows_per_strip = self.get_entry_value(ifd, &TagKind::RowsPerStrip).map(|x| x as usize).unwrap_or(height);
+                //let bits_per_pixel = header.bits_per_sample().bits().iter().sum::<u8>();
+                let bits_per_pixel = match header.bits_per_sample() {
+                    BitsPerSample::U8_3 => 24,
+                    BitsPerSample::U8_4 => 32,
+                    BitsPerSample::U16_3 => 48,
+                    BitsPerSample::U16_4 => 64,
+                    BitsPerSample::N(n) => *n,
+                };
+                let rows_per_strip = self.get_entry_u32_value(ifd, &TagKind::RowsPerStrip).map(|x| x as usize).unwrap_or(height);
                 let scanline_size_bits = bits_per_pixel as usize * width;
                 let scanline_size = (scanline_size_bits + 7)/8;
                 
@@ -302,11 +367,13 @@ impl<R> Decoder<R> where R: Read + Seek {
         self.image_with(&ifd)
     }
 
-    //fn read_byte<R: Read>(&mut self, reader: R, buffer: &mut [u8], from: usize, size: usize) -> io::Result<usize> {
+    //fn read_byte<S: Read>(&mut self, ifd: &IFD, reader: S, buffer: &mut [u8], from: usize, size: usize) -> io::Result<usize> {
     //    
     //    unimplemented!()
     //}
 }
+
+                
 
 impl<R> Iterator for Decoder<R> where R: Read + Seek {
     type Item = IFD;

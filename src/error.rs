@@ -62,8 +62,8 @@ pub enum DecodeErrorKind {
     #[fail(display = "calculated from width and height: {}, sum: {}", calc, sum)]
     IncorrectBufferSize { calc: usize, sum: usize },
 
-    //#[fail(display = "TagKind::BitsPerSample gets incorrect values: {:?}")]
-    //IncorrectBitsPerSample { values: Vec<u8> },
+    #[fail(display = "TagKind::BitsPerSample gets incorrect values: {:?}", values)]
+    IncorrectBitsPerSample { values: Vec<u8> },
 }
 
 #[derive(Debug)]

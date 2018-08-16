@@ -3,11 +3,12 @@
 #![allow(unused_variables)]
 #![allow(dead_code)]
 
+use failure::Fail;
+
 use byte::{
     EndianReader,
     StrictReader,
 };
-
 use error::{
     DecodeError,
     DecodeErrorKind,
@@ -64,22 +65,79 @@ impl Compression {
     }
 }
 
+#[derive(Debug, Fail)]
+pub enum BitsPerSampleError {
+    #[fail(display = "Invalid values: {:?}", values)]
+    InvalidValues { values: Vec<u8> }
+}
+
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BitsPerSample(Vec<u8>);
+pub enum BitsPerSample {
+    U8_3,
+    U8_4,
+    U16_3,
+    U16_4,
+    N(u8),
+}
 
 impl BitsPerSample {
-    pub fn new<T: AsRef<[u8]>>(value: T) -> BitsPerSample {
-        BitsPerSample(value.as_ref().to_vec())
+    pub fn new<T: AsRef<[u8]>>(values: T) -> Result<BitsPerSample, BitsPerSampleError> {
+        match values.as_ref() {
+            [8, 8, 8] => Ok(BitsPerSample::U8_3),
+            [8, 8, 8, 8] => Ok(BitsPerSample::U8_4),
+            [16, 16, 16] => Ok(BitsPerSample::U16_3),
+            [16, 16, 16, 16] => Ok(BitsPerSample::U16_4),
+            [n] if *n <= 8 => Ok(BitsPerSample::N(*n)),
+            _ => Err(BitsPerSampleError::InvalidValues { values: values.as_ref().to_vec() }),
+        }
     }
 
     pub fn len(&self) -> usize {
-        self.0.len()
+        match *self {
+            BitsPerSample::U8_3 | BitsPerSample::U16_3 => 3,
+            BitsPerSample::U8_4 | BitsPerSample::U16_4 => 4,
+            BitsPerSample::N(_) => 1,
+        }
     }
 
-    pub fn all_bits(&self) -> &[u8] {
-        &self.0
+    pub fn max_values(&self) -> Vec<u16> {
+        let x = u8::max_value() as u16;
+        let y = u16::max_value();
+
+        match *self {
+            BitsPerSample::U8_3 => vec![x, x, x],
+            BitsPerSample::U8_4 => vec![x, x, x, x],
+            BitsPerSample::U16_3 => vec![y, y, y],
+            BitsPerSample::U16_4 => vec![y, y, y, y],
+            BitsPerSample::N(n) => vec![2u16.pow(n as u32)]
+        }
     }
 }
+
+//#[derive(Debug, Clone, PartialEq, Eq)]
+//pub struct BitsPerSample(Vec<u8>);
+//
+//impl BitsPerSample {
+//    pub fn new<T: AsRef<[u8]>>(values: T) -> Result<BitsPerSample, BitsPerSampleError> {
+//        BitsPerSample(value.as_ref().to_vec())
+//    }
+//    
+//    #[inline]
+//    pub fn bits(&self) -> &[u8] {
+//        &self.0
+//    }
+//    
+//    #[inline]
+//    pub fn len(&self) -> usize {
+//        self.bits().len()
+//    }
+//    
+//    #[inline]
+//    pub fn max_values<'a>(&'a self) -> impl Iterator<Item=u16> + 'a {
+//        self.bits().iter().map(|x| 2u16.pow(*x as u32) - 1)
+//    }
+//}
 
 #[derive(Debug, Clone)]
 pub struct ImageHeader {

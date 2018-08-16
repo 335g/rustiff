@@ -47,14 +47,23 @@ pub enum DecodeErrorKind {
     #[fail(display = "Unsupported IFD Entry ({})\n  reason: {}", entry, reason)]
     UnsupportedIFDEntry{ entry: Entry, reason: String },
 
-    #[fail(display = "u32: ({}) which is the value of tag: ({}) overflows more than u8::max ", tag, value)]
-    OverflowValue { tag: TagKind, value: u32 },
+    #[fail(display = "u32: ({}) which is the value of tag: ({}) overflows more than u8::max", tag, value)]
+    OverflowU8Value { tag: TagKind, value: u32 },
+
+    #[fail(display = "u32 ({}) which is the value of tag: ({}) overflows more than u16::max", tag, value)]
+    OverflowU16Value { tag: TagKind, value: u32 },
     
     #[fail(display = "samples: {} != length of `bits_per_sample`: {:?}", samples, bits_per_sample)]
-    NoMatchNumberOfSamples { samples: u8, bits_per_sample: Vec<u8> },
+    IncorrectNumberOfSamples { samples: u8, bits_per_sample: Vec<u8> },
 
     #[fail(display = "tag: ({}) does not support data: ({})", tag, data)]
     UnsupportedData { tag: TagKind, data: u32 },
+
+    #[fail(display = "calculated from width and height: {}, sum: {}", calc, sum)]
+    IncorrectBufferSize { calc: usize, sum: usize },
+
+    //#[fail(display = "TagKind::BitsPerSample gets incorrect values: {:?}")]
+    //IncorrectBitsPerSample { values: Vec<u8> },
 }
 
 #[derive(Debug)]

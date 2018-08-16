@@ -72,6 +72,10 @@ impl BitsPerSample {
         BitsPerSample(value.as_ref().to_vec())
     }
 
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
     pub fn all_bits(&self) -> &[u8] {
         &self.0
     }
@@ -111,26 +115,25 @@ impl ImageHeader {
         self.height
     }
 
-    pub fn bits_per_sample(&self) -> &Vec<u8> {
-        &self.bits_per_sample.0
+    pub fn bits_per_sample(&self) -> &BitsPerSample {
+        &self.bits_per_sample
     }
-}
 
-pub enum ImageData {
-    U8(Vec<u8>),
-    U16(Vec<u16>),
+    pub fn compression(&self) -> Compression {
+        self.compression
+    }
 }
 
 pub struct Image {
     header: ImageHeader,
-    data: ImageData,
+    data: Vec<u8>,
 }
 
 impl Image {
-    pub fn new(header: ImageHeader, data: ImageData) -> Image {
+    pub fn new<D: AsRef<[u8]>>(header: ImageHeader, data: D) -> Image {
         Image {
             header: header,
-            data: data,
+            data: data.as_ref().to_vec()
         }
     }
 }

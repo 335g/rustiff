@@ -4,17 +4,11 @@
 #![allow(dead_code)]
 
 use failure::Fail;
-
-use byte::{
-    EndianReader,
-    StrictReader,
-};
 use error::{
     DecodeError,
     DecodeErrorKind,
 };
 use tag::TagKind;
-
 use std::{
     fmt::Debug,
 };

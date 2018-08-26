@@ -72,23 +72,6 @@ pub trait SeekExt: Seek {
 
 impl<S: Seek> SeekExt for S {}
 
-pub trait EndianReader<R: Read + Seek>: Read {}
-
-#[derive(Debug)]
-pub struct StrictReader<R>(R);
-
-impl<R> StrictReader<R> where R: Read + Seek {
-    pub fn new(reader: R) -> StrictReader<R> {
-        StrictReader(reader)
-    }
-}
-
-impl<R> Read for StrictReader<R> where R: Read {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.0.read(buf)
-    }
-}
-
 #[derive(Debug)]
 pub struct LZWReader(Cursor<Vec<u8>>);
 

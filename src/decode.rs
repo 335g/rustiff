@@ -13,7 +13,6 @@ use byte::{
     EndianReadExt,
     ReadExt,
     SeekExt,
-    StrictReader,
     LZWReader,
 };
 use ifd::{

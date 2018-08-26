@@ -19,7 +19,7 @@ use std::{
     fmt::Debug,
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PhotometricInterpretation {
     WhiteIsZero,
     BlackIsZero,
@@ -82,56 +82,51 @@ impl BitsPerSampleError {
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BitsPerSample {
+    U8_1,
     U8_3,
     U8_4,
+    U16_1,
     U16_3,
     U16_4,
-    N(u8),
 }
 
 impl BitsPerSample {
     pub fn new<T: AsRef<[u8]>>(values: T) -> Result<BitsPerSample, BitsPerSampleError> {
         match values.as_ref() {
+            [8] => Ok(BitsPerSample::U8_1),
             [8, 8, 8] => Ok(BitsPerSample::U8_3),
             [8, 8, 8, 8] => Ok(BitsPerSample::U8_4),
+            [16] => Ok(BitsPerSample::U16_1),
             [16, 16, 16] => Ok(BitsPerSample::U16_3),
             [16, 16, 16, 16] => Ok(BitsPerSample::U16_4),
-            [n] if *n <= 8 => Ok(BitsPerSample::N(*n)),
             _ => Err(BitsPerSampleError::InvalidValues { values: values.as_ref().to_vec() }),
         }
     }
 
     pub fn len(&self) -> usize {
         match *self {
+            BitsPerSample::U8_1 | BitsPerSample::U16_1 => 1,
             BitsPerSample::U8_3 | BitsPerSample::U16_3 => 3,
             BitsPerSample::U8_4 | BitsPerSample::U16_4 => 4,
-            BitsPerSample::N(_) => 1,
         }
     }
 
-    pub fn max_values(&self) -> Vec<u16> {
+    pub fn max_value(&self) -> u16 {
         let x = u8::max_value() as u16;
         let y = u16::max_value();
 
         match *self {
-            BitsPerSample::U8_3 => vec![x, x, x],
-            BitsPerSample::U8_4 => vec![x, x, x, x],
-            BitsPerSample::U16_3 => vec![y, y, y],
-            BitsPerSample::U16_4 => vec![y, y, y, y],
-            BitsPerSample::N(n) => vec![2u16.pow(n as u32)]
+            BitsPerSample::U8_1 | BitsPerSample::U8_3 | BitsPerSample::U8_4 => x,
+            BitsPerSample::U16_1 | BitsPerSample::U16_3 | BitsPerSample::U16_4 => y,
         }
     }
-}
 
-#[derive(Debug, Clone, Copy)]
-pub enum ColorType {
-    RGB8,
-    RGBA8,
-    RGB16,
-    RGBA16,
-    CMYK8,
-    CMYK16,
-    Gray,
+    pub fn bits(&self) -> usize {
+        match self {
+            BitsPerSample::U8_1 | BitsPerSample::U8_3 | BitsPerSample::U8_4 => 8,
+            BitsPerSample::U16_1 | BitsPerSample::U16_3 | BitsPerSample::U16_4 => 16
+        }
+    }
 }
 
 #[derive(Debug, Fail)]
@@ -157,7 +152,12 @@ impl ImageHeader {
         interpretation: PhotometricInterpretation,
         bits_per_sample: BitsPerSample) -> Result<ImageHeader, ImageHeaderError>
     {
-        let _ = color_type(interpretation, bits_per_sample)?;
+        if !is_valid_color_type(interpretation, bits_per_sample) {
+            return Err(ImageHeaderError::IncompatibleData { 
+                photometric_interpretation: interpretation, 
+                bits_per_sample: bits_per_sample,
+            });
+        }
 
         let header = ImageHeader {
             width: width,
@@ -189,42 +189,69 @@ impl ImageHeader {
     pub fn photometric_interpretation(&self) -> PhotometricInterpretation {
         self.photometric_interpretation
     }
-
-    #[inline]
-    pub fn color_type(&self) -> Result<ColorType, ImageHeaderError> {
-        color_type(self.photometric_interpretation(), self.bits_per_sample())
-    }
 }
+
+pub enum ImageData { 
+    U8(Vec<u8>),
+    U16(Vec<u16>),
+}
+
+//pub struct ImageData<T> {
+//    data: Vec<T>
+//}
+//
+//impl<T> ImageData<T> {
+//    pub fn with_u8(data: Vec<u8>) -> ImageData<u8> {
+//        ImageData { data: data }
+//    }
+//
+//    pub fn with_u16(data: Vec<u16>) -> ImageData<u16> {
+//        ImageData { data: data }
+//    }
+//}
+//
+//impl<T> From<T> for ImageData<u8> where T: AsRef<[u8]> {
+//    fn from(data: T) -> ImageData<u8> {
+//        ImageData { data: data.as_ref().to_vec() }
+//    }
+//}
+//
+//impl<T> From<T> for ImageData<u8> where T: AsRef<[u16]> {
+//    fn from(data: T) -> ImageData<u16> {
+//        ImageData { data: data.as_ref().to_vec() }
+//    }
+//}
 
 pub struct Image {
     header: ImageHeader,
-    data: Vec<u8>,
+    data: ImageData,
 }
 
 impl Image {
-    pub fn new<D: AsRef<[u8]>>(header: ImageHeader, data: D) -> Image {
+    pub fn new(header: ImageHeader, data: ImageData) -> Image {
         Image {
             header: header,
-            data: data.as_ref().to_vec()
+            data: data,
         }
     }
 }
 
 #[inline]
-fn color_type(photometric_interpretation: PhotometricInterpretation, bits_per_sample: BitsPerSample) -> Result<ColorType, ImageHeaderError> {
+fn is_valid_color_type(photometric_interpretation: PhotometricInterpretation, bits_per_sample: BitsPerSample) -> bool {
     use self::PhotometricInterpretation::*;
     use self::BitsPerSample::*;
-    use self::ColorType::*;
 
     match (photometric_interpretation, bits_per_sample) {
-        (RGB, U8_3) => Ok(RGB8),
-        (RGB, U8_4) => Ok(RGBA8),
-        (RGB, U16_3) => Ok(RGB16),
-        (RGB, U16_4) => Ok(RGBA16),
-        (CMYK, U8_4) => Ok(CMYK8),
-        (CMYK, U16_4) => Ok(CMYK16),
-        (BlackIsZero, N(_)) => Ok(Gray),
-        (WhiteIsZero, N(_)) => Ok(Gray),
-        _ => Err(ImageHeaderError::IncompatibleData { photometric_interpretation, bits_per_sample })
+        (RGB, U8_3) | 
+        (RGB, U8_4) | 
+        (RGB, U16_3) | 
+        (RGB, U16_4) |
+        (CMYK, U8_4) | 
+        (CMYK, U16_4) |
+        (BlackIsZero, U8_1) | 
+        (BlackIsZero, U16_1) |
+        (WhiteIsZero, U8_1) | 
+        (WhiteIsZero, U16_1) => true,
+        _ => false
     }
 }

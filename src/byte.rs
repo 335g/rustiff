@@ -14,6 +14,7 @@ use std::{
         self,
         Read,
         Seek,
+        Cursor,
     },
 };
 
@@ -28,15 +29,15 @@ pub trait EndianReadExt: Read {
         <Self as ReadBytesExt>::read_u8(self)
     }
 
-    fn read_u16(&mut self, byte_order: &Endian) -> io::Result<u16> {
-        match *byte_order {
+    fn read_u16(&mut self, byte_order: Endian) -> io::Result<u16> {
+        match byte_order {
             Endian::Big => <Self as ReadBytesExt>::read_u16::<BigEndian>(self),
             Endian::Little => <Self as ReadBytesExt>::read_u16::<LittleEndian>(self),
         }
     }
 
-    fn read_u32(&mut self, byte_order: &Endian) -> io::Result<u32> {
-        match *byte_order {
+    fn read_u32(&mut self, byte_order: Endian) -> io::Result<u32> {
+        match byte_order {
             Endian::Big => <Self as ReadBytesExt>::read_u32::<BigEndian>(self),
             Endian::Little => <Self as ReadBytesExt>::read_u32::<LittleEndian>(self),
         }
@@ -74,24 +75,46 @@ impl<S: Seek> SeekExt for S {}
 pub trait EndianReader<R: Read + Seek>: Read {}
 
 #[derive(Debug)]
-pub struct StrictReader<R> {
-    reader: R,
-    endian: Endian,
-}
+pub struct StrictReader<R>(R);
 
 impl<R> StrictReader<R> where R: Read + Seek {
-    pub fn new(reader: R, endian: Endian) -> StrictReader<R> {
-        StrictReader {
-            reader: reader,
-            endian: endian,
-        }
+    pub fn new(reader: R) -> StrictReader<R> {
+        StrictReader(reader)
     }
 }
 
 impl<R> Read for StrictReader<R> where R: Read {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.reader.read(buf)
+        self.0.read(buf)
     }
 }
 
+#[derive(Debug)]
+pub struct LZWReader(Cursor<Vec<u8>>);
+
+impl LZWReader {
+    pub fn new<R>(reader: &mut R, compressed_len: usize, max_uncompressed_len: usize) -> io::Result<(LZWReader, usize)> where R: Read {
+        let mut compressed = vec![0; compressed_len as usize];
+        reader.read_exact(&mut compressed)?;
+        let mut uncompressed = Vec::with_capacity(max_uncompressed_len);
+        let mut decoder = ::lzw::DecoderEarlyChange::new(::lzw::MsbReader::new(), 8);
+        let mut read = 0;
+        while read < compressed_len && uncompressed.len() < max_uncompressed_len {
+            let (len, bytes) = decoder.decode_bytes(&compressed[read..])?;
+            read += len;
+            uncompressed.extend_from_slice(bytes);
+        }
+
+        let bytes = uncompressed.len();
+        let reader = LZWReader(io::Cursor::new(uncompressed));
+
+        Ok((reader, bytes))
+    }
+}
+
+impl Read for LZWReader {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.0.read(buf)
+    }
+}
 

@@ -21,3 +21,8 @@ pub use ifd::{
 pub use tag::{
     TagKind,
 };
+pub use error::{
+    DecodeError,
+    DecodeErrorKind,
+    DecodeResult,
+};

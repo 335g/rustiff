@@ -24,16 +24,11 @@ use ifd::{
 use tag::{
     TagKind,
 };
-
-use std::{
-    io::{
-        self,
-        Read,
-        Seek,
-    },
-    marker::PhantomData,
+use std::io::{
+    self,
+    Read,
+    Seek,
 };
-
 use image::{
     BitsPerSample,
     Image,
@@ -42,7 +37,6 @@ use image::{
     Compression,
     PhotometricInterpretation,
 };
-
 use failure::Fail;
 
 macro_rules! get_entry_values {
@@ -179,7 +173,6 @@ impl<R> Decoder<R> where R: Read + Seek {
         if let Err(e) = reader.read_exact(&mut byte_order) {
             return Err(DecodeError::from(DecodeErrorKind::NoByteOrder));
         }
-
         let endian = match &byte_order {
             b"II" => Endian::Little,
             b"MM" => Endian::Big,
@@ -190,12 +183,10 @@ impl<R> Decoder<R> where R: Read + Seek {
             Ok(x) if x == 42 => {},
             _ => return Err(DecodeError::from(DecodeErrorKind::NoVersion))
         }
-        
         let start = match reader.read_u32(endian) {
             Ok(x) => x,
             Err(_) => return Err(DecodeError::from(DecodeErrorKind::NoIFDAddress))
         };
-
         let decoder = Decoder {
             start: start,
             next: start,
@@ -219,8 +210,7 @@ impl<R> Decoder<R> where R: Read + Seek {
 
     #[inline]
     pub fn get_entry<'a>(&mut self, ifd: &'a IFD, tag: &TagKind) -> DecodeResult<&'a Entry> {
-        ifd.get(tag)
-            .ok_or(DecodeError::from(DecodeErrorKind::CannotFindTheTag{ tag: tag.clone() }))
+        ifd.get(tag).ok_or(DecodeError::from(DecodeErrorKind::CannotFindTheTag{ tag: tag.clone() }))
     }
     
     #[inline]
@@ -344,8 +334,8 @@ impl<R> Decoder<R> where R: Read + Seek {
         self.header_with(&ifd)
     }
     
-    read_byte!(read_byte_u8, read_byte_u8_detail, U8, u8);
-    read_byte!(read_byte_u16, read_byte_u16_detail, U16, u16);
+    read_byte!(read_byte_u8, read_byte_detail_u8, U8, u8);
+    read_byte!(read_byte_u16, read_byte_detail_u16, U16, u16);
 
     #[inline]
     pub fn image_with(&mut self, ifd: &IFD) -> DecodeResult<Image> {
@@ -387,7 +377,7 @@ impl<R> Iterator for Decoder<R> where R: Read + Seek {
 }
 
 #[inline]
-fn read_byte_u16_detail<S>(
+fn read_byte_detail_u16<S>(
     interpretation: PhotometricInterpretation,
     read_size: usize,
     buffer_size: usize,
@@ -414,7 +404,7 @@ fn read_byte_u16_detail<S>(
 }
 
 #[inline]
-fn read_byte_u8_detail<S>(
+fn read_byte_detail_u8<S>(
     interpretation: PhotometricInterpretation, 
     read_size: usize,
     buffer_size: usize,

@@ -43,7 +43,7 @@ impl PhotometricInterpretation {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Compression {
     No,
     LZW,
@@ -185,37 +185,13 @@ impl ImageHeader {
     }
 }
 
+#[derive(Debug)]
 pub enum ImageData { 
     U8(Vec<u8>),
     U16(Vec<u16>),
 }
 
-//pub struct ImageData<T> {
-//    data: Vec<T>
-//}
-//
-//impl<T> ImageData<T> {
-//    pub fn with_u8(data: Vec<u8>) -> ImageData<u8> {
-//        ImageData { data: data }
-//    }
-//
-//    pub fn with_u16(data: Vec<u16>) -> ImageData<u16> {
-//        ImageData { data: data }
-//    }
-//}
-//
-//impl<T> From<T> for ImageData<u8> where T: AsRef<[u8]> {
-//    fn from(data: T) -> ImageData<u8> {
-//        ImageData { data: data.as_ref().to_vec() }
-//    }
-//}
-//
-//impl<T> From<T> for ImageData<u8> where T: AsRef<[u16]> {
-//    fn from(data: T) -> ImageData<u16> {
-//        ImageData { data: data.as_ref().to_vec() }
-//    }
-//}
-
+#[derive(Debug)]
 pub struct Image {
     header: ImageHeader,
     data: ImageData,
@@ -227,6 +203,14 @@ impl Image {
             header: header,
             data: data,
         }
+    }
+
+    pub fn header(&self) -> &ImageHeader {
+        &self.header
+    }
+
+    pub fn data(&self) -> &ImageData {
+        &self.data
     }
 }
 

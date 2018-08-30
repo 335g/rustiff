@@ -388,7 +388,7 @@ fn read_byte_detail_u16<S>(
     let mut reader = reader_and_size.0;
     let compressed_size = reader_and_size.1;
 
-    if read_size + compressed_size >= buffer_size {
+    if read_size + compressed_size > buffer_size {
         return Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { calc: buffer_size, sum: read_size + compressed_size }));
     }
     
@@ -415,7 +415,7 @@ fn read_byte_detail_u8<S>(
     let mut reader = reader_and_size.0;
     let compressed_size = reader_and_size.1;
 
-    if read_size + compressed_size >= buffer_size {
+    if read_size + compressed_size > buffer_size {
         return Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { calc: buffer_size, sum: read_size + compressed_size }));
     }
 

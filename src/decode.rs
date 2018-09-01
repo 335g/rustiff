@@ -118,20 +118,20 @@ macro_rules! read_byte {
                 BitsPerSample::U16_3 => 48,
                 BitsPerSample::U16_4 => 64,
             };
-            let scansize_size = (width as usize * bits_per_pixel + 7) / 8;
+            let scanline_size = (width as usize * bits_per_pixel + 7) / 8;
 
             let offsets = self.get_entry_u32_values(ifd, &TagKind::StripOffsets)?;
             let strip_byte_counts = self.get_entry_u32_values(ifd, &TagKind::StripByteCounts)?;
             let rows_per_strip = self.get_entry_u32_value_or(ifd, &TagKind::RowsPerStrip, height)?;
             let endian = self.endian;
 
-            let mut buffer = Vec::<$t>::with_capacity(buffer_size);
+            let mut buffer: Vec<$t> = vec![0; buffer_size];
             let mut read_size = 0;
             for (i, (offset, byte_count)) in offsets.into_iter().zip(strip_byte_counts.into_iter()).enumerate() {
                 let offset = offset as usize;
                 let byte_count = byte_count as usize;
-                let uncompressed_size = scansize_size * (height as usize - i * rows_per_strip as usize);
-                
+                let uncompressed_size = scanline_size * (height as usize - i * rows_per_strip as usize);
+
                 self.reader.goto(offset as u64)?;
 
                 read_size += match compression {
@@ -141,7 +141,7 @@ macro_rules! read_byte {
                         buffer_size,
                         endian,
                         (&mut self.reader, byte_count),
-                        &mut buffer)?,
+                        &mut buffer[read_size..])?,
 
                     Compression::LZW => $method2(
                         interpretation,
@@ -149,7 +149,7 @@ macro_rules! read_byte {
                         buffer_size,
                         endian,
                         LZWReader::new(&mut self.reader, byte_count, uncompressed_size)?,
-                        &mut buffer)?,
+                        &mut buffer[read_size..])?,
                 };
             }
             buffer.shrink_to_fit();
@@ -414,7 +414,6 @@ fn read_byte_detail_u8<S>(
 {
     let mut reader = reader_and_size.0;
     let compressed_size = reader_and_size.1;
-
     if read_size + compressed_size > buffer_size {
         return Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { calc: buffer_size, sum: read_size + compressed_size }));
     }

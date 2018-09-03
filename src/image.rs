@@ -8,7 +8,10 @@ use error::{
     DecodeError,
     DecodeErrorKind,
 };
-use tag::TagKind;
+use tag::{
+    self,
+    AnyTag,
+};
 use std::{
     fmt::Debug,
 };
@@ -38,7 +41,7 @@ impl PhotometricInterpretation {
             5 => Ok(CMYK),
             6 => Ok(YCbCr),
             7 => Ok(CIELab),
-            n => Err(DecodeError::from(DecodeErrorKind::UnsupportedData{ tag: TagKind::PhotometricInterpretation, data: vec![n as u32] })),
+            n => Err(DecodeError::from(DecodeErrorKind::UnsupportedData{ tag: AnyTag::PhotometricInterpretation, data: vec![n as u32] })),
         }
     }
 }
@@ -54,7 +57,7 @@ impl Compression {
         match n {
             1 => Ok(Compression::No),
             5 => Ok(Compression::LZW),
-            n => Err(DecodeError::from(DecodeErrorKind::UnsupportedData{ tag: TagKind::Compression, data: vec![n as u32] })),
+            n => Err(DecodeError::from(DecodeErrorKind::UnsupportedData{ tag: AnyTag::Compression, data: vec![n as u32] })),
         }
     }
 }

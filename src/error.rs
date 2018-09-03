@@ -8,7 +8,10 @@ use ifd::{
     DataType,
     Entry,
 };
-use tag::TagKind;
+use tag::{
+    self,
+    AnyTag,
+};
 use image::{
     PhotometricInterpretation,
     BitsPerSample,
@@ -48,22 +51,22 @@ pub enum DecodeErrorKind {
     NoImage,
 
     #[fail(display = "Can't find the tag ({})", tag)]
-    CannotFindTheTag { tag: TagKind },
+    CannotFindTheTag { tag: AnyTag },
 
     #[fail(display = "Unsupported IFD Entry ({})\n  reason: {}", entry, reason)]
     UnsupportedIFDEntry{ entry: Entry, reason: String },
 
     #[fail(display = "u32: ({}) which is the value of tag: ({}) overflows more than u8::max", tag, value)]
-    OverflowU8Value { tag: TagKind, value: u32 },
+    OverflowU8Value { tag: AnyTag, value: u32 },
 
     #[fail(display = "u32 ({}) which is the value of tag: ({}) overflows more than u16::max", tag, value)]
-    OverflowU16Value { tag: TagKind, value: u32 },
+    OverflowU16Value { tag: AnyTag, value: u32 },
     
     #[fail(display = "samples: {} != length of `bits_per_sample`: {:?}", samples, bits_per_sample)]
     IncorrectNumberOfSamples { samples: u8, bits_per_sample: Vec<u8> },
 
     #[fail(display = "tag: ({}) does not support data: ({:?})", tag, data)]
-    UnsupportedData { tag: TagKind, data: Vec<u32> },
+    UnsupportedData { tag: AnyTag, data: Vec<u32> },
 
     #[fail(display = "calculated from width and height: {}, sum: {}", calc, sum)]
     IncorrectBufferSize { calc: usize, sum: usize },
@@ -116,7 +119,7 @@ impl From<BitsPerSampleError> for DecodeError {
     fn from(err: BitsPerSampleError) -> DecodeError {
         let values = err.values();
         let kind = DecodeErrorKind::UnsupportedData { 
-            tag: TagKind::BitsPerSample, 
+            tag: AnyTag::BitsPerSample,
             data: err.values().iter().map(|x| *x as u32).collect::<_>()
         };
 

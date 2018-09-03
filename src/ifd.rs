@@ -9,7 +9,11 @@ use std::fmt::{
     Display,
 };
 
-use tag::TagKind;
+use tag::{
+    self,
+    TagType,
+    AnyTag,
+};
 
 #[derive(Debug, Clone, Copy)]
 pub enum DataType {
@@ -68,30 +72,24 @@ impl Display for Entry {
 }
 
 #[derive(Debug, Clone)]
-pub struct IFD {
-    from: u32,
-    map: HashMap<TagKind, Entry>,
-}
+pub struct IFD(HashMap<u16, Entry>);
 
 impl IFD {
-    pub fn new(from: u32) -> IFD {
-        IFD {
-            from: from,
-            map: HashMap::new(),
-        }
+    pub fn new() -> IFD {
+        IFD(HashMap::new())
     }
 
-    pub fn from(&self) -> u32 {
-        self.from
+    pub fn insert<T: TagType>(&mut self, k: T, v: Entry) -> Option<Entry> {
+        self.0.insert(k.id(), v)
     }
 
-    pub fn insert(&mut self, k: TagKind, v: Entry) -> Option<Entry> {
-        self.map.insert(k, v)
+    pub fn insert_anytag(&mut self, k: AnyTag, v: Entry) -> Option<Entry> {
+        self.0.insert(k.id(), v)
     }
     
     #[inline]
-    pub fn get(&self, k: &TagKind) -> Option<&Entry> {
-        self.map.get(k)
+    pub fn get<T: TagType>(&self, k: T) -> Option<&Entry> {
+        self.0.get(&k.id())
     }
 }
 

@@ -19,7 +19,7 @@ pub use ifd::{
     Entry,
 };
 pub use tag::{
-    TagKind,
+    AnyTag,
 };
 pub use error::{
     DecodeError,

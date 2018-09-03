@@ -1,8 +1,4 @@
 
-#![allow(unused_imports)]
-#![allow(unused_variables)]
-#![allow(dead_code)]
-
 use error::{
     DecodeError,
     DecodeErrorKind,
@@ -16,7 +12,6 @@ use byte::{
     LZWReader,
 };
 use ifd::{
-    self,
     IFD,
     Entry,
     DataType,
@@ -27,7 +22,6 @@ use tag::{
     AnyTag,
 };
 use std::io::{
-    self,
     Read,
     Seek,
 };
@@ -39,7 +33,6 @@ use image::{
     Compression,
     PhotometricInterpretation,
 };
-use failure::Fail;
 
 macro_rules! read_byte {
     ($method:ident, $method2:ident, $typestr:ident, $t:ty) => {
@@ -110,7 +103,7 @@ pub struct Decoder<R> {
 impl<R> Decoder<R> where R: Read + Seek {
     pub fn new(mut reader: R) -> DecodeResult<Decoder<R>> {
         let mut byte_order = [0u8; 2];
-        if let Err(e) = reader.read_exact(&mut byte_order) {
+        if let Err(_) = reader.read_exact(&mut byte_order) {
             return Err(DecodeError::from(DecodeErrorKind::NoByteOrder));
         }
         let endian = match &byte_order {
@@ -232,14 +225,11 @@ impl<R> Decoder<R> where R: Read + Seek {
     pub fn header_with(&mut self, ifd: &IFD) -> DecodeResult<ImageHeader> {
         let width = self.get_value(ifd, tag::ImageWidth)?;
         let height = self.get_value(ifd, tag::ImageLength)?;
-        let compression = self.get_value(ifd, tag::Compression)?;
-        let compression = Compression::from_u16(compression)?;
-        let interpretation = self.get_value(ifd, tag::PhotometricInterpretation)?;
-        let interpretation = PhotometricInterpretation::from_u16(interpretation)?;
-        let bits = self.get_value(ifd, tag::BitsPerSample)?;
-        let bits_per_sample = BitsPerSample::new(bits)?;
-        let header = ImageHeader::new(width, height, compression, interpretation, bits_per_sample)?;
+        let compression = Compression::from_u16(self.get_value(ifd, tag::Compression)?)?;
+        let interpretation = PhotometricInterpretation::from_u16(self.get_value(ifd, tag::PhotometricInterpretation)?)?;
+        let bits_per_sample = BitsPerSample::new(self.get_value(ifd, tag::BitsPerSample)?)?;
         
+        let header = ImageHeader::new(width, height, compression, interpretation, bits_per_sample)?;
         Ok(header)
     }
     
@@ -255,15 +245,12 @@ impl<R> Decoder<R> where R: Read + Seek {
         let header = self.header_with(ifd)?;
         let width = header.width() as usize;
         let height = header.height() as usize;
-        let interpretation = header.photometric_interpretation();
         let bits_per_sample = header.bits_per_sample();
-        let compression = header.compression();
         let buffer_size = width * height * header.bits_per_sample().len();
-        let endian = self.endian;
         let data = match bits_per_sample {
-            BitsPerSample::U8_1 | BitsPerSample::U8_3 | BitsPerSample::U8_4 => self.read_byte_u8(ifd, &header, buffer_size),
-            BitsPerSample::U16_1 | BitsPerSample::U16_3 | BitsPerSample::U16_4 => self.read_byte_u16(ifd, &header, buffer_size),
-        }?;
+            BitsPerSample::U8_1 | BitsPerSample::U8_3 | BitsPerSample::U8_4 => self.read_byte_u8(ifd, &header, buffer_size)?,
+            BitsPerSample::U16_1 | BitsPerSample::U16_3 | BitsPerSample::U16_4 => self.read_byte_u16(ifd, &header, buffer_size)?,
+        };
         
         Ok(Image::new(header, data))
     }

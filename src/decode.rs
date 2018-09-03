@@ -141,19 +141,16 @@ impl<R> Decoder<R> where R: Read + Seek {
         self.collect::<Vec<_>>()
     }
 
-    #[inline]
     pub fn ifd(&mut self) -> DecodeResult<IFD> {
         let start = self.start;
         let (ifd, _) = self.read_ifd(start)?;
         Ok(ifd)
     }
 
-    #[inline]
-    pub fn get_entry<'a, T: TagType>(&mut self, ifd: &'a IFD, tag: T) -> DecodeResult<&'a Entry> {
+    fn get_entry<'a, T: TagType>(&mut self, ifd: &'a IFD, tag: T) -> DecodeResult<&'a Entry> {
         ifd.get(tag).ok_or(DecodeError::from(DecodeErrorKind::CannotFindTheTag{ tag: AnyTag::from(tag) }))
     }
     
-    #[inline]
     fn going_to_get_it(&mut self, mut offset: &[u8], n: u32) -> DecodeResult<Vec<u32>> {
         self.reader.goto(offset.read_u32(self.endian)? as u64)?;
         let mut data = Vec::with_capacity(n as usize);
@@ -177,7 +174,6 @@ impl<R> Decoder<R> where R: Read + Seek {
         }
     }
 
-    #[inline]
     fn get_entry_u32_values<T: TagType>(&mut self, ifd: &IFD, tag: T) -> DecodeResult<Vec<u32>> {
         let entry = self.get_entry(ifd, tag)?;
 
@@ -206,7 +202,6 @@ impl<R> Decoder<R> where R: Read + Seek {
         }
     }
 
-    #[inline]
     fn read_ifd(&mut self, from: u32) -> DecodeResult<(IFD, u32)>  {
         self.reader.goto(from as u64)?;
 
@@ -221,7 +216,6 @@ impl<R> Decoder<R> where R: Read + Seek {
         Ok((ifd, next))
     }
     
-    #[inline]
     fn read_entry(&mut self) -> DecodeResult<(AnyTag, Entry)> {
         let tag = AnyTag::from_u16(self.reader.read_u16(self.endian)?);
         let datatype = DataType::from_u16(self.reader.read_u16(self.endian)?);
@@ -235,7 +229,6 @@ impl<R> Decoder<R> where R: Read + Seek {
         Ok((tag, entry))
     }
 
-    #[inline]
     pub fn header_with(&mut self, ifd: &IFD) -> DecodeResult<ImageHeader> {
         let width = self.get_value(ifd, tag::ImageWidth)?;
         let height = self.get_value(ifd, tag::ImageLength)?;
@@ -250,7 +243,6 @@ impl<R> Decoder<R> where R: Read + Seek {
         Ok(header)
     }
     
-    #[inline]
     pub fn header(&mut self) -> DecodeResult<ImageHeader> {
         let ifd = self.ifd()?;
         self.header_with(&ifd)
@@ -259,7 +251,6 @@ impl<R> Decoder<R> where R: Read + Seek {
     read_byte!(read_byte_u8, read_byte_detail_u8, U8, u8);
     read_byte!(read_byte_u16, read_byte_detail_u16, U16, u16);
 
-    #[inline]
     pub fn image_with(&mut self, ifd: &IFD) -> DecodeResult<Image> {
         let header = self.header_with(ifd)?;
         let width = header.width() as usize;
@@ -298,7 +289,6 @@ impl<R> Iterator for Decoder<R> where R: Read + Seek {
     }
 }
 
-#[inline]
 fn read_byte_detail_u16<S>(
     interpretation: PhotometricInterpretation,
     read_size: usize,
@@ -325,7 +315,6 @@ fn read_byte_detail_u16<S>(
     Ok(compressed_size/2)
 }
 
-#[inline]
 fn read_byte_detail_u8<S>(
     interpretation: PhotometricInterpretation, 
     read_size: usize,

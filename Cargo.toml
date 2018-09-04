@@ -1,6 +1,6 @@
 [package]
 name = "rustiff"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["335g <actionstar620@yahoo.co.jp>"]
 repository = "https://github.com/335g/rustiff"
 keywords = ["tiff", "tif", "image", "decode", "encode"]

@@ -2,7 +2,7 @@
 name = "rustiff"
 version = "0.1.0"
 authors = ["335g <actionstar620@yahoo.co.jp>"]
-repository = "https://github.com/335g/tiff"
+repository = "https://github.com/335g/rustiff"
 keywords = ["tiff", "tif", "image", "decode", "encode"]
 license-file = "LICENSE-MIT"
 readme = "README.md"

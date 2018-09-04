@@ -50,31 +50,34 @@ pub enum DecodeErrorKind {
     #[fail(display = "No Image address")]
     NoImage,
 
-    #[fail(display = "Can't find the tag ({})", tag)]
+    #[fail(display = "Can't find the tag ({:?})", tag)]
     CannotFindTheTag { tag: AnyTag },
 
     #[fail(display = "Unsupported IFD Entry ({})\n  reason: {}", entry, reason)]
     UnsupportedIFDEntry{ entry: Entry, reason: String },
 
-    #[fail(display = "tag: ({}) does not support data: ({:?})", tag, data)]
-    UnsupportedData { tag: AnyTag, data: Vec<u32> },
+    #[fail(display = "Tag ({:?}) does not support data: ({:?})", tag, data)]
+    UnsupportedMultipleData { tag: AnyTag, data: Vec<u32> },
 
-    #[fail(display = "calculated from width and height: {}, sum: {}", calc, sum)]
+    #[fail(display = "Tag ({:?}) does not support data: ({:?})", tag, data)]
+    UnsupportedData { tag: AnyTag, data: u32 },
+
+    #[fail(display = "Calculated from width and height: {}, sum: {}", calc, sum)]
     IncorrectBufferSize { calc: usize, sum: usize },
 
     #[fail(display = "Incompatible Data ({:?}/{:?}", photometric_interpretation, bits_per_sample)]
     IncompatibleData { photometric_interpretation: PhotometricInterpretation, bits_per_sample: BitsPerSample },
 
-    #[fail(display = "{:?} requires data, but you dont got any data", tag)]
+    #[fail(display = "Tag ({:?}) requires data, but you dont got any data", tag)]
     NoData { tag: AnyTag },
 
-    #[fail(display = "{:?} requires only one value, but you got extra data: {:?}.", tag, data)]
+    #[fail(display = "Tag ({:?}) requires only one value, but you got extra data: {:?}.", tag, data)]
     ExtraData { tag: AnyTag, data: Vec<u32> },
 
-    #[fail(display = "{:?} requires a value less than or equal to `u16::max_value()`, you got {:?}", tag, data)]
+    #[fail(display = "Tag ({:?}) requires a value less than or equal to `u16::max_value()`, you got {:?}", tag, data)]
     OverflowU16Data { tag: AnyTag, data: u32 },
     
-    #[fail(display = "{:?} requires a value less than or equal to `u8::max_value()`, you got {:?}", tag, data)]
+    #[fail(display = "Tag ({:?}) requires a value less than or equal to `u8::max_value()`, you got {:?}", tag, data)]
     OverflowU8Data { tag: AnyTag, data: u32 },
 }
 
@@ -118,7 +121,7 @@ impl From<io::Error> for DecodeError {
 impl From<BitsPerSampleError> for DecodeError {
     fn from(err: BitsPerSampleError) -> DecodeError {
         let values = err.values();
-        let kind = DecodeErrorKind::UnsupportedData { 
+        let kind = DecodeErrorKind::UnsupportedMultipleData { 
             tag: AnyTag::BitsPerSample,
             data: err.values().iter().map(|x| *x as u32).collect::<_>()
         };

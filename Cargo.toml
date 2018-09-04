@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["335g <actionstar620@yahoo.co.jp>"]
 repository = "https://github.com/335g/tiff"
 keywords = ["tiff", "tif", "image", "decode", "encode"]
-license-file = "LICENSE"
+license-file = "LICENSE-MIT"
 readme = "README.md"
 description = "TIFF decoding/encoding library in pure Rust."
 

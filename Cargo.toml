@@ -1,12 +1,12 @@
 [package]
-name = "tiff"
+name = "rustiff"
 version = "0.1.0"
 authors = ["335g <actionstar620@yahoo.co.jp>"]
 repository = "https://github.com/335g/tiff"
 keywords = ["tiff", "tif", "image", "decode", "encode"]
 license-file = "LICENSE"
 readme = "README.md"
-description = "TIFF decoding/encoding library"
+description = "TIFF decoding/encoding library in pure Rust."
 
 [dependencies]
 byteorder = "1.2"

@@ -10,7 +10,11 @@ use std::fmt::{
     self,
     Display,
 };
-use error::DecodeResult;
+use error::{
+    DecodeResult,
+    DecodeError,
+    DecodeErrorKind,
+};
 
 pub trait TagType: Clone + Copy {
     type Value;
@@ -75,31 +79,19 @@ macro_rules! define_tags {
 }
 
 macro_rules! tag_u32 {
-    ($($name:ident, $id:expr;)*) => {
-        $(
-        impl TagType for $name {
-            type Value = u32;
-
-            fn id(&self) -> u16 { $id }
-            fn default_value() -> Option<u32> { None }
-            fn value_from(&self, from: Vec<u32>) -> DecodeResult<u32> {
-                unimplemented!()
-            }
-        }
-        )*
-    };
-}
-
-macro_rules! tag_u32_with {
     ($($name:ident, $id:expr, $def:expr;)*) => {
         $(
         impl TagType for $name {
             type Value = u32;
 
             fn id(&self) -> u16 { $id }
-            fn default_value() -> Option<u32> { Some($def) }
+            fn default_value() -> Option<u32> { $def }
             fn value_from(&self, from: Vec<u32>) -> DecodeResult<u32> {
-                unimplemented!()
+                match from.len() {
+                    1 => Ok(from[0]),
+                    0 => Err(DecodeError::from(DecodeErrorKind::NoData { tag: AnyTag::$name })),
+                    _ => Err(DecodeError::from(DecodeErrorKind::ExtraData { tag: AnyTag::$name, data: from })),
+                }
             }
         }
         )*
@@ -107,31 +99,27 @@ macro_rules! tag_u32_with {
 }
 
 macro_rules! tag_u16 {
-    ($($name:ident, $id:expr;)*) => {
-        $(
-        impl TagType for $name {
-            type Value = u16;
-
-            fn id(&self) -> u16 { $id }
-            fn default_value() -> Option<u16> { None }
-            fn value_from(&self, from: Vec<u32>) -> DecodeResult<u16> {
-                unimplemented!()
-            }
-        }
-        )*
-    };
-}
-
-macro_rules! tag_u16_with {
     ($($name:ident, $id:expr, $def:expr;)*) => {
         $(
         impl TagType for $name {
             type Value = u16;
 
             fn id(&self) -> u16 { $id }
-            fn default_value() -> Option<u16> { Some($def) }
+            fn default_value() -> Option<u16> { $def }
             fn value_from(&self, from: Vec<u32>) -> DecodeResult<u16> {
-                unimplemented!()
+                match from.len() {
+                    1 => {
+                        let from_value = from[0];
+                        let max_value = u16::max_value();
+                        if from_value > max_value as u32 {
+                            Err(DecodeError::from(DecodeErrorKind::OverflowU16Data { tag: AnyTag::$name, data: from_value }))
+                        } else {
+                            Ok(from_value as u16)
+                        }
+                    },
+                    0 => Err(DecodeError::from(DecodeErrorKind::NoData { tag: AnyTag::$name })),
+                    _ => Err(DecodeError::from(DecodeErrorKind::ExtraData { tag: AnyTag::$name, data: from })),
+                }
             }
         }
         )*
@@ -139,31 +127,18 @@ macro_rules! tag_u16_with {
 }
 
 macro_rules! tag_vecu32 {
-    ($($name:ident, $id:expr;)*) => {
-        $(
-        impl TagType for $name {
-            type Value = Vec<u32>;
-
-            fn id(&self) -> u16 { $id }
-            fn default_value() -> Option<Vec<u32>> { None }
-            fn value_from(&self, from: Vec<u32>) -> DecodeResult<Vec<u32>> {
-                Ok(from)
-            }
-        }
-        )*
-    };
-}
-
-macro_rules! tag_vecu32_with {
     ($($name:ident, $id:expr, $def:expr;)*) => {
         $(
         impl TagType for $name {
             type Value = Vec<u32>;
 
             fn id(&self) -> u16 { $id }
-            fn default_value() -> Option<Vec<u32>> { Some($def) }
+            fn default_value() -> Option<Vec<u32>> { $def }
             fn value_from(&self, from: Vec<u32>) -> DecodeResult<Vec<u32>> {
-                Ok(from)
+                match from.len() {
+                    0 => Err(DecodeError::from(DecodeErrorKind::NoData { tag: AnyTag::$name })),
+                    _ => Ok(from),
+                }
             }
         }
         )*
@@ -171,37 +146,34 @@ macro_rules! tag_vecu32_with {
 }
 
 macro_rules! tag_vecu8 {
-    ($($name:ident, $id:expr;)*) => {
-        $(
-        impl TagType for $name {
-            type Value = Vec<u8>;
-
-            fn id(&self) -> u16 { $id }
-            fn default_value() -> Option<Vec<u8>> { None }
-            fn value_from(&self, from: Vec<u32>) -> DecodeResult<Vec<u8>> {
-                unimplemented!()
-            }
-        }
-        )*
-    };
-}
-
-macro_rules! tag_vecu8_with {
     ($($name:ident, $id:expr, $def:expr;)*) => {
         $(
         impl TagType for $name {
             type Value = Vec<u8>;
 
             fn id(&self) -> u16 { $id }
-            fn default_value() -> Option<Vec<u8>> { Some($def) }
+            fn default_value() -> Option<Vec<u8>> { $def }
             fn value_from(&self, from: Vec<u32>) -> DecodeResult<Vec<u8>> {
-                unimplemented!()
+                match from.len() {
+                    0 => Err(DecodeError::from(DecodeErrorKind::NoData { tag: AnyTag::$name })),
+                    _ => {
+                        let max_value = u8::max_value();
+                        let mut from_values: Vec<u8> = vec![];
+                        for from_value in from {
+                            if from_value > max_value as u32 {
+                                return Err(DecodeError::from(DecodeErrorKind::OverflowU16Data { tag: AnyTag::$name, data: from_value }));
+                            }
+                            from_values.push(from_value as u8);
+                        }
+
+                        Ok(from_values)
+                    }
+                }
             }
         }
         )*
     };
 }
-
 
 define_tags! {
     ImageWidth, 256;
@@ -216,29 +188,23 @@ define_tags! {
 }
 
 tag_u32! {
-    ImageWidth, 256;
-    ImageLength, 257;
-}
-
-tag_u32_with! {
-    RowsPerStrip, 278, u32::max_value();
+    ImageWidth, 256, None;
+    ImageLength, 257, None;
+    RowsPerStrip, 278, Some(u32::max_value());
 }
 
 tag_u16! {
-    PhotometricInterpretation, 262;
+    PhotometricInterpretation, 262, None;
+    Compression, 259, Some(1);
+    SamplesPerPixel, 277, Some(1);
 }
 
-tag_u16_with! {
-    Compression, 259, 1;
-    SamplesPerPixel, 277, 1;
-}
-
-tag_vecu8_with! {
-    BitsPerSample, 258, vec![1];
+tag_vecu8! {
+    BitsPerSample, 258, Some(vec![1]);
 }
 
 tag_vecu32! {
-    StripOffsets, 273;
-    StripByteCounts, 279;
+    StripOffsets, 273, None;
+    StripByteCounts, 279, None;
 }
 

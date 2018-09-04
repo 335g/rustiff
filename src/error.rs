@@ -56,26 +56,26 @@ pub enum DecodeErrorKind {
     #[fail(display = "Unsupported IFD Entry ({})\n  reason: {}", entry, reason)]
     UnsupportedIFDEntry{ entry: Entry, reason: String },
 
-    #[fail(display = "u32: ({}) which is the value of tag: ({}) overflows more than u8::max", tag, value)]
-    OverflowU8Value { tag: AnyTag, value: u32 },
-
-    #[fail(display = "u32 ({}) which is the value of tag: ({}) overflows more than u16::max", tag, value)]
-    OverflowU16Value { tag: AnyTag, value: u32 },
-    
-    #[fail(display = "samples: {} != length of `bits_per_sample`: {:?}", samples, bits_per_sample)]
-    IncorrectNumberOfSamples { samples: u8, bits_per_sample: Vec<u8> },
-
     #[fail(display = "tag: ({}) does not support data: ({:?})", tag, data)]
     UnsupportedData { tag: AnyTag, data: Vec<u32> },
 
     #[fail(display = "calculated from width and height: {}, sum: {}", calc, sum)]
     IncorrectBufferSize { calc: usize, sum: usize },
 
-    #[fail(display = "TagKind::BitsPerSample gets incorrect values: {:?}", values)]
-    IncorrectBitsPerSample { values: Vec<u8> },
-
     #[fail(display = "Incompatible Data ({:?}/{:?}", photometric_interpretation, bits_per_sample)]
     IncompatibleData { photometric_interpretation: PhotometricInterpretation, bits_per_sample: BitsPerSample },
+
+    #[fail(display = "{:?} requires data, but you dont got any data", tag)]
+    NoData { tag: AnyTag },
+
+    #[fail(display = "{:?} requires only one value, but you got extra data: {:?}.", tag, data)]
+    ExtraData { tag: AnyTag, data: Vec<u32> },
+
+    #[fail(display = "{:?} requires a value less than or equal to `u16::max_value()`, you got {:?}", tag, data)]
+    OverflowU16Data { tag: AnyTag, data: u32 },
+    
+    #[fail(display = "{:?} requires a value less than or equal to `u8::max_value()`, you got {:?}", tag, data)]
+    OverflowU8Data { tag: AnyTag, data: u32 },
 }
 
 #[derive(Debug)]

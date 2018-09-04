@@ -8,21 +8,22 @@ mod byte;
 mod decode;
 mod ifd;
 mod image;
-mod tag;
+pub mod tag;
 
-pub use decode::{
-    Decoder,
-};
-
-pub use ifd::{
-    IFD,
-    Entry,
-};
-pub use tag::{
-    AnyTag,
-};
+pub use decode::Decoder;
+pub use ifd::IFD;
 pub use error::{
     DecodeError,
     DecodeErrorKind,
     DecodeResult,
+};
+pub use image::{
+    Image,
+    ImageData,
+    ImageHeader,
+    ImageHeaderError,
+    Compression,
+    BitsPerSample,
+    BitsPerSampleError,
+    PhotometricInterpretation,
 };

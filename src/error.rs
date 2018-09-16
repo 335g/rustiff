@@ -1,5 +1,8 @@
 
-use ifd::Entry;
+use ifd::{
+    Entry,
+    DataType,
+};
 use tag::AnyTag;
 use image::{
     PhotometricInterpretation,
@@ -61,11 +64,8 @@ pub enum DecodeErrorKind {
     #[fail(display = "Tag ({:?}) requires only one value, but you got extra data: {:?}.", tag, data)]
     ExtraData { tag: AnyTag, data: Vec<u32> },
 
-    #[fail(display = "Tag ({:?}) requires a value less than or equal to `u16::max_value()`, you got {:?}", tag, data)]
-    OverflowU16Data { tag: AnyTag, data: u32 },
-    
-    #[fail(display = "Tag ({:?}) requires a value less than or equal to `u8::max_value()`, you got {:?}", tag, data)]
-    OverflowU8Data { tag: AnyTag, data: u32 },
+    #[fail(display = "Tag ({:?}) doesn't support this datatype/count : {:?}/{}", tag, datatype, count)]
+    NoSupportDataType { tag: AnyTag, datatype: DataType, count: usize },
 }
 
 #[derive(Debug)]

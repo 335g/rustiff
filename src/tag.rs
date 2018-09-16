@@ -3,10 +3,20 @@ use std::fmt::{
     self,
     Display,
 };
+use std::io::{
+    Read,
+    Seek,
+};
 use error::{
     DecodeResult,
     DecodeError,
     DecodeErrorKind,
+};
+use ifd::DataType;
+use byte::{
+    Endian,
+    EndianReadExt,
+    SeekExt,
 };
 
 pub trait TagType: Clone + Copy {
@@ -14,7 +24,7 @@ pub trait TagType: Clone + Copy {
 
     fn id(&self) -> u16;
     fn default_value() -> Option<Self::Value>;
-    fn value_from(&self, from: Vec<u32>) -> DecodeResult<Self::Value>;
+    fn decode<'a, R: Read + Seek + 'a>(&'a self, reader: R, offset: &'a [u8; 4], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value>;
 }
 
 macro_rules! define_tags {
@@ -72,89 +82,108 @@ macro_rules! define_tags {
     }
 }
 
-macro_rules! tag_u32 {
+macro_rules! tag_short_or_long_value {
     ($($name:ident, $id:expr, $def:expr;)*) => {
         $(impl TagType for $name {
             type Value = u32;
 
             fn id(&self) -> u16 { $id }
             fn default_value() -> Option<u32> { $def }
-            fn value_from(&self, from: Vec<u32>) -> DecodeResult<u32> {
-                match from.len() {
-                    1 => Ok(from[0]),
-                    0 => Err(DecodeError::from(DecodeErrorKind::NoData { tag: AnyTag::$name })),
-                    _ => Err(DecodeError::from(DecodeErrorKind::ExtraData { tag: AnyTag::$name, data: from })),
+            fn decode<'a, R: Read + Seek + 'a>(&'a self, mut reader: R, _offset: &'a [u8; 4], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value> {
+                match datatype {
+                    DataType::Short if count == 1 => Ok(reader.read_u16(endian)? as u32),
+                    DataType::Long if count == 1 => Ok(reader.read_u32(endian)?),
+                    _ => Err(DecodeError::from(DecodeErrorKind::NoSupportDataType { tag: AnyTag::from(*self), datatype: datatype, count: count })),
                 }
             }
         })*
     };
 }
 
-macro_rules! tag_u16 {
+macro_rules! tag_short_value {
     ($($name:ident, $id:expr, $def:expr;)*) => {
         $(impl TagType for $name {
             type Value = u16;
 
             fn id(&self) -> u16 { $id }
             fn default_value() -> Option<u16> { $def }
-            fn value_from(&self, from: Vec<u32>) -> DecodeResult<u16> {
-                match from.len() {
-                    1 => {
-                        let from_value = from[0];
-                        let max_value = u16::max_value();
-                        if from_value > max_value as u32 {
-                            Err(DecodeError::from(DecodeErrorKind::OverflowU16Data { tag: AnyTag::$name, data: from_value }))
-                        } else {
-                            Ok(from_value as u16)
-                        }
-                    },
-                    0 => Err(DecodeError::from(DecodeErrorKind::NoData { tag: AnyTag::$name })),
-                    _ => Err(DecodeError::from(DecodeErrorKind::ExtraData { tag: AnyTag::$name, data: from })),
+            fn decode<'a, R: Read + Seek + 'a>(&'a self, mut reader: R, _offset: &'a [u8; 4], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value> {
+                match datatype {
+                    DataType::Short if count == 1 => Ok(reader.read_u16(endian)?),
+                    _ => Err(DecodeError::from(DecodeErrorKind::NoSupportDataType { tag: AnyTag::from(*self), datatype: datatype, count: count })),
                 }
             }
         })*
     };
 }
 
-macro_rules! tag_vecu32 {
+macro_rules! tag_short_or_long_values {
     ($($name:ident, $id:expr, $def:expr;)*) => {
         $(impl TagType for $name {
             type Value = Vec<u32>;
 
             fn id(&self) -> u16 { $id }
             fn default_value() -> Option<Vec<u32>> { $def }
-            fn value_from(&self, from: Vec<u32>) -> DecodeResult<Vec<u32>> {
-                match from.len() {
-                    0 => Err(DecodeError::from(DecodeErrorKind::NoData { tag: AnyTag::$name })),
-                    _ => Ok(from),
+            fn decode<'a, R: Read + Seek + 'a>(&'a self, mut reader: R, _offset: &'a [u8; 4], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value> {
+                match datatype {
+                    DataType::Short if count == 1 => Ok(vec![reader.read_u16(endian)? as u32]),
+                    DataType::Short if count == 2 => Ok(vec![
+                        reader.read_u16(endian)? as u32,
+                        reader.read_u16(endian)? as u32,
+                    ]),
+                    DataType::Short if count > 2 => {
+                        let offset = reader.read_u32(endian)? as u64;
+                        reader.goto(offset)?;
+                        let mut v = Vec::with_capacity(count);
+                        for _ in 0..count {
+                            v.push(reader.read_u16(endian)? as u32);
+                        }
+
+                        Ok(v)
+                    }
+                    DataType::Long if count == 1 => Ok(vec![reader.read_u32(endian)?]),
+                    DataType::Long if count > 1 => {
+                        let offset = reader.read_u32(endian)? as u64;
+                        reader.goto(offset)?;
+                        let mut v = Vec::with_capacity(count);
+                        for _ in 0..count {
+                            v.push(reader.read_u32(endian)?);
+                        }
+
+                        Ok(v)
+                    }
+                    _ => Err(DecodeError::from(DecodeErrorKind::NoSupportDataType { tag: AnyTag::from(*self), datatype: datatype, count: count })),
                 }
             }
         })*
     };
 }
 
-macro_rules! tag_vecu8 {
+macro_rules! tag_short_values {
     ($($name:ident, $id:expr, $def:expr;)*) => {
         $(impl TagType for $name {
-            type Value = Vec<u8>;
+            type Value = Vec<u16>;
 
             fn id(&self) -> u16 { $id }
-            fn default_value() -> Option<Vec<u8>> { $def }
-            fn value_from(&self, from: Vec<u32>) -> DecodeResult<Vec<u8>> {
-                match from.len() {
-                    0 => Err(DecodeError::from(DecodeErrorKind::NoData { tag: AnyTag::$name })),
-                    _ => {
-                        let max_value = u8::max_value();
-                        let mut from_values: Vec<u8> = vec![];
-                        for from_value in from {
-                            if from_value > max_value as u32 {
-                                return Err(DecodeError::from(DecodeErrorKind::OverflowU16Data { tag: AnyTag::$name, data: from_value }));
-                            }
-                            from_values.push(from_value as u8);
+            fn default_value() -> Option<Vec<u16>> { $def }
+            fn decode<'a, R: Read + Seek + 'a>(&'a self, mut reader: R, _offset: &'a [u8; 4], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value> {
+                match datatype {
+                    DataType::Short if count == 1 => Ok(vec![reader.read_u16(endian)?]),
+                    DataType::Short if count == 2 => Ok(vec![
+                        reader.read_u16(endian)?,
+                        reader.read_u16(endian)?,
+                    ]),
+                    DataType::Short if count > 2 => {
+                        let offset = reader.read_u32(endian)? as u64;
+                        reader.goto(offset)?;
+                        let mut v = Vec::with_capacity(count);
+                        for _ in 0..count {
+                            v.push(reader.read_u16(endian)?);
                         }
 
-                        Ok(from_values)
+                        Ok(v)
                     }
+                    _ => Err(DecodeError::from(DecodeErrorKind::NoSupportDataType { tag: AnyTag::from(*self), datatype: datatype, count: count })),
                 }
             }
         })*
@@ -173,24 +202,25 @@ define_tags! {
     StripByteCounts, 279;
 }
 
-tag_u32! {
+tag_short_or_long_value! {
     ImageWidth, 256, None;
     ImageLength, 257, None;
     RowsPerStrip, 278, Some(u32::max_value());
 }
 
-tag_u16! {
+tag_short_or_long_values! {
+    StripOffsets, 273, None;
+    StripByteCounts, 279, None;
+}
+
+tag_short_value! {
     PhotometricInterpretation, 262, None;
     Compression, 259, Some(1);
     SamplesPerPixel, 277, Some(1);
 }
 
-tag_vecu8! {
+tag_short_values! {
     BitsPerSample, 258, Some(vec![1]);
 }
 
-tag_vecu32! {
-    StripOffsets, 273, None;
-    StripByteCounts, 279, None;
-}
 

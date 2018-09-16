@@ -144,55 +144,9 @@ impl<R> Decoder<R> where R: Read + Seek {
         ifd.get(tag).ok_or(DecodeError::from(DecodeErrorKind::CannotFindTheTag{ tag: AnyTag::from(tag) }))
     }
     
-    fn going_to_get_it(&mut self, mut offset: &[u8], n: u32) -> DecodeResult<Vec<u32>> {
-        self.reader.goto(offset.read_u32(self.endian)? as u64)?;
-        let mut data = Vec::with_capacity(n as usize);
-        for _ in 0..n {
-            data.push(self.reader.read_u16(self.endian)? as u32);
-        }
-
-        Ok(data)
-    }
-
     pub fn get_value<T: TagType>(&mut self, ifd: &IFD, tag: T) -> DecodeResult<T::Value> {
-        match T::default_value() {
-            None => tag.value_from(self.get_entry_u32_values(ifd, tag)?),
-            Some(def) => tag.value_from(self.get_entry_u32_values(ifd, tag)?)
-                .or_else(|e| {
-                    match e.kind() {
-                        DecodeErrorKind::CannotFindTheTag { tag: _ } => Ok(def),
-                        _ => Err(e),
-                    }
-                }),
-        }
-    }
-
-    fn get_entry_u32_values<T: TagType>(&mut self, ifd: &IFD, tag: T) -> DecodeResult<Vec<u32>> {
         let entry = self.get_entry(ifd, tag)?;
-
-        let mut offset = entry.offset();
-
-        match (entry.datatype(), entry.count()) {
-            (DataType::Byte, 1) => Ok(vec![offset.read_u8()? as u32]),
-            (DataType::Short, 1) => Ok(vec![offset.read_u16(self.endian)? as u32]),
-            (DataType::Short, 2) => {
-                Ok(vec![
-                    offset.read_u16(self.endian)? as u32,
-                    offset.read_u16(self.endian)? as u32
-                ])
-            }
-            (DataType::Short, n) if n >= 3 => self.going_to_get_it(&mut offset, n),
-            (DataType::Long, 1) => Ok(vec![offset.read_u32(self.endian)? as u32]),
-            (DataType::Long, n) if n >= 2 => self.going_to_get_it(&mut offset, n),
-            (DataType::Rational, n) => self.going_to_get_it(&mut offset, n),
-            _ => {
-                Err(DecodeError::from(
-                    DecodeErrorKind::UnsupportedIFDEntry { 
-                        entry: entry.clone(),
-                        reason: "A suitable `DataType` & entry.count does not exist.".to_string(),
-                    }))
-            },
-        }
+        tag.decode(&mut self.reader, entry.offset(), self.endian, entry.datatype(), entry.count() as usize)
     }
 
     fn read_ifd(&mut self, from: u32) -> DecodeResult<(IFD, u32)>  {

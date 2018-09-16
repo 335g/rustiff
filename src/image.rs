@@ -1,20 +1,9 @@
 
-#![allow(unused_imports)]
-#![allow(unused_variables)]
-#![allow(dead_code)]
-
-use failure::Fail;
 use error::{
     DecodeError,
     DecodeErrorKind,
 };
-use tag::{
-    self,
-    AnyTag,
-};
-use std::{
-    fmt::Debug,
-};
+use tag::AnyTag;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PhotometricInterpretation {

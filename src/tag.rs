@@ -1,11 +1,4 @@
 
-#![allow(unused_imports)]
-#![allow(unused_variables)]
-#![allow(dead_code)]
-
-use failure::{
-    Fail,
-};
 use std::fmt::{
     self,
     Display,
@@ -26,8 +19,7 @@ pub trait TagType: Clone + Copy {
 
 macro_rules! define_tags {
     ($($name:ident, $id:expr;)*) => {
-        $(
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Fail)]
+        $(#[derive(Debug, Clone, Copy, PartialEq, Eq, Fail)]
         pub struct $name;
 
         impl Display for $name {
@@ -43,13 +35,6 @@ macro_rules! define_tags {
         }
 
         impl AnyTag {
-            pub fn from_u16(x: u16) -> AnyTag {
-                match x {
-                    $($id => AnyTag::$name,)*
-                    _ => AnyTag::Unknown(x),
-                }
-            }
-
             pub fn id(&self) -> u16 {
                 match *self {
                     $(AnyTag::$name => $id,)*
@@ -75,13 +60,21 @@ macro_rules! define_tags {
                 }
             }
         }
+
+        impl From<u16> for AnyTag {
+            fn from(n: u16) -> AnyTag {
+                match n {
+                    $($id => AnyTag::$name,)*
+                    _ => AnyTag::Unknown(n),
+                }
+            }
+        }
     }
 }
 
 macro_rules! tag_u32 {
     ($($name:ident, $id:expr, $def:expr;)*) => {
-        $(
-        impl TagType for $name {
+        $(impl TagType for $name {
             type Value = u32;
 
             fn id(&self) -> u16 { $id }
@@ -93,15 +86,13 @@ macro_rules! tag_u32 {
                     _ => Err(DecodeError::from(DecodeErrorKind::ExtraData { tag: AnyTag::$name, data: from })),
                 }
             }
-        }
-        )*
+        })*
     };
 }
 
 macro_rules! tag_u16 {
     ($($name:ident, $id:expr, $def:expr;)*) => {
-        $(
-        impl TagType for $name {
+        $(impl TagType for $name {
             type Value = u16;
 
             fn id(&self) -> u16 { $id }
@@ -121,15 +112,13 @@ macro_rules! tag_u16 {
                     _ => Err(DecodeError::from(DecodeErrorKind::ExtraData { tag: AnyTag::$name, data: from })),
                 }
             }
-        }
-        )*
+        })*
     };
 }
 
 macro_rules! tag_vecu32 {
     ($($name:ident, $id:expr, $def:expr;)*) => {
-        $(
-        impl TagType for $name {
+        $(impl TagType for $name {
             type Value = Vec<u32>;
 
             fn id(&self) -> u16 { $id }
@@ -140,15 +129,13 @@ macro_rules! tag_vecu32 {
                     _ => Ok(from),
                 }
             }
-        }
-        )*
+        })*
     };
 }
 
 macro_rules! tag_vecu8 {
     ($($name:ident, $id:expr, $def:expr;)*) => {
-        $(
-        impl TagType for $name {
+        $(impl TagType for $name {
             type Value = Vec<u8>;
 
             fn id(&self) -> u16 { $id }
@@ -170,8 +157,7 @@ macro_rules! tag_vecu8 {
                     }
                 }
             }
-        }
-        )*
+        })*
     };
 }
 

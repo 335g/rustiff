@@ -1,30 +1,17 @@
 
-// tmp
-#![allow(unused_imports)]
-#![allow(unused_variables)]
-#![allow(dead_code)]
-
-use ifd::{
-    DataType,
-    Entry,
-};
-use tag::{
-    self,
-    AnyTag,
-};
+use ifd::Entry;
+use tag::AnyTag;
 use image::{
     PhotometricInterpretation,
     BitsPerSample,
     BitsPerSampleError,
     ImageHeaderError,
 };
-
 use std::io;
 use std::fmt::{
     self,
     Display,
 };
-use std::error::Error as StdError;
 use failure::{
     Context,
     Fail,
@@ -120,7 +107,6 @@ impl From<io::Error> for DecodeError {
 
 impl From<BitsPerSampleError> for DecodeError {
     fn from(err: BitsPerSampleError) -> DecodeError {
-        let values = err.values();
         let kind = DecodeErrorKind::UnsupportedMultipleData { 
             tag: AnyTag::BitsPerSample,
             data: err.values().iter().map(|x| *x as u32).collect::<_>()
@@ -146,4 +132,3 @@ impl From<DecodeErrorKind> for DecodeError {
     }
 }
 
-pub enum EncodeError {}

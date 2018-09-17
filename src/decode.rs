@@ -40,31 +40,16 @@ macro_rules! read_byte {
         fn $method(&mut self, ifd: &IFD, header: &ImageHeader, buffer_size: usize) -> DecodeResult<ImageData> {
             let interpretation = header.photometric_interpretation();
             let compression = header.compression();
-            let width = header.width();
-            let height = header.height();
-            let bits_per_sample = header.bits_per_sample();
-            let bits_per_pixel: usize = match bits_per_sample {
-                BitsPerSample::U8_1 => 8,
-                BitsPerSample::U8_3 => 24,
-                BitsPerSample::U8_4 => 32,
-                BitsPerSample::U16_1 => 16,
-                BitsPerSample::U16_3 => 48,
-                BitsPerSample::U16_4 => 64,
-            };
-            let scanline_size = (width as usize * bits_per_pixel + 7) / 8;
-
             let offsets = self.get_value(ifd, tag::StripOffsets)?;
             let strip_byte_counts = self.get_value(ifd, tag::StripByteCounts)?;
-            let rows_per_strip = self.get_value(ifd, tag::RowsPerStrip)?; // TODO: default value is OK?
             let endian = self.endian;
-
+            
             let mut buffer: Vec<$t> = vec![0; buffer_size];
             let mut read_size = 0;
-            for (i, (offset, byte_count)) in offsets.into_iter().zip(strip_byte_counts.into_iter()).enumerate() {
+            for (offset, byte_count) in offsets.into_iter().zip(strip_byte_counts.into_iter()) {
                 let offset = offset as usize;
                 let byte_count = byte_count as usize;
-                let uncompressed_size = scanline_size * (height as usize - i * rows_per_strip as usize);
-
+                
                 self.reader.goto(offset as u64)?;
 
                 read_size += match compression {
@@ -81,7 +66,7 @@ macro_rules! read_byte {
                         read_size,
                         buffer_size,
                         endian,
-                        LZWReader::new(&mut self.reader, byte_count, uncompressed_size)?,
+                        LZWReader::new(&mut self.reader, byte_count)?,
                         &mut buffer[read_size..])?,
                 };
             }
@@ -140,59 +125,17 @@ impl<R> Decoder<R> where R: Read + Seek {
         Ok(ifd)
     }
 
+    pub fn endian(&self) -> Endian {
+        self.endian
+    }
+
     fn get_entry<'a, T: TagType>(&mut self, ifd: &'a IFD, tag: T) -> DecodeResult<&'a Entry> {
         ifd.get(tag).ok_or(DecodeError::from(DecodeErrorKind::CannotFindTheTag{ tag: AnyTag::from(tag) }))
     }
     
-    fn going_to_get_it(&mut self, mut offset: &[u8], n: u32) -> DecodeResult<Vec<u32>> {
-        self.reader.goto(offset.read_u32(self.endian)? as u64)?;
-        let mut data = Vec::with_capacity(n as usize);
-        for _ in 0..n {
-            data.push(self.reader.read_u16(self.endian)? as u32);
-        }
-
-        Ok(data)
-    }
-
     pub fn get_value<T: TagType>(&mut self, ifd: &IFD, tag: T) -> DecodeResult<T::Value> {
-        match T::default_value() {
-            None => tag.value_from(self.get_entry_u32_values(ifd, tag)?),
-            Some(def) => tag.value_from(self.get_entry_u32_values(ifd, tag)?)
-                .or_else(|e| {
-                    match e.kind() {
-                        DecodeErrorKind::CannotFindTheTag { tag: _ } => Ok(def),
-                        _ => Err(e),
-                    }
-                }),
-        }
-    }
-
-    fn get_entry_u32_values<T: TagType>(&mut self, ifd: &IFD, tag: T) -> DecodeResult<Vec<u32>> {
         let entry = self.get_entry(ifd, tag)?;
-
-        let mut offset = entry.offset();
-
-        match (entry.datatype(), entry.count()) {
-            (DataType::Byte, 1) => Ok(vec![offset.read_u8()? as u32]),
-            (DataType::Short, 1) => Ok(vec![offset.read_u16(self.endian)? as u32]),
-            (DataType::Short, 2) => {
-                Ok(vec![
-                    offset.read_u16(self.endian)? as u32,
-                    offset.read_u16(self.endian)? as u32
-                ])
-            }
-            (DataType::Short, n) if n >= 3 => self.going_to_get_it(&mut offset, n),
-            (DataType::Long, 1) => Ok(vec![offset.read_u32(self.endian)? as u32]),
-            (DataType::Long, n) if n >= 2 => self.going_to_get_it(&mut offset, n),
-            (DataType::Rational, n) => self.going_to_get_it(&mut offset, n),
-            _ => {
-                Err(DecodeError::from(
-                    DecodeErrorKind::UnsupportedIFDEntry { 
-                        entry: entry.clone(),
-                        reason: "A suitable `DataType` & entry.count does not exist.".to_string(),
-                    }))
-            },
-        }
+        tag.decode(&mut self.reader, entry.offset(), self.endian, entry.datatype(), entry.count() as usize)
     }
 
     fn read_ifd(&mut self, from: u32) -> DecodeResult<(IFD, u32)>  {
@@ -210,14 +153,11 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
     
     fn read_entry(&mut self) -> DecodeResult<(AnyTag, Entry)> {
-        let tag = AnyTag::from_u16(self.reader.read_u16(self.endian)?);
-        let datatype = DataType::from_u16(self.reader.read_u16(self.endian)?);
-        
-        let entry = Entry::new(
-            datatype,
-            self.reader.read_u32(self.endian)?,
-            self.reader.read_4byte()?,
-        );
+        let tag = AnyTag::from(self.reader.read_u16(self.endian)?);
+        let datatype = DataType::from(self.reader.read_u16(self.endian)?);
+        let count = self.reader.read_u32(self.endian)?;
+        let offset = self.reader.read_4byte()?;
+        let entry = Entry::new(datatype, count, offset);
 
         Ok((tag, entry))
     }
@@ -228,13 +168,14 @@ impl<R> Decoder<R> where R: Read + Seek {
         let compression = Compression::from_u16(self.get_value(ifd, tag::Compression)?)?;
         let interpretation = PhotometricInterpretation::from_u16(self.get_value(ifd, tag::PhotometricInterpretation)?)?;
         let bits_per_sample = BitsPerSample::new(self.get_value(ifd, tag::BitsPerSample)?)?;
-        
         let header = ImageHeader::new(width, height, compression, interpretation, bits_per_sample)?;
+        
         Ok(header)
     }
     
     pub fn header(&mut self) -> DecodeResult<ImageHeader> {
         let ifd = self.ifd()?;
+
         self.header_with(&ifd)
     }
     
@@ -315,7 +256,6 @@ fn read_byte_detail_u8<S>(
     if read_size + compressed_size > buffer_size {
         return Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { calc: buffer_size, sum: read_size + compressed_size }));
     }
-
     let res = reader.read(&mut buffer[..compressed_size])?;
     if interpretation == PhotometricInterpretation::BlackIsZero {
         for data in buffer[..compressed_size].iter_mut() {

@@ -1,30 +1,20 @@
 
-// tmp
-#![allow(unused_imports)]
-#![allow(unused_variables)]
-#![allow(dead_code)]
-
 use ifd::{
-    DataType,
     Entry,
+    DataType,
 };
-use tag::{
-    self,
-    AnyTag,
-};
+use tag::AnyTag;
 use image::{
     PhotometricInterpretation,
     BitsPerSample,
     BitsPerSampleError,
     ImageHeaderError,
 };
-
 use std::io;
 use std::fmt::{
     self,
     Display,
 };
-use std::error::Error as StdError;
 use failure::{
     Context,
     Fail,
@@ -74,11 +64,8 @@ pub enum DecodeErrorKind {
     #[fail(display = "Tag ({:?}) requires only one value, but you got extra data: {:?}.", tag, data)]
     ExtraData { tag: AnyTag, data: Vec<u32> },
 
-    #[fail(display = "Tag ({:?}) requires a value less than or equal to `u16::max_value()`, you got {:?}", tag, data)]
-    OverflowU16Data { tag: AnyTag, data: u32 },
-    
-    #[fail(display = "Tag ({:?}) requires a value less than or equal to `u8::max_value()`, you got {:?}", tag, data)]
-    OverflowU8Data { tag: AnyTag, data: u32 },
+    #[fail(display = "Tag ({:?}) doesn't support this datatype/count : {:?}/{}", tag, datatype, count)]
+    NoSupportDataType { tag: AnyTag, datatype: DataType, count: usize },
 }
 
 #[derive(Debug)]
@@ -120,7 +107,6 @@ impl From<io::Error> for DecodeError {
 
 impl From<BitsPerSampleError> for DecodeError {
     fn from(err: BitsPerSampleError) -> DecodeError {
-        let values = err.values();
         let kind = DecodeErrorKind::UnsupportedMultipleData { 
             tag: AnyTag::BitsPerSample,
             data: err.values().iter().map(|x| *x as u32).collect::<_>()
@@ -146,4 +132,3 @@ impl From<DecodeErrorKind> for DecodeError {
     }
 }
 
-pub enum EncodeError {}

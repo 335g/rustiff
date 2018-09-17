@@ -1,16 +1,10 @@
 
-#![allow(unused_imports)]
-#![allow(unused_variables)]
-#![allow(dead_code)]
-
 use std::collections::HashMap;
 use std::fmt::{
     self,
     Display,
 };
-
 use tag::{
-    self,
     TagType,
     AnyTag,
 };
@@ -24,8 +18,8 @@ pub enum DataType {
     Unknown(u16),
 }
 
-impl DataType {
-    pub fn from_u16(n: u16) -> DataType {
+impl From<u16> for DataType {
+    fn from(n: u16) -> DataType {
         match n {
             1 => DataType::Byte,
             3 => DataType::Short,

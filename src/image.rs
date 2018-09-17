@@ -1,20 +1,9 @@
 
-#![allow(unused_imports)]
-#![allow(unused_variables)]
-#![allow(dead_code)]
-
-use failure::Fail;
 use error::{
     DecodeError,
     DecodeErrorKind,
 };
-use tag::{
-    self,
-    AnyTag,
-};
-use std::{
-    fmt::Debug,
-};
+use tag::AnyTag;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PhotometricInterpretation {
@@ -65,11 +54,11 @@ impl Compression {
 #[derive(Debug, Fail)]
 pub enum BitsPerSampleError {
     #[fail(display = "Invalid values: {:?}", values)]
-    InvalidValues { values: Vec<u8> }
+    InvalidValues { values: Vec<u16> }
 }
 
 impl BitsPerSampleError {
-    pub fn values(&self) -> &Vec<u8> {
+    pub fn values(&self) -> &Vec<u16> {
         match self {
             BitsPerSampleError::InvalidValues { values } => values
         }
@@ -88,7 +77,7 @@ pub enum BitsPerSample {
 }
 
 impl BitsPerSample {
-    pub fn new<T: AsRef<[u8]>>(values: T) -> Result<BitsPerSample, BitsPerSampleError> {
+    pub fn new<T: AsRef<[u16]>>(values: T) -> Result<BitsPerSample, BitsPerSampleError> {
         match values.as_ref() {
             [8] => Ok(BitsPerSample::U8_1),
             [8, 8, 8] => Ok(BitsPerSample::U8_3),

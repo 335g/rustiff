@@ -76,13 +76,13 @@ impl<S: Seek> SeekExt for S {}
 pub struct LZWReader(Cursor<Vec<u8>>);
 
 impl LZWReader {
-    pub fn new<R>(reader: &mut R, compressed_len: usize, max_uncompressed_len: usize) -> io::Result<(LZWReader, usize)> where R: Read {
+    pub fn new<R>(reader: &mut R, compressed_len: usize) -> io::Result<(LZWReader, usize)> where R: Read {
         let mut compressed = vec![0; compressed_len as usize];
         reader.read_exact(&mut compressed)?;
-        let mut uncompressed = Vec::with_capacity(max_uncompressed_len);
+        let mut uncompressed = vec![];
         let mut decoder = ::lzw::DecoderEarlyChange::new(::lzw::MsbReader::new(), 8);
         let mut read = 0;
-        while read < compressed_len && uncompressed.len() < max_uncompressed_len {
+        while read < compressed_len {
             let (len, bytes) = decoder.decode_bytes(&compressed[read..])?;
             read += len;
             uncompressed.extend_from_slice(bytes);

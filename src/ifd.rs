@@ -54,7 +54,7 @@ impl Entry {
         self.count
     }
 
-    pub fn offset(&self) -> &[u8; 4] {
+    pub fn offset(&self) -> &[u8] {
         &self.offset
     }
 }

@@ -24,7 +24,7 @@ pub trait TagType: Clone + Copy {
 
     fn id(&self) -> u16;
     fn default_value() -> Option<Self::Value>;
-    fn decode<'a, R: Read + Seek + 'a>(&'a self, reader: R, offset: &'a [u8; 4], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value>;
+    fn decode<'a, R: Read + Seek + 'a>(&'a self, reader: R, offset: &'a [u8], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value>;
 }
 
 macro_rules! define_tags {
@@ -89,10 +89,10 @@ macro_rules! tag_short_or_long_value {
 
             fn id(&self) -> u16 { $id }
             fn default_value() -> Option<u32> { $def }
-            fn decode<'a, R: Read + Seek + 'a>(&'a self, mut reader: R, _offset: &'a [u8; 4], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value> {
+            fn decode<'a, R: Read + Seek + 'a>(&'a self, mut _reader: R, mut offset: &'a [u8], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value> {
                 match datatype {
-                    DataType::Short if count == 1 => Ok(reader.read_u16(endian)? as u32),
-                    DataType::Long if count == 1 => Ok(reader.read_u32(endian)?),
+                    DataType::Short if count == 1 => Ok(offset.read_u16(endian)? as u32),
+                    DataType::Long if count == 1 => Ok(offset.read_u32(endian)?),
                     _ => Err(DecodeError::from(DecodeErrorKind::NoSupportDataType { tag: AnyTag::from(*self), datatype: datatype, count: count })),
                 }
             }
@@ -107,9 +107,9 @@ macro_rules! tag_short_value {
 
             fn id(&self) -> u16 { $id }
             fn default_value() -> Option<u16> { $def }
-            fn decode<'a, R: Read + Seek + 'a>(&'a self, mut reader: R, _offset: &'a [u8; 4], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value> {
+            fn decode<'a, R: Read + Seek + 'a>(&'a self, mut _reader: R, mut offset: &'a [u8], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value> {
                 match datatype {
-                    DataType::Short if count == 1 => Ok(reader.read_u16(endian)?),
+                    DataType::Short if count == 1 => Ok(offset.read_u16(endian)?),
                     _ => Err(DecodeError::from(DecodeErrorKind::NoSupportDataType { tag: AnyTag::from(*self), datatype: datatype, count: count })),
                 }
             }
@@ -124,15 +124,15 @@ macro_rules! tag_short_or_long_values {
 
             fn id(&self) -> u16 { $id }
             fn default_value() -> Option<Vec<u32>> { $def }
-            fn decode<'a, R: Read + Seek + 'a>(&'a self, mut reader: R, _offset: &'a [u8; 4], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value> {
+            fn decode<'a, R: Read + Seek + 'a>(&'a self, mut reader: R, mut offset: &'a [u8], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value> {
                 match datatype {
-                    DataType::Short if count == 1 => Ok(vec![reader.read_u16(endian)? as u32]),
+                    DataType::Short if count == 1 => Ok(vec![offset.read_u16(endian)? as u32]),
                     DataType::Short if count == 2 => Ok(vec![
-                        reader.read_u16(endian)? as u32,
-                        reader.read_u16(endian)? as u32,
+                        offset.read_u16(endian)? as u32,
+                        offset.read_u16(endian)? as u32,
                     ]),
                     DataType::Short if count > 2 => {
-                        let offset = reader.read_u32(endian)? as u64;
+                        let offset = offset.read_u32(endian)? as u64;
                         reader.goto(offset)?;
                         let mut v = Vec::with_capacity(count);
                         for _ in 0..count {
@@ -141,9 +141,9 @@ macro_rules! tag_short_or_long_values {
 
                         Ok(v)
                     }
-                    DataType::Long if count == 1 => Ok(vec![reader.read_u32(endian)?]),
+                    DataType::Long if count == 1 => Ok(vec![offset.read_u32(endian)?]),
                     DataType::Long if count > 1 => {
-                        let offset = reader.read_u32(endian)? as u64;
+                        let offset = offset.read_u32(endian)? as u64;
                         reader.goto(offset)?;
                         let mut v = Vec::with_capacity(count);
                         for _ in 0..count {
@@ -166,15 +166,15 @@ macro_rules! tag_short_values {
 
             fn id(&self) -> u16 { $id }
             fn default_value() -> Option<Vec<u16>> { $def }
-            fn decode<'a, R: Read + Seek + 'a>(&'a self, mut reader: R, _offset: &'a [u8; 4], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value> {
+            fn decode<'a, R: Read + Seek + 'a>(&'a self, mut reader: R, mut offset: &'a [u8], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value> {
                 match datatype {
-                    DataType::Short if count == 1 => Ok(vec![reader.read_u16(endian)?]),
+                    DataType::Short if count == 1 => Ok(vec![offset.read_u16(endian)?]),
                     DataType::Short if count == 2 => Ok(vec![
-                        reader.read_u16(endian)?,
-                        reader.read_u16(endian)?,
+                        offset.read_u16(endian)?,
+                        offset.read_u16(endian)?,
                     ]),
                     DataType::Short if count > 2 => {
-                        let offset = reader.read_u32(endian)? as u64;
+                        let offset = offset.read_u32(endian)? as u64;
                         reader.goto(offset)?;
                         let mut v = Vec::with_capacity(count);
                         for _ in 0..count {

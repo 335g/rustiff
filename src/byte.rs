@@ -18,41 +18,51 @@ use std::{
     },
 };
 
+/// enum for `byteorder::BigEndian` and `byteorder::LittleEndian`.
+///
+/// They should be treated as the same type, because `decoder::Decoder` 
+/// determine endian according to file contents.
 #[derive(Debug, Clone, Copy)]
 pub enum Endian {
     Big,
     Little,
 }
 
-pub trait EndianReadExt: Read {
-    fn read_u8(&mut self) -> io::Result<u8> {
-        <Self as ReadBytesExt>::read_u8(self)
-    }
-
+/// private trait for Read extension.
+pub(crate) trait ReadExt: Read {
+    /// Reads an u16 value with Endian.
+    ///
+    /// #panics
+    ///
+    /// panics when `self.len() < 2`.
+    #[inline(always)]
     fn read_u16(&mut self, byte_order: Endian) -> io::Result<u16> {
         match byte_order {
             Endian::Big => <Self as ReadBytesExt>::read_u16::<BigEndian>(self),
             Endian::Little => <Self as ReadBytesExt>::read_u16::<LittleEndian>(self),
         }
     }
-
+    
+    /// Reads an u32 value with Endian.
+    ///
+    /// #panics
+    ///
+    /// panics when `self.len() < 4`.
+    #[inline(always)]
     fn read_u32(&mut self, byte_order: Endian) -> io::Result<u32> {
         match byte_order {
             Endian::Big => <Self as ReadBytesExt>::read_u32::<BigEndian>(self),
             Endian::Little => <Self as ReadBytesExt>::read_u32::<LittleEndian>(self),
         }
     }
-}
-
-impl<R: Read> EndianReadExt for R {}
-
-pub trait ReadExt: Read {
-    fn read_2byte(&mut self) -> io::Result<[u8; 2]> {
-        let mut val = [0u8; 2];
-        let _ = self.read_exact(&mut val)?;
-        Ok(val)
-    }
-
+    
+    /// Reads an four u8 values.
+    ///
+    /// #panics
+    ///
+    /// panics when `self.len() < 4`.
+    ///
+    #[inline]
     fn read_4byte(&mut self) -> io::Result<[u8; 4]> {
         let mut val = [0u8; 4];
         let _ = self.read_exact(&mut val)?;
@@ -62,8 +72,9 @@ pub trait ReadExt: Read {
 
 impl<R: Read> ReadExt for R {}
 
-pub trait SeekExt: Seek {
-    // jump memory address.
+/// private trait for Seek extension.
+pub(crate) trait SeekExt: Seek {
+    /// jump memory address.
     fn goto(&mut self, x: u64) -> io::Result<()> {
         self.seek(io::SeekFrom::Start(x))
             .map(|_| ())
@@ -72,10 +83,12 @@ pub trait SeekExt: Seek {
 
 impl<S: Seek> SeekExt for S {}
 
+/// Reader for data compressed in LZW format.
 #[derive(Debug)]
-pub struct LZWReader(Cursor<Vec<u8>>);
+pub(crate) struct LZWReader(Cursor<Vec<u8>>);
 
 impl LZWReader {
+    #[allow(missing_docs)]
     pub fn new<R>(reader: &mut R, compressed_len: usize) -> io::Result<(LZWReader, usize)> where R: Read {
         let mut compressed = vec![0; compressed_len as usize];
         reader.read_exact(&mut compressed)?;

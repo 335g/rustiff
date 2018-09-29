@@ -5,6 +5,7 @@ use error::{
 };
 use tag::AnyTag;
 
+/// 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PhotometricInterpretation {
     WhiteIsZero,
@@ -51,20 +52,6 @@ impl Compression {
     }
 }
 
-#[derive(Debug, Fail)]
-pub enum BitsPerSampleError {
-    #[fail(display = "Invalid values: {:?}", values)]
-    InvalidValues { values: Vec<u16> }
-}
-
-impl BitsPerSampleError {
-    pub fn values(&self) -> &Vec<u16> {
-        match self {
-            BitsPerSampleError::InvalidValues { values } => values
-        }
-    }
-}
-
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BitsPerSample {
@@ -77,7 +64,7 @@ pub enum BitsPerSample {
 }
 
 impl BitsPerSample {
-    pub fn new<T: AsRef<[u16]>>(values: T) -> Result<BitsPerSample, BitsPerSampleError> {
+    pub fn new<T: AsRef<[u16]>>(values: T) -> Result<BitsPerSample, DecodeError> {
         match values.as_ref() {
             [8] => Ok(BitsPerSample::U8_1),
             [8, 8, 8] => Ok(BitsPerSample::U8_3),
@@ -85,7 +72,7 @@ impl BitsPerSample {
             [16] => Ok(BitsPerSample::U16_1),
             [16, 16, 16] => Ok(BitsPerSample::U16_3),
             [16, 16, 16, 16] => Ok(BitsPerSample::U16_4),
-            _ => Err(BitsPerSampleError::InvalidValues { values: values.as_ref().to_vec() }),
+            _ => Err(DecodeError::from(DecodeErrorKind::IncorrectBitsPerSample { data: values.as_ref().to_vec() })),
         }
     }
 
@@ -190,23 +177,46 @@ pub struct Image {
 }
 
 impl Image {
-    pub fn new(header: ImageHeader, data: ImageData) -> Image {
+    /// This functions constructs `Image`.
+    fn new(header: ImageHeader, data: ImageData) -> Image {
         Image {
             header: header,
             data: data,
         }
     }
-
+    
+    /// This function reutrns the reference of `ImageHeader`.
     pub fn header(&self) -> &ImageHeader {
         &self.header
     }
 
+    /// This function returns the reference of `ImageData`.
+    /// This is used when you don't know whether TIFF data is 8bit data or 16bit data.
     pub fn data(&self) -> &ImageData {
         &self.data
     }
+
+    /// This function returns the reference of u8 data of every pixel.
+    /// This is used when you know the TIFF data is the 8bit data.
+    pub fn u8_data(&self) -> Option<&Vec<u8>> {
+        match self.data {
+            ImageData::U8(ref data) => Some(data),
+            _ => None,
+        }
+    }
+    
+    /// This function returns the reference of u16 data of every pixel.
+    /// This is used when you know TIFF data is the 16bit data.
+    pub fn u16_data(&self) -> Option<&Vec<u16>> {
+        match self.data {
+            ImageData::U16(ref data) => Some(data),
+            _ => None,
+        }
+    }
 }
 
-#[inline]
+
+#[allow(missing_docs)]
 fn is_valid_color_type(photometric_interpretation: PhotometricInterpretation, bits_per_sample: BitsPerSample) -> bool {
     use self::PhotometricInterpretation::*;
     use self::BitsPerSample::*;

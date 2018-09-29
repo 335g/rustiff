@@ -1,3 +1,13 @@
+// TODO: encoder impl
+/// The `rustiff` crate provides TIFF format decoder and encoder.
+/// 
+/// # Brief overview
+/// 
+/// The primary types in this crate is [`Decoder`](struct.Decoder.html) for decoding TIFF data.
+/// 
+/// [`IFD`](struct.IFD.html) is used when multiple images are included in one file.
+
+//#![warn(missing_docs)]
 
 extern crate byteorder;
 extern crate lzw;
@@ -24,6 +34,5 @@ pub use image::{
     ImageHeaderError,
     Compression,
     BitsPerSample,
-    BitsPerSampleError,
     PhotometricInterpretation,
 };

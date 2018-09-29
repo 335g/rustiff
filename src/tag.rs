@@ -15,7 +15,7 @@ use error::{
 use ifd::DataType;
 use byte::{
     Endian,
-    EndianReadExt,
+    ReadExt,
     SeekExt,
 };
 

@@ -2,11 +2,11 @@
 use error::{
     DecodeError,
     DecodeErrorKind,
+    HeaderErrorKind,
     DecodeResult,
 };
 use byte::{
     Endian,
-    EndianReadExt,
     ReadExt,
     SeekExt,
     LZWReader,
@@ -89,21 +89,21 @@ impl<R> Decoder<R> where R: Read + Seek {
     pub fn new(mut reader: R) -> DecodeResult<Decoder<R>> {
         let mut byte_order = [0u8; 2];
         if let Err(_) = reader.read_exact(&mut byte_order) {
-            return Err(DecodeError::from(DecodeErrorKind::NoByteOrder));
+            return Err(DecodeError::from(HeaderErrorKind::NoByteOrder));
         }
         let endian = match &byte_order {
             b"II" => Endian::Little,
             b"MM" => Endian::Big,
-            _ => return Err(DecodeError::from(DecodeErrorKind::NoByteOrder)),
+            _ => return Err(DecodeError::from(HeaderErrorKind::NoByteOrder)),
         };
 
         match reader.read_u16(endian) {
             Ok(x) if x == 42 => {},
-            _ => return Err(DecodeError::from(DecodeErrorKind::NoVersion))
+            _ => return Err(DecodeError::from(HeaderErrorKind::NoVersion))
         }
         let start = match reader.read_u32(endian) {
             Ok(x) => x,
-            Err(_) => return Err(DecodeError::from(DecodeErrorKind::NoIFDAddress))
+            Err(_) => return Err(DecodeError::from(HeaderErrorKind::NoIFDAddress))
         };
         let decoder = Decoder {
             start: start,

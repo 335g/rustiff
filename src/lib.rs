@@ -52,6 +52,7 @@ mod decode;
 mod ifd;
 mod image;
 pub mod tag;
+mod tool;
 
 pub use decode::Decoder;
 pub use ifd::IFD;

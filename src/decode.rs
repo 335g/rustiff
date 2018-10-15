@@ -29,6 +29,7 @@ use image::{
     BitsPerSample,
     Image,
     ImageData,
+    ImageHeaderBuilder,
     ImageHeader,
     Compression,
     PhotometricInterpretation,
@@ -53,7 +54,7 @@ macro_rules! read_byte {
                 self.reader.goto(offset as u64)?;
 
                 read_size += match compression {
-                    Compression::No => $method2(
+                    None => $method2(
                         interpretation,
                         read_size,
                         buffer_size,
@@ -61,7 +62,7 @@ macro_rules! read_byte {
                         (&mut self.reader, byte_count),
                         &mut buffer[read_size..])?,
 
-                    Compression::LZW => $method2(
+                    Some(Compression::LZW) => $method2(
                         interpretation,
                         read_size,
                         buffer_size,
@@ -162,14 +163,33 @@ impl<R> Decoder<R> where R: Read + Seek {
         Ok((tag, entry))
     }
 
+    #[inline]
     pub fn header_with(&mut self, ifd: &IFD) -> DecodeResult<ImageHeader> {
         let width = self.get_value(ifd, tag::ImageWidth)?;
         let height = self.get_value(ifd, tag::ImageLength)?;
-        let compression = Compression::from_u16(self.get_value(ifd, tag::Compression)?)?;
         let interpretation = PhotometricInterpretation::from_u16(self.get_value(ifd, tag::PhotometricInterpretation)?)?;
-        let bits_per_sample = BitsPerSample::new(self.get_value(ifd, tag::BitsPerSample)?)?;
-        let header = ImageHeader::new(width, height, compression, interpretation, bits_per_sample)?;
-        
+        let bits_per_sample = self.get_value(ifd, tag::BitsPerSample)?;
+        let samples_per_pixel = self.get_value(ifd, tag::SamplesPerPixel)?;
+        let builder = ImageHeaderBuilder::default()
+            .width(width)
+            .height(height)
+            .photometric_interpretation(interpretation)
+            .bits_per_sample(bits_per_sample)
+            .samples_per_pixel(samples_per_pixel);
+
+        let compression = self.get_value(ifd, tag::Compression)?;
+        let builder = if let Some(compression) = Compression::from_u16(compression)? {
+            builder.compression(compression)
+        } else {
+            builder
+        };
+
+        let header = builder.build()?;
+        //let header = match Compression::from_u16(self.get_value(ifd, tag::Compression)?)? {
+        //    Some(compression) => builder.compression(compression),
+        //    None => builder,
+        //}.build()?;
+
         Ok(header)
     }
     

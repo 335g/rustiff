@@ -4,6 +4,11 @@ use error::{
     DecodeErrorKind,
 };
 use tag::AnyTag;
+use tool::{
+    HasValue,
+    Empty,
+    Filled,
+};
 
 /// The color space of the image data.
 ///
@@ -100,122 +105,164 @@ impl PhotometricInterpretation {
 /// IFD constructs this with `tag::Compression`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Compression {
-    /// Not compress
-    No,
-
     /// LZW compression
     LZW,
 }
 
 impl Compression {
-    pub fn from_u16(n: u16) -> Result<Compression, DecodeError> {
+    pub fn from_u16(n: u16) -> Result<Option<Compression>, DecodeError> {
         match n {
-            1 => Ok(Compression::No),
-            5 => Ok(Compression::LZW),
+            1 => Ok(None),
+            5 => Ok(Some(Compression::LZW)),
             n => Err(DecodeError::from(DecodeErrorKind::UnsupportedData{ tag: AnyTag::Compression, data: n as u32 })),
         }
     }
 }
 
-/// bits per sample
+/// Bits/Sample
 /// 
 /// IFD constructs this with `tag::BitsPerSample`.
-#[allow(non_camel_case_types)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BitsPerSample {
-    /// One 8bit value.
-    ///
-    /// # must
-    ///
-    /// 
-    U8_1,
-    U8_3,
-    U8_4,
-    U16_1,
-    U16_3,
-    U16_4,
-}
+pub type BitsPerSample = Vec<u16>;
 
-impl BitsPerSample {
-    pub fn new<T: AsRef<[u16]>>(values: T) -> Result<BitsPerSample, DecodeError> {
-        match values.as_ref() {
-            [8] => Ok(BitsPerSample::U8_1),
-            [8, 8, 8] => Ok(BitsPerSample::U8_3),
-            [8, 8, 8, 8] => Ok(BitsPerSample::U8_4),
-            [16] => Ok(BitsPerSample::U16_1),
-            [16, 16, 16] => Ok(BitsPerSample::U16_3),
-            [16, 16, 16, 16] => Ok(BitsPerSample::U16_4),
-            _ => Err(DecodeError::from(DecodeErrorKind::IncorrectBitsPerSample { data: values.as_ref().to_vec() })),
-        }
-    }
-
-    pub fn len(&self) -> usize {
-        match *self {
-            BitsPerSample::U8_1 | BitsPerSample::U16_1 => 1,
-            BitsPerSample::U8_3 | BitsPerSample::U16_3 => 3,
-            BitsPerSample::U8_4 | BitsPerSample::U16_4 => 4,
-        }
-    }
-
-    pub fn max_value(&self) -> u16 {
-        let x = u8::max_value() as u16;
-        let y = u16::max_value();
-
-        match *self {
-            BitsPerSample::U8_1 | BitsPerSample::U8_3 | BitsPerSample::U8_4 => x,
-            BitsPerSample::U16_1 | BitsPerSample::U16_3 | BitsPerSample::U16_4 => y,
-        }
-    }
-
-    pub fn bits(&self) -> usize {
-        match self {
-            BitsPerSample::U8_1 | BitsPerSample::U8_3 | BitsPerSample::U8_4 => 8,
-            BitsPerSample::U16_1 | BitsPerSample::U16_3 | BitsPerSample::U16_4 => 16
-        }
-    }
-}
+/// Samples/Pixel
+///
+/// The number of components per pixel. This is closely related to `PhotometricInterpretation`.
+/// 
+/// IFD constructs this with `tag::SamplesPerPixel`.
+pub type SamplesPerPixel = u16;
 
 #[derive(Debug, Fail)]
 pub enum ImageHeaderError {
-    #[fail(display = "Incompatible data ({:?}/{:?}", photometric_interpretation, bits_per_sample)]
-    IncompatibleData { photometric_interpretation: PhotometricInterpretation, bits_per_sample: BitsPerSample },
+    #[fail(display = "Incompatible data ({:?}, {:?}, {:?})", photometric_interpretation, bits_per_sample, samples_per_pixel)]
+    IncompatibleData { 
+        photometric_interpretation: PhotometricInterpretation,
+        bits_per_sample: BitsPerSample,
+        samples_per_pixel: SamplesPerPixel, 
+    },
 }
 
-#[derive(Debug, Clone)]
-pub struct ImageHeader {
-    width: u32,
-    height: u32,
-    compression: Compression,
-    photometric_interpretation: PhotometricInterpretation,
-    bits_per_sample: BitsPerSample,
+
+#[derive(Debug)]
+pub struct ImageHeaderBuilder<PI, BPS, SPP, W, H> {
+    photometric_interpretation: PI,
+    bits_per_sample: BPS,
+    samples_per_pixel: SPP,
+    compression: Option<Compression>,
+    width: W,
+    height: H,
 }
 
-impl ImageHeader {
-    pub fn new(
-        width: u32, 
-        height: u32, 
-        compression: Compression, 
-        interpretation: PhotometricInterpretation,
-        bits_per_sample: BitsPerSample) -> Result<ImageHeader, ImageHeaderError>
-    {
-        if !is_valid_color_type(interpretation, bits_per_sample) {
-            return Err(ImageHeaderError::IncompatibleData { 
-                photometric_interpretation: interpretation, 
-                bits_per_sample: bits_per_sample,
-            });
+impl Default for ImageHeaderBuilder<Empty, Empty, Empty, Empty, Empty> {
+    fn default() -> Self {
+        ImageHeaderBuilder {
+            photometric_interpretation: Empty,
+            bits_per_sample: Empty,
+            samples_per_pixel: Empty,
+            compression: None,
+            width: Empty,
+            height: Empty,
         }
+    }
+}
+
+impl<PI, BPS, SPP, W, H> ImageHeaderBuilder<PI, BPS, SPP, W, H> where PI: HasValue, BPS: HasValue, SPP: HasValue, W: HasValue, H: HasValue {
+    pub fn photometric_interpretation(self, interpretation: PhotometricInterpretation) -> ImageHeaderBuilder<Filled<PhotometricInterpretation>, BPS, SPP, W, H> {
+        ImageHeaderBuilder {
+            photometric_interpretation: Filled(interpretation),
+            bits_per_sample: self.bits_per_sample,
+            samples_per_pixel: self.samples_per_pixel,
+            compression: self.compression,
+            width: self.width,
+            height: self.height,
+        }
+    }
+
+    pub fn bits_per_sample(self, bits_per_sample: BitsPerSample) -> ImageHeaderBuilder<PI, Filled<BitsPerSample>, SPP, W, H> {
+        ImageHeaderBuilder {
+            photometric_interpretation: self.photometric_interpretation,
+            bits_per_sample: Filled(bits_per_sample),
+            samples_per_pixel: self.samples_per_pixel,
+            compression: self.compression,
+            width: self.width,
+            height: self.height,
+        }
+    }
+
+    pub fn samples_per_pixel(self, samples_per_pixel: SamplesPerPixel) -> ImageHeaderBuilder<PI, BPS, Filled<SamplesPerPixel>, W, H> {
+        ImageHeaderBuilder {
+            photometric_interpretation: self.photometric_interpretation,
+            bits_per_sample: self.bits_per_sample,
+            samples_per_pixel: Filled(samples_per_pixel),
+            compression: self.compression,
+            width: self.width,
+            height: self.height,
+        }
+    }
+
+    pub fn compression(mut self, compression: Compression) -> Self {
+        self.compression = Some(compression);
+        self
+    }
+
+    pub fn width(self, width: u32) -> ImageHeaderBuilder<PI, BPS, SPP, Filled<u32>, H> {
+        ImageHeaderBuilder {
+            photometric_interpretation: self.photometric_interpretation,
+            bits_per_sample: self.bits_per_sample,
+            samples_per_pixel: self.samples_per_pixel,
+            compression: self.compression,
+            width: Filled(width),
+            height: self.height,
+        }
+    }
+    
+    pub fn height(self, height: u32) -> ImageHeaderBuilder<PI, BPS, SPP, W, Filled<u32>> {
+        ImageHeaderBuilder {
+            photometric_interpretation: self.photometric_interpretation,
+            bits_per_sample: self.bits_per_sample,
+            samples_per_pixel: self.samples_per_pixel,
+            compression: self.compression,
+            width: self.width,
+            height: Filled(height),
+        }
+    }
+}
+
+impl ImageHeaderBuilder<Filled<PhotometricInterpretation>, Filled<BitsPerSample>, Filled<SamplesPerPixel>, Filled<u32>, Filled<u32>> {
+    pub fn build(self) -> Result<ImageHeader, ImageHeaderError> {
+        let photometric_interpretation = self.photometric_interpretation.0;
+        let bits_per_sample = self.bits_per_sample.0;
+        let samples_per_pixel = self.samples_per_pixel.0;
+        let compression = self.compression;
+        let width = self.width.0;
+        let height = self.height.0;
+
+        // TODO: Error check
 
         let header = ImageHeader {
-            width: width,
-            height: height,
-            compression: compression,
-            photometric_interpretation: interpretation,
+            photometric_interpretation: photometric_interpretation,
             bits_per_sample: bits_per_sample,
+            samples_per_pixel: samples_per_pixel,
+            compression: compression,
+            width: width,
+            height: height
         };
 
         Ok(header)
     }
+}
 
+
+#[derive(Debug, Clone)]
+pub struct ImageHeader {
+    photometric_interpretation: PhotometricInterpretation,
+    bits_per_sample: BitsPerSample,
+    samples_per_pixel: SamplesPerPixel,
+    compression: Option<Compression>,
+    width: u32,
+    height: u32,
+}
+
+impl ImageHeader {
     pub fn width(&self) -> u32 {
         self.width
     }
@@ -228,7 +275,7 @@ impl ImageHeader {
         self.bits_per_sample
     }
 
-    pub fn compression(&self) -> Compression {
+    pub fn compression(&self) -> Option<Compression> {
         self.compression
     }
 
@@ -288,23 +335,3 @@ impl Image {
     }
 }
 
-
-#[allow(missing_docs)]
-fn is_valid_color_type(photometric_interpretation: PhotometricInterpretation, bits_per_sample: BitsPerSample) -> bool {
-    use self::PhotometricInterpretation::*;
-    use self::BitsPerSample::*;
-
-    match (photometric_interpretation, bits_per_sample) {
-        (RGB, U8_3) | 
-        (RGB, U8_4) | 
-        (RGB, U16_3) | 
-        (RGB, U16_4) |
-        (CMYK, U8_4) | 
-        (CMYK, U16_4) |
-        (BlackIsZero, U8_1) | 
-        (BlackIsZero, U16_1) |
-        (WhiteIsZero, U8_1) | 
-        (WhiteIsZero, U16_1) => true,
-        _ => false
-    }
-}

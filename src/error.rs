@@ -4,6 +4,7 @@ use tag::AnyTag;
 use image::{
     PhotometricInterpretation,
     BitsPerSample,
+    SamplesPerPixel,
     ImageHeaderError,
 };
 use std::io;
@@ -85,11 +86,13 @@ pub enum DecodeErrorKind {
     #[fail(display = "Calculated from width and height: {}, sum: {}", calc, sum)]
     IncorrectBufferSize { calc: usize, sum: usize },
 
-    /// This error occurs when `PhotometricInterpretation` and `BitsPerSample` are not compatible.
-    /// Especially, when extracting image information (with `decode::image` & `decode::image_with`)
-    /// and extracting image header information (with `decode::header` & `decode::header_with`).
-    #[fail(display = "Incompatible Data ({:?}/{:?}", photometric_interpretation, bits_per_sample)]
-    IncompatibleData { photometric_interpretation: PhotometricInterpretation, bits_per_sample: BitsPerSample },
+    /// This error occurs when `PhotometricInterpretation` and `BitsPerSample` and `SamplesPerPixel`
+    /// are not compatible. Especially, when extracting image information (with `decode::image` &
+    /// `decode::image_with`) and extracting image header information (with `decode::header` &
+    /// `decode::header_with`). Just getting value by `decoder::get_value` will not result
+    /// in an error.
+    #[fail(display = "{:?}", err)]
+    IncompatibleData { err: ImageHeaderError },
 
     /// All tag type implements `TagType` and have the `TagType::Value` types. This error occurs
     /// when `datatype` & `count` used in the function of `TagType::decode` don't correspond to 
@@ -144,11 +147,7 @@ impl From<HeaderErrorKind> for DecodeError {
 
 impl From<ImageHeaderError> for DecodeError {
     fn from(err: ImageHeaderError) -> DecodeError {
-        let (photometric_interpretation, bits_per_sample) = match err {
-            ImageHeaderError::IncompatibleData { photometric_interpretation, bits_per_sample } => (photometric_interpretation, bits_per_sample)
-        };
-            
-        DecodeError::new(DecodeErrorKind::IncompatibleData { photometric_interpretation, bits_per_sample })
+        DecodeError::new(DecodeErrorKind::IncompatibleData { err: err })
     }
 }
 

@@ -7,6 +7,7 @@ use std::io::{
     Read,
     Seek,
 };
+use std::any::TypeId;
 use error::{
     DecodeResult,
     DecodeError,
@@ -18,8 +19,9 @@ use byte::{
     ReadExt,
     SeekExt,
 };
+use failure::Fail;
 
-pub trait TagType: Clone + Copy {
+pub trait TagType: Fail + Clone + Copy {
     type Value;
 
     fn id(&self) -> u16;
@@ -38,7 +40,7 @@ macro_rules! define_tags {
             }
         })*
         
-        #[derive(Debug, Fail)]
+        #[derive(Debug, Clone, Eq, PartialEq, Hash, Fail)]
         pub enum AnyTag {
             $($name,)*
             Unknown(u16),
@@ -76,6 +78,15 @@ macro_rules! define_tags {
                 match n {
                     $($id => AnyTag::$name,)*
                     _ => AnyTag::Unknown(n),
+                }
+            }
+        }
+        
+        impl<T> PartialEq<T> for AnyTag where T: TagType {
+            fn eq(&self, rhs: &T) -> bool {
+                match *self {
+                    $(AnyTag::$name => TypeId::of::<$name>() == TypeId::of::<T>(),)*
+                    _ => false
                 }
             }
         }
@@ -222,5 +233,4 @@ tag_short_value! {
 tag_short_values! {
     BitsPerSample, 258, Some(vec![1]);
 }
-
 

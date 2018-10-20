@@ -7,6 +7,7 @@ use tag::{
     TagType,
     AnyTag,
 };
+use error::TagError;
 
 #[derive(Debug, Clone, Copy)]
 pub enum DataType {
@@ -65,24 +66,42 @@ impl Display for Entry {
 }
 
 #[derive(Debug, Clone)]
-pub struct IFD(HashMap<u16, Entry>);
+pub struct IFD(HashMap<AnyTag, Entry>);
 
 impl IFD {
+    #[inline]
     pub fn new() -> IFD {
         IFD(HashMap::new())
     }
-
-    pub fn insert<T: TagType>(&mut self, k: T, v: Entry) -> Option<Entry> {
-        self.0.insert(k.id(), v)
-    }
-
-    pub fn insert_anytag(&mut self, k: AnyTag, v: Entry) -> Option<Entry> {
-        self.0.insert(k.id(), v)
+    
+    #[inline]
+    pub fn insert<T: TagType>(&mut self, tag: T, entry: Entry) -> Result<Option<Entry>, TagError<T>> {
+        let anytag = AnyTag::from(tag.id());
+        if anytag == tag {
+            Ok(self.insert_anytag(anytag, entry))
+        } else {
+            Err(TagError::UnsupportedTag{ tag: tag })
+        }
     }
     
     #[inline]
-    pub fn get<T: TagType>(&self, k: T) -> Option<&Entry> {
-        self.0.get(&k.id())
+    pub fn insert_anytag(&mut self, tag: AnyTag, entry: Entry) -> Option<Entry> {
+        self.0.insert(tag, entry)
+    }
+    
+    #[inline]
+    pub fn get<T: TagType>(&self, tag: T) -> Result<Option<&Entry>, TagError<T>> {
+        let anytag = AnyTag::from(tag.id());
+        if anytag == tag {
+            Ok(self.get_anytag(anytag))
+        } else {
+            Err(TagError::UnsupportedTag{ tag: tag })
+        }
+    }
+
+    #[inline]
+    pub fn get_anytag(&self, k: AnyTag) -> Option<&Entry> {
+        self.0.get(&k)
     }
 }
 

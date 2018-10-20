@@ -1,6 +1,9 @@
 
 use ifd::DataType;
-use tag::AnyTag;
+use tag::{
+    TagType,
+    AnyTag,
+};
 use image::{
     PhotometricInterpretation,
     BitsPerSample,
@@ -17,6 +20,14 @@ use failure::{
     Fail,
     Backtrace,
 };
+
+///
+#[derive(Debug, Fail)]
+pub enum TagError<T: TagType> {
+    /// 
+    #[fail(display = "Unsupported tag: {:?}", tag)]
+    UnsupportedTag { tag: T },
+}
 
 /// `Result` type for handling `DecodeError`.
 pub type DecodeResult<T> = ::std::result::Result<T, DecodeError>;
@@ -38,7 +49,6 @@ pub enum HeaderErrorKind {
     /// This error occurs when there is no this 4 byte data.
     #[fail(display = "No IFD address")]
     NoIFDAddress,
-
 }
 
 /// error details when decoding.
@@ -90,6 +100,10 @@ pub enum DecodeErrorKind {
     /// parsing `TagType::Value`.
     #[fail(display = "Tag ({:?}) doesn't support this datatype/count : {:?}/{}", tag, datatype, count)]
     NoSupportDataType { tag: AnyTag, datatype: DataType, count: usize },
+
+    ///
+    #[fail(display = "Unsupported tag: {:?}", boxed_tag)]
+    UnsupportedTag { boxed_tag: Box<dyn Fail> },
 }
 
 /// Erro type for decoding.
@@ -145,6 +159,15 @@ impl From<ImageHeaderError> for DecodeError {
 impl From<DecodeErrorKind> for DecodeError {
     fn from(kind: DecodeErrorKind) -> DecodeError {
         DecodeError { inner: Context::new(kind) }
+    }
+}
+
+impl<T> From<TagError<T>> for DecodeError where T: TagType {
+    fn from(err: TagError<T>) -> DecodeError {
+        let tag = match err {
+            TagError::UnsupportedTag { tag: tag } => tag,
+        };
+        DecodeError::new(DecodeErrorKind::UnsupportedTag { boxed_tag: Box::new(tag) })
     }
 }
 

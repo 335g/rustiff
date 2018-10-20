@@ -26,6 +26,7 @@ use std::io::{
     Seek,
 };
 use image::{
+    Bits,
     BitsPerSample,
     Image,
     ImageData,
@@ -168,7 +169,7 @@ impl<R> Decoder<R> where R: Read + Seek {
         let width = self.get_value(ifd, tag::ImageWidth)?;
         let height = self.get_value(ifd, tag::ImageLength)?;
         let interpretation = PhotometricInterpretation::from_u16(self.get_value(ifd, tag::PhotometricInterpretation)?)?;
-        let bits_per_sample = self.get_value(ifd, tag::BitsPerSample)?;
+        let bits_per_sample = BitsPerSample::new(self.get_value(ifd, tag::BitsPerSample)?)?;
         let samples_per_pixel = self.get_value(ifd, tag::SamplesPerPixel)?;
         let builder = ImageHeaderBuilder::default()
             .width(width)
@@ -185,10 +186,6 @@ impl<R> Decoder<R> where R: Read + Seek {
         };
 
         let header = builder.build()?;
-        //let header = match Compression::from_u16(self.get_value(ifd, tag::Compression)?)? {
-        //    Some(compression) => builder.compression(compression),
-        //    None => builder,
-        //}.build()?;
 
         Ok(header)
     }
@@ -206,11 +203,10 @@ impl<R> Decoder<R> where R: Read + Seek {
         let header = self.header_with(ifd)?;
         let width = header.width() as usize;
         let height = header.height() as usize;
-        let bits_per_sample = header.bits_per_sample();
         let buffer_size = width * height * header.bits_per_sample().len();
-        let data = match bits_per_sample {
-            BitsPerSample::U8_1 | BitsPerSample::U8_3 | BitsPerSample::U8_4 => self.read_byte_u8(ifd, &header, buffer_size)?,
-            BitsPerSample::U16_1 | BitsPerSample::U16_3 | BitsPerSample::U16_4 => self.read_byte_u16(ifd, &header, buffer_size)?,
+        let data = match header.bits_per_sample().bits() {
+            &Bits::U8 => self.read_byte_u8(ifd, &header, buffer_size)?,
+            &Bits::U16 => self.read_byte_u16(ifd, &header, buffer_size)?,
         };
         
         Ok(Image::new(header, data))

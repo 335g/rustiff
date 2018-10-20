@@ -2,6 +2,7 @@
 use error::{
     DecodeError,
     DecodeErrorKind,
+    DecodeResult,
 };
 use tag::AnyTag;
 use tool::{
@@ -110,7 +111,7 @@ pub enum Compression {
 }
 
 impl Compression {
-    pub fn from_u16(n: u16) -> Result<Option<Compression>, DecodeError> {
+    pub fn from_u16(n: u16) -> DecodeResult<Option<Compression>> {
         match n {
             1 => Ok(None),
             5 => Ok(Some(Compression::LZW)),
@@ -119,10 +120,59 @@ impl Compression {
     }
 }
 
+/// 
+#[derive(Debug, Clone, Eq, PartialEq)]
+pub enum Bits {
+    U8,
+    U16,
+}
+
 /// Bits/Sample
 /// 
 /// IFD constructs this with `tag::BitsPerSample`.
-pub type BitsPerSample = Vec<u16>;
+#[derive(Debug, Clone)]
+pub struct BitsPerSample {
+    len: usize,
+    bits: Bits,
+}
+
+impl BitsPerSample {
+    /// Initailizer
+    ///
+    /// `BitsPerSample` allow only 8 or 16 values.
+    pub fn new(bits: Vec<u16>) -> DecodeResult<BitsPerSample> {
+        let (bits, len) = bits.iter()
+            .try_fold((Bits::U8, 0), |(x, y), &z| {
+                if y == 0 {
+                    match z {
+                        8 => Some((Bits::U8, 1)),
+                        16 => Some((Bits::U16, 1)),
+                        _ => None,
+                    }
+                } else {
+                    match z {
+                        8 if x == Bits::U8 => Some((Bits::U8, y + 1)),
+                        16 if x == Bits::U16 => Some((Bits::U16, y + 1)),
+                        _ => None,
+                    }
+                }
+            })
+            .filter(|&(_, len)| len > 0)
+            .ok_or(DecodeError::from(DecodeErrorKind::IncorrectBitsPerSample{ data: bits }))?;
+        
+        Ok(BitsPerSample{ len: len, bits: bits })
+    }
+
+    /// Size of `BitsPerSample`
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    /// Bits of `BitsPerSample`
+    pub fn bits(&self) -> &Bits {
+        &self.bits
+    }
+}
 
 /// Samples/Pixel
 ///
@@ -271,8 +321,8 @@ impl ImageHeader {
         self.height
     }
 
-    pub fn bits_per_sample(&self) -> BitsPerSample {
-        self.bits_per_sample
+    pub fn bits_per_sample(&self) -> &BitsPerSample {
+        &self.bits_per_sample
     }
 
     pub fn compression(&self) -> Option<Compression> {

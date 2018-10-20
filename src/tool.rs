@@ -1,12 +1,12 @@
 
 #![allow(missing_docs)]
 
-pub(crate) trait HasValue {
+pub trait HasValue {
     type Value;
 }
 
-pub(crate) struct Empty;
-pub(crate) struct Filled<T>(pub T);
+pub struct Empty;
+pub struct Filled<T>(pub T);
 
 impl HasValue for Empty {
     type Value = ();

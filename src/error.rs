@@ -58,16 +58,7 @@ pub enum DecodeErrorKind {
     CannotFindTheTag { tag: AnyTag },
     
     /// This error occurs when `image::BitsPerSample::new` constructs `image::BitsPerSample` 
-    /// with incorrect values. 
-    ///
-    /// All supported values are
-    ///
-    /// - [8]: one 8 bit value
-    /// - [8, 8, 8]: three 8 bit values
-    /// - [8, 8, 8, 8]: four 8 bit values
-    /// - [16]: one 16 bit value
-    /// - [16, 16, 16]: three 16 bit values
-    /// - [16, 16, 16, 16]: four 16 bit values
+    /// with incorrect values. Incorrect values are all 8 or all 16.
     ///
     #[fail(display = "({:?}) is incorrect data for tag::BitsPerSample", data)]
     IncorrectBitsPerSample { data: Vec<u16> },

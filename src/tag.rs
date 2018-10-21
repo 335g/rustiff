@@ -31,10 +31,10 @@ pub trait TagType: Fail + Clone + Copy {
 
 macro_rules! define_tags {
     ($($name:ident, $id:expr;)*) => {
-        $(#[derive(Debug, Clone, Copy, PartialEq, Eq, Fail)]
-        pub struct $name;
+        //$(#[derive(Debug, Clone, Copy, PartialEq, Eq, Fail)]
+        //pub struct $name;
 
-        impl Display for $name {
+        $(impl Display for $name {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 write!(f, "{}", $name)
             }
@@ -93,9 +93,9 @@ macro_rules! define_tags {
     }
 }
 
-macro_rules! tag_short_or_long_value {
-    ($($name:ident, $id:expr, $def:expr;)*) => {
-        $(impl TagType for $name {
+macro_rules! short_or_long_value {
+    ($name:ident, $id:expr, $def:expr) => {
+        impl TagType for $name {
             type Value = u32;
 
             fn id(&self) -> u16 { $id }
@@ -107,13 +107,13 @@ macro_rules! tag_short_or_long_value {
                     _ => Err(DecodeError::from(DecodeErrorKind::NoSupportDataType { tag: AnyTag::from(*self), datatype: datatype, count: count })),
                 }
             }
-        })*
-    };
+        }
+    }
 }
 
-macro_rules! tag_short_value {
-    ($($name:ident, $id:expr, $def:expr;)*) => {
-        $(impl TagType for $name {
+macro_rules! short_value {
+    ($name:ident, $id:expr, $def:expr) => {
+        impl TagType for $name {
             type Value = u16;
 
             fn id(&self) -> u16 { $id }
@@ -124,13 +124,13 @@ macro_rules! tag_short_value {
                     _ => Err(DecodeError::from(DecodeErrorKind::NoSupportDataType { tag: AnyTag::from(*self), datatype: datatype, count: count })),
                 }
             }
-        })*
-    };
+        }
+    }
 }
 
-macro_rules! tag_short_or_long_values {
-    ($($name:ident, $id:expr, $def:expr;)*) => {
-        $(impl TagType for $name {
+macro_rules! short_or_long_values {
+    ($name:ident, $id:expr, $def:expr) => {
+        impl TagType for $name {
             type Value = Vec<u32>;
 
             fn id(&self) -> u16 { $id }
@@ -166,13 +166,13 @@ macro_rules! tag_short_or_long_values {
                     _ => Err(DecodeError::from(DecodeErrorKind::NoSupportDataType { tag: AnyTag::from(*self), datatype: datatype, count: count })),
                 }
             }
-        })*
-    };
+        }
+    }
 }
 
-macro_rules! tag_short_values {
-    ($($name:ident, $id:expr, $def:expr;)*) => {
-        $(impl TagType for $name {
+macro_rules! short_values {
+    ($name:ident, $id:expr, $def:expr) => {
+        impl TagType for $name {
             type Value = Vec<u16>;
 
             fn id(&self) -> u16 { $id }
@@ -197,9 +197,48 @@ macro_rules! tag_short_values {
                     _ => Err(DecodeError::from(DecodeErrorKind::NoSupportDataType { tag: AnyTag::from(*self), datatype: datatype, count: count })),
                 }
             }
-        })*
-    };
+        }
+    }
 }
+
+/// The number of columns in the image.
+///
+/// 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)] pub struct ImageWidth;
+short_or_long_value!(ImageWidth, 256, None);
+
+/// The number of rows in the image.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)] pub struct ImageLength;
+short_or_long_value!(ImageLength, 257, None);
+
+/// 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)] pub struct BitsPerSample;
+short_values!(BitsPerSample, 258, Some(vec![1]));
+
+/// 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)] pub struct Compression;
+short_value!(Compression, 259, Some(1));
+
+/// 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)] pub struct PhotometricInterpretation;
+short_value!(PhotometricInterpretation, 262, None);
+
+/// 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)] pub struct StripOffsets;
+short_or_long_values!(StripOffsets, 273, None);
+
+/// 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)] pub struct SamplesPerPixel;
+short_value!(SamplesPerPixel, 277, Some(1));
+
+/// 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)] pub struct RowsPerStrip;
+short_or_long_value!(RowsPerStrip, 278, Some(u32::max_value()));
+
+///
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)] pub struct StripByteCounts;
+short_or_long_values!(StripByteCounts, 279, None);
+
 
 define_tags! {
     ImageWidth, 256;
@@ -211,26 +250,5 @@ define_tags! {
     SamplesPerPixel, 277;
     RowsPerStrip, 278;
     StripByteCounts, 279;
-}
-
-tag_short_or_long_value! {
-    ImageWidth, 256, None;
-    ImageLength, 257, None;
-    RowsPerStrip, 278, Some(u32::max_value());
-}
-
-tag_short_or_long_values! {
-    StripOffsets, 273, None;
-    StripByteCounts, 279, None;
-}
-
-tag_short_value! {
-    PhotometricInterpretation, 262, None;
-    Compression, 259, Some(1);
-    SamplesPerPixel, 277, Some(1);
-}
-
-tag_short_values! {
-    BitsPerSample, 258, Some(vec![1]);
 }
 

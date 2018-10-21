@@ -26,7 +26,6 @@ use std::io::{
     Seek,
 };
 use image::{
-    Bits,
     BitsPerSample,
     Image,
     ImageData,
@@ -127,10 +126,6 @@ impl<R> Decoder<R> where R: Read + Seek {
         Ok(ifd)
     }
 
-    pub fn endian(&self) -> Endian {
-        self.endian
-    }
-
     fn get_entry<'a, T: TagType>(&mut self, ifd: &'a IFD, tag: T) -> DecodeResult<&'a Entry> {
         ifd.get(tag)?.ok_or(DecodeError::from(DecodeErrorKind::CannotFindTheTag{ tag: AnyTag::from(tag) }))
     }
@@ -199,23 +194,23 @@ impl<R> Decoder<R> where R: Read + Seek {
     read_byte!(read_byte_u8, read_byte_detail_u8, U8, u8);
     read_byte!(read_byte_u16, read_byte_detail_u16, U16, u16);
 
-    pub fn image_with(&mut self, ifd: &IFD) -> DecodeResult<Image> {
-        let header = self.header_with(ifd)?;
-        let width = header.width() as usize;
-        let height = header.height() as usize;
-        let buffer_size = width * height * header.bits_per_sample().len();
-        let data = match header.bits_per_sample().bits() {
-            &Bits::U8 => self.read_byte_u8(ifd, &header, buffer_size)?,
-            &Bits::U16 => self.read_byte_u16(ifd, &header, buffer_size)?,
-        };
-        
-        Ok(Image::new(header, data))
-    }
+    //pub fn image_with(&mut self, ifd: &IFD) -> DecodeResult<Image> {
+    //    let header = self.header_with(ifd)?;
+    //    let width = header.width() as usize;
+    //    let height = header.height() as usize;
+    //    let buffer_size = width * height * header.samples_per_pixel();
+    //    let data = match header.bits_per_sample().bits() {
+    //        &Bits::U8 => self.read_byte_u8(ifd, &header, buffer_size)?,
+    //        &Bits::U16 => self.read_byte_u16(ifd, &header, buffer_size)?,
+    //    };
+    //    
+    //    Ok(Image::new(header, data))
+    //}
     
-    pub fn image(&mut self) -> DecodeResult<Image> {
-        let ifd = self.ifd()?;
-        self.image_with(&ifd)
-    }
+    //pub fn image(&mut self) -> DecodeResult<Image> {
+    //    let ifd = self.ifd()?;
+    //    self.image_with(&ifd)
+    //}
 } 
 
 impl<R> Iterator for Decoder<R> where R: Read + Seek {

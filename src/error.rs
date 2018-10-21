@@ -7,7 +7,6 @@ use tag::{
 use image::{
     PhotometricInterpretation,
     BitsPerSample,
-    SamplesPerPixel,
     ImageHeaderError,
 };
 use std::io;

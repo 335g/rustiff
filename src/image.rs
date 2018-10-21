@@ -120,66 +120,38 @@ impl Compression {
     }
 }
 
-/// 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum Bits {
-    U8,
-    U16,
-}
-
 /// Bits/Sample
 /// 
 /// IFD constructs this with `tag::BitsPerSample`.
 #[derive(Debug, Clone)]
-pub struct BitsPerSample {
-    len: usize,
-    bits: Bits,
-}
+pub struct BitsPerSample(Vec<u16>);
 
 impl BitsPerSample {
-    /// Initailizer
-    ///
-    /// `BitsPerSample` allow only 8 or 16 values.
+    /// Initializer
     pub fn new(bits: Vec<u16>) -> DecodeResult<BitsPerSample> {
-        let (bits, len) = bits.iter()
-            .try_fold((Bits::U8, 0), |(x, y), &z| {
-                if y == 0 {
-                    match z {
-                        8 => Some((Bits::U8, 1)),
-                        16 => Some((Bits::U16, 1)),
-                        _ => None,
-                    }
+        let bits = bits.iter()
+            .try_fold(vec![], |mut acc, &x| {
+                if 0 < x && x <= 16 {
+                    acc.push(x);
+                    Some(acc)
                 } else {
-                    match z {
-                        8 if x == Bits::U8 => Some((Bits::U8, y + 1)),
-                        16 if x == Bits::U16 => Some((Bits::U16, y + 1)),
-                        _ => None,
-                    }
+                    None
                 }
             })
-            .filter(|&(_, len)| len > 0)
             .ok_or(DecodeError::from(DecodeErrorKind::IncorrectBitsPerSample{ data: bits }))?;
-        
-        Ok(BitsPerSample{ len: len, bits: bits })
+        Ok(BitsPerSample(bits))
+    }
+
+    /// Contents of `BitsPerSample`
+    pub fn bits(&self) -> &Vec<u16> {
+        &self.0
     }
 
     /// Size of `BitsPerSample`
     pub fn len(&self) -> usize {
-        self.len
-    }
-
-    /// Bits of `BitsPerSample`
-    pub fn bits(&self) -> &Bits {
-        &self.bits
+        self.0.len()
     }
 }
-
-/// Samples/Pixel
-///
-/// The number of components per pixel. This is closely related to `PhotometricInterpretation`.
-/// 
-/// IFD constructs this with `tag::SamplesPerPixel`.
-pub type SamplesPerPixel = u16;
 
 #[derive(Debug, Fail)]
 pub enum ImageHeaderError {
@@ -187,7 +159,7 @@ pub enum ImageHeaderError {
     IncompatibleData { 
         photometric_interpretation: PhotometricInterpretation,
         bits_per_sample: BitsPerSample,
-        samples_per_pixel: SamplesPerPixel, 
+        samples_per_pixel: u16
     },
 }
 
@@ -238,7 +210,7 @@ impl<PI, BPS, SPP, W, H> ImageHeaderBuilder<PI, BPS, SPP, W, H> where PI: HasVal
         }
     }
 
-    pub fn samples_per_pixel(self, samples_per_pixel: SamplesPerPixel) -> ImageHeaderBuilder<PI, BPS, Filled<SamplesPerPixel>, W, H> {
+    pub fn samples_per_pixel(self, samples_per_pixel: u16) -> ImageHeaderBuilder<PI, BPS, Filled<u16>, W, H> {
         ImageHeaderBuilder {
             photometric_interpretation: self.photometric_interpretation,
             bits_per_sample: self.bits_per_sample,
@@ -277,7 +249,7 @@ impl<PI, BPS, SPP, W, H> ImageHeaderBuilder<PI, BPS, SPP, W, H> where PI: HasVal
     }
 }
 
-impl ImageHeaderBuilder<Filled<PhotometricInterpretation>, Filled<BitsPerSample>, Filled<SamplesPerPixel>, Filled<u32>, Filled<u32>> {
+impl ImageHeaderBuilder<Filled<PhotometricInterpretation>, Filled<BitsPerSample>, Filled<u16>, Filled<u32>, Filled<u32>> {
     pub fn build(self) -> Result<ImageHeader, ImageHeaderError> {
         let photometric_interpretation = self.photometric_interpretation.0;
         let bits_per_sample = self.bits_per_sample.0;
@@ -306,7 +278,7 @@ impl ImageHeaderBuilder<Filled<PhotometricInterpretation>, Filled<BitsPerSample>
 pub struct ImageHeader {
     photometric_interpretation: PhotometricInterpretation,
     bits_per_sample: BitsPerSample,
-    samples_per_pixel: SamplesPerPixel,
+    samples_per_pixel: u16,
     compression: Option<Compression>,
     width: u32,
     height: u32,
@@ -323,6 +295,10 @@ impl ImageHeader {
 
     pub fn bits_per_sample(&self) -> &BitsPerSample {
         &self.bits_per_sample
+    }
+
+    pub fn samples_per_pixel(&self) -> u16 {
+        self.samples_per_pixel
     }
 
     pub fn compression(&self) -> Option<Compression> {

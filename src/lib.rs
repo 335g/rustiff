@@ -63,7 +63,6 @@ pub use error::{
 };
 pub use image::{
     Image,
-    ImageData,
     ImageHeader,
     ImageHeaderError,
     Compression,

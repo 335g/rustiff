@@ -146,11 +146,6 @@ impl BitsPerSample {
     pub fn bits(&self) -> &Vec<u16> {
         &self.0
     }
-
-    /// Size of `BitsPerSample`
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
 }
 
 #[derive(Debug, Fail)]
@@ -310,21 +305,26 @@ impl ImageHeader {
     }
 }
 
-#[derive(Debug)]
-pub enum ImageData { 
-    U8(Vec<u8>),
-    U16(Vec<u16>),
-}
-
+/// 
+/// `tuple in Vec` or `Vec in tuple`
+///
+/// |R, R, R, ..., R|, |G, G, G, ..., G|, |B, B, B, ... B|
+/// ex) (Vec<u8>, Vec<u16>, Vec<u8>)
+/// (Vec<bits_per_sample of R>, Vec<bits_per_sample of G>, Vec<bits_per_sample of B>)
+///
+/// |R, G, B|, |R, G, B|, ..., |R, G, B|
+/// ex) Vec<(u8, u16, u8)>
+/// Vec<(bits_per_sample of R, bits_per_sample of G, bits_per_sample of B)>
+/// 
 #[derive(Debug)]
 pub struct Image {
     header: ImageHeader,
-    data: ImageData,
+    data: Vec<u16>,
 }
 
 impl Image {
     /// This functions constructs `Image`.
-    pub(crate) fn new(header: ImageHeader, data: ImageData) -> Image {
+    pub(crate) fn new(header: ImageHeader, data: Vec<u16>) -> Image {
         Image {
             header: header,
             data: data,
@@ -336,28 +336,10 @@ impl Image {
         &self.header
     }
 
-    /// This function returns the reference of `ImageData`.
-    /// This is used when you don't know whether TIFF data is 8bit data or 16bit data.
-    pub fn data(&self) -> &ImageData {
+    /// This function returns the reference of u16 data of every pixel.
+    pub fn u16_data(&self) -> &Vec<u16> {
         &self.data
     }
-
-    /// This function returns the reference of u8 data of every pixel.
-    /// This is used when you know the TIFF data is the 8bit data.
-    pub fn u8_data(&self) -> Option<&Vec<u8>> {
-        match self.data {
-            ImageData::U8(ref data) => Some(data),
-            _ => None,
-        }
-    }
-    
-    /// This function returns the reference of u16 data of every pixel.
-    /// This is used when you know TIFF data is the 16bit data.
-    pub fn u16_data(&self) -> Option<&Vec<u16>> {
-        match self.data {
-            ImageData::U16(ref data) => Some(data),
-            _ => None,
-        }
-    }
 }
+
 

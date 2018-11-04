@@ -81,10 +81,10 @@ pub enum DecodeErrorKind {
     UnsupportedData { tag: AnyTag, data: u32 },
     
     /// `decoder::Decoder` reads data from file for each strip in `decoder::read_byte_detail_u8`
-    /// or `decoder::read_byte_detail_u16`. This errors occur when trying to read a larger value
-    /// than prepared buffer size.
-    #[fail(display = "Calculated from width and height: {}, sum: {}", calc, sum)]
-    IncorrectBufferSize { calc: usize, sum: usize },
+    /// or `decoder::read_byte_detail_u16`. This errors occur when trying to read a size 
+    /// different from buffer size (= width * height * samples/pixel).
+    #[fail(display = "want(calc from `width *  height * samples/pixel`): {}, got: {}", want, got)]
+    IncorrectBufferSize { want: usize, got: usize },
 
     /// This error occurs when `PhotometricInterpretation` and `BitsPerSample` and `SamplesPerPixel`
     /// are not compatible. Especially, when extracting image information (with `decode::image` &

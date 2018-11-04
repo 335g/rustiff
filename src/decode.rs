@@ -28,17 +28,20 @@ use std::io::{
 use image::{
     BitsPerSample,
     Image,
-    ImageData,
     ImageHeaderBuilder,
     ImageHeader,
     Compression,
     PhotometricInterpretation,
 };
 
-macro_rules! read_byte {
-    ($method:ident, $method2:ident, $typestr:ident, $t:ty) => {
-        #[inline]
-        fn $method(&mut self, ifd: &IFD, header: &ImageHeader, buffer_size: usize) -> DecodeResult<ImageData> {
+macro_rules! read_byte_only {
+    ($method:ident, $method2:ident, $t:ty) => {
+        fn $method(&mut self, ifd: &IFD, header: &ImageHeader) -> DecodeResult<Vec<$t>> {
+            let bits_per_sample = header.bits_per_sample().bits();
+            let width = header.width();
+            let height = header.height();
+            let samples_per_pixel = header.samples_per_pixel();
+            let buffer_size = (width * height * samples_per_pixel as u32) as usize;
             let interpretation = header.photometric_interpretation();
             let compression = header.compression();
             let offsets = self.get_value(ifd, tag::StripOffsets)?;
@@ -48,32 +51,39 @@ macro_rules! read_byte {
             let mut buffer: Vec<$t> = vec![0; buffer_size];
             let mut read_size = 0;
             for (offset, byte_count) in offsets.into_iter().zip(strip_byte_counts.into_iter()) {
-                let offset = offset as usize;
                 let byte_count = byte_count as usize;
                 
-                self.reader.goto(offset as u64)?;
+                self.reader.goto(u64::from(offset))?;
 
                 read_size += match compression {
-                    None => $method2(
-                        interpretation,
-                        read_size,
-                        buffer_size,
-                        endian,
-                        (&mut self.reader, byte_count),
-                        &mut buffer[read_size..])?,
+                    None => {
+                        let will_read_size = read_size + byte_count;
+                        if will_read_size > buffer_size {
+                            return Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { want: buffer_size, got: will_read_size }))
+                        }
 
-                    Some(Compression::LZW) => $method2(
-                        interpretation,
-                        read_size,
-                        buffer_size,
-                        endian,
-                        LZWReader::new(&mut self.reader, byte_count)?,
-                        &mut buffer[read_size..])?,
+                        $method2(interpretation, self.endian, byte_count, &mut self.reader, &mut buffer[read_size..])?;
+                        byte_count
+                    }
+
+                    Some(Compression::LZW) => {
+                        let (mut reader, uncompressed_size) = LZWReader::new(&mut self.reader, byte_count)?;
+                        let will_read_size = read_size + uncompressed_size;
+                        if will_read_size > buffer_size {
+                            return Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { want: buffer_size, got: will_read_size }))
+                        }
+                        
+                        $method2(interpretation, self.endian, uncompressed_size, &mut self.reader, &mut buffer[read_size..])?;
+                        uncompressed_size
+                    }
                 };
             }
-            buffer.shrink_to_fit();
 
-            Ok(ImageData::$typestr(buffer))
+            if read_size != buffer_size {
+                Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { want: buffer_size, got: read_size }))
+            } else {
+                Ok(buffer)
+            }
         }
     }
 }
@@ -191,26 +201,38 @@ impl<R> Decoder<R> where R: Read + Seek {
         self.header_with(&ifd)
     }
     
-    read_byte!(read_byte_u8, read_byte_detail_u8, U8, u8);
-    read_byte!(read_byte_u16, read_byte_detail_u16, U16, u16);
+    read_byte_only!(read_byte_only_u8, read_byte_only_u8_detail, u8);
+    read_byte_only!(read_byte_only_u16, read_byte_only_u16_detail, u16);
 
-    //pub fn image_with(&mut self, ifd: &IFD) -> DecodeResult<Image> {
-    //    let header = self.header_with(ifd)?;
-    //    let width = header.width() as usize;
-    //    let height = header.height() as usize;
-    //    let buffer_size = width * height * header.samples_per_pixel();
-    //    let data = match header.bits_per_sample().bits() {
-    //        &Bits::U8 => self.read_byte_u8(ifd, &header, buffer_size)?,
-    //        &Bits::U16 => self.read_byte_u16(ifd, &header, buffer_size)?,
-    //    };
-    //    
-    //    Ok(Image::new(header, data))
-    //}
+    pub fn image(&mut self) -> DecodeResult<Image> {
+        let ifd = self.ifd()?;
+        self.image_with(&ifd)
+    }
     
-    //pub fn image(&mut self) -> DecodeResult<Image> {
-    //    let ifd = self.ifd()?;
-    //    self.image_with(&ifd)
-    //}
+    #[inline]
+    pub fn image_with(&mut self, ifd: &IFD) -> DecodeResult<Image> {
+        let header = self.header_with(ifd)?;
+        let bits_per_sample = header.bits_per_sample().bits().clone();
+        if bits_per_sample.is_empty() {
+            return Err(DecodeError::from(DecodeErrorKind::IncorrectBitsPerSample { data: bits_per_sample }));
+        }
+        
+        let mut buffer = if bits_per_sample.iter().all(|&n| n <= 8) {
+            let data = self.read_byte_only_u8(ifd, &header)?;
+            data.into_iter().map(|x| u16::from(x)).collect::<Vec<u16>>()
+
+        } else if bits_per_sample.iter().all(|&n| 8 < n && n <= 16) {
+            let data = self.read_byte_only_u16(ifd, &header)?;
+            data
+
+        } else if bits_per_sample.iter().all(|&n| n <= 16) {
+            unimplemented!()
+        } else {
+            unimplemented!()
+        };
+        
+        Ok(Image::new(header, buffer))
+    }
 } 
 
 impl<R> Iterator for Decoder<R> where R: Read + Seek {
@@ -228,51 +250,25 @@ impl<R> Iterator for Decoder<R> where R: Read + Seek {
     }
 }
 
-fn read_byte_detail_u16<S>(
-    interpretation: PhotometricInterpretation,
-    read_size: usize,
-    buffer_size: usize,
-    endian: Endian,
-    reader_and_size: (S, usize),
-    buffer: &mut [u16]) -> DecodeResult<usize> where S: Read
-{
-    let mut reader = reader_and_size.0;
-    let compressed_size = reader_and_size.1;
-
-    if read_size + compressed_size > buffer_size {
-        return Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { calc: buffer_size, sum: read_size + compressed_size }));
+#[inline(always)]
+fn read_byte_only_u16_detail<R>(interpretation: PhotometricInterpretation, endian: Endian, length: usize, mut reader: R, buffer: &mut [u16]) -> DecodeResult<()> where R: Read {
+    reader.read_u16_into(endian, &mut buffer[..length/2])?;
+    if interpretation == PhotometricInterpretation::BlackIsZero {
+        for data in buffer[..length/2].iter_mut() {
+            *data = u16::max_value() - *data;
+        }
     }
-    
-    for data in buffer[..compressed_size/2].iter_mut() {
-        *data = if interpretation == PhotometricInterpretation::BlackIsZero {
-            u16::max_value() - reader.read_u16(endian)?
-        } else {
-            reader.read_u16(endian)?
-        };
-    }
-
-    Ok(compressed_size/2)
+    Ok(())
 }
 
-fn read_byte_detail_u8<S>(
-    interpretation: PhotometricInterpretation, 
-    read_size: usize,
-    buffer_size: usize,
-    _endian: Endian,
-    reader_and_size: (S, usize),
-    buffer: &mut [u8]) -> DecodeResult<usize> where S: Read,
-{
-    let mut reader = reader_and_size.0;
-    let compressed_size = reader_and_size.1;
-    if read_size + compressed_size > buffer_size {
-        return Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { calc: buffer_size, sum: read_size + compressed_size }));
-    }
-    let res = reader.read(&mut buffer[..compressed_size])?;
+#[inline(always)]
+fn read_byte_only_u8_detail<R>(interpretation: PhotometricInterpretation, _endian: Endian, length: usize, mut reader: R, buffer: &mut [u8]) -> DecodeResult<()> where R: Read {
+    reader.read_exact(&mut buffer[..length])?;
     if interpretation == PhotometricInterpretation::BlackIsZero {
-        for data in buffer[..compressed_size].iter_mut() {
+        for data in buffer[..length].iter_mut() {
             *data = u8::max_value() - *data;
         }
     }
-    Ok(res)
+    Ok(())
 }
 

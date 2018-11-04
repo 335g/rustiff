@@ -30,11 +30,27 @@ pub enum Endian {
 
 /// private trait for Read extension.
 pub(crate) trait ReadExt: Read {
+    /// Reads an u8 value.
+    ///
+    /// #errors
+    ///
+    /// This method returns the same errors as [`Read::read_exact`].
+    ///
+    /// [`Read::read_exact`]: https://doc.rust-lang.org/std/io/trait.Read.html#method.read_exact
+    ///
+    #[inline(always)]
+    fn read_u8(&mut self) -> io::Result<u8> {
+        <Self as ReadBytesExt>::read_u8(self)
+    }
+
     /// Reads an u16 value with Endian.
     ///
-    /// #panics
+    /// #errors
     ///
-    /// panics when `self.len() < 2`.
+    /// This method returns the same errors as [`Read::read_exact`].
+    ///
+    /// [`Read::read_exact`]: https://doc.rust-lang.org/std/io/trait.Read.html#method.read_exact
+    ///
     #[inline(always)]
     fn read_u16(&mut self, byte_order: Endian) -> io::Result<u16> {
         match byte_order {
@@ -45,9 +61,12 @@ pub(crate) trait ReadExt: Read {
     
     /// Reads an u32 value with Endian.
     ///
-    /// #panics
+    /// #errors
     ///
-    /// panics when `self.len() < 4`.
+    /// This method returns the same errors as [`Read::read_exact`].
+    ///
+    /// [`Read::read_exact`]: https://doc.rust-lang.org/std/io/trait.Read.html#method.read_exact
+    ///
     #[inline(always)]
     fn read_u32(&mut self, byte_order: Endian) -> io::Result<u32> {
         match byte_order {
@@ -58,15 +77,34 @@ pub(crate) trait ReadExt: Read {
     
     /// Reads an four u8 values.
     ///
-    /// #panics
+    /// #errors
     ///
-    /// panics when `self.len() < 4`.
+    /// This method returns the same errors as [`Read::read_exact`].
+    ///
+    /// [`Read::read_exact`]: https://doc.rust-lang.org/std/io/trait.Read.html#method.read_exact
     ///
     #[inline]
     fn read_4byte(&mut self) -> io::Result<[u8; 4]> {
         let mut val = [0u8; 4];
         let _ = self.read_exact(&mut val)?;
         Ok(val)
+    }
+
+    /// Reads a sequence of unsigned 16 bit integers from the underlying reader.
+    ///
+    /// #errors
+    ///
+    /// This method returns the same errors as [`Read::read_exact`].
+    ///
+    /// [`Read::read_exact`]: https://doc.rust-lang.org/std/io/trait.Read.html#method.read_exact
+    ///
+    #[inline]
+    fn read_u16_into(&mut self, byte_order: Endian, dst: &mut [u16]) -> io::Result<()> {
+        match byte_order {
+            Endian::Big => <Self as ReadBytesExt>::read_u16_into::<BigEndian>(self, dst)?,
+            Endian::Little => <Self as ReadBytesExt>::read_u16_into::<LittleEndian>(self, dst)?,
+        }
+        Ok(())
     }
 }
 

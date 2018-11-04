@@ -204,39 +204,48 @@ macro_rules! short_values {
 /// The number of columns in the image.
 ///
 /// 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)] pub struct ImageWidth;
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)]
+pub struct ImageWidth;
 short_or_long_value!(ImageWidth, 256, None);
 
 /// The number of rows in the image.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)] pub struct ImageLength;
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)]
+pub struct ImageLength;
 short_or_long_value!(ImageLength, 257, None);
 
 /// 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)] pub struct BitsPerSample;
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)]
+pub struct BitsPerSample;
 short_values!(BitsPerSample, 258, Some(vec![1]));
 
 /// 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)] pub struct Compression;
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)]
+pub struct Compression;
 short_value!(Compression, 259, Some(1));
 
 /// 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)] pub struct PhotometricInterpretation;
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)]
+pub struct PhotometricInterpretation;
 short_value!(PhotometricInterpretation, 262, None);
 
 /// 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)] pub struct StripOffsets;
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)]
+pub struct StripOffsets;
 short_or_long_values!(StripOffsets, 273, None);
 
 /// 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)] pub struct SamplesPerPixel;
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)]
+pub struct SamplesPerPixel;
 short_value!(SamplesPerPixel, 277, Some(1));
 
 /// 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)] pub struct RowsPerStrip;
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)]
+pub struct RowsPerStrip;
 short_or_long_value!(RowsPerStrip, 278, Some(u32::max_value()));
 
 ///
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)] pub struct StripByteCounts;
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Fail)]
+pub struct StripByteCounts;
 short_or_long_values!(StripByteCounts, 279, None);
 
 

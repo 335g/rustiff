@@ -28,13 +28,14 @@ use std::io::{
 use image::{
     BitsPerSample,
     Image,
+    ImageData,
     ImageHeaderBuilder,
     ImageHeader,
     Compression,
     PhotometricInterpretation,
 };
 
-macro_rules! read_byte_only {
+macro_rules! read_byte {
     ($method:ident, $method2:ident, $t:ty) => {
         fn $method(&mut self, ifd: &IFD, header: &ImageHeader) -> DecodeResult<Vec<$t>> {
             let bits_per_sample = header.bits_per_sample().bits();
@@ -46,7 +47,6 @@ macro_rules! read_byte_only {
             let compression = header.compression();
             let offsets = self.get_value(ifd, tag::StripOffsets)?;
             let strip_byte_counts = self.get_value(ifd, tag::StripByteCounts)?;
-            let endian = self.endian;
             
             let mut buffer: Vec<$t> = vec![0; buffer_size];
             let mut read_size = 0;
@@ -73,7 +73,7 @@ macro_rules! read_byte_only {
                             return Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { want: buffer_size, got: will_read_size }))
                         }
                         
-                        $method2(interpretation, self.endian, uncompressed_size, &mut self.reader, &mut buffer[read_size..])?;
+                        $method2(interpretation, self.endian, uncompressed_size, &mut reader, &mut buffer[read_size..])?;
                         uncompressed_size
                     }
                 };
@@ -201,8 +201,8 @@ impl<R> Decoder<R> where R: Read + Seek {
         self.header_with(&ifd)
     }
     
-    read_byte_only!(read_byte_only_u8, read_byte_only_u8_detail, u8);
-    read_byte_only!(read_byte_only_u16, read_byte_only_u16_detail, u16);
+    read_byte!(read_byte_only_u8, read_u8s, u8);
+    read_byte!(read_byte_only_u16, read_u16s, u16);
 
     pub fn image(&mut self) -> DecodeResult<Image> {
         let ifd = self.ifd()?;
@@ -218,20 +218,109 @@ impl<R> Decoder<R> where R: Read + Seek {
         }
         
         let mut buffer = if bits_per_sample.iter().all(|&n| n <= 8) {
-            let data = self.read_byte_only_u8(ifd, &header)?;
-            data.into_iter().map(|x| u16::from(x)).collect::<Vec<u16>>()
+            ImageData::U8(self.read_byte_only_u8(ifd, &header)?)
 
         } else if bits_per_sample.iter().all(|&n| 8 < n && n <= 16) {
-            let data = self.read_byte_only_u16(ifd, &header)?;
-            data
+            ImageData::U16(self.read_byte_only_u16(ifd, &header)?)
 
         } else if bits_per_sample.iter().all(|&n| n <= 16) {
-            unimplemented!()
+            ImageData::U16(self.read_byte_u8_or_u16(ifd, &header)?)
+
         } else {
-            unimplemented!()
+            return Err(DecodeError::from(DecodeErrorKind::IncorrectBitsPerSample { data: bits_per_sample }));
         };
         
         Ok(Image::new(header, buffer))
+    }
+
+    fn read_byte_u8_or_u16(&mut self, ifd: &IFD, header: &ImageHeader) -> DecodeResult<Vec<u16>> {
+        let bits_per_sample = header.bits_per_sample().bits();
+        let width = header.width();
+        let height = header.height();
+        let samples_per_pixel = header.samples_per_pixel();
+        let buffer_size = (width * height * samples_per_pixel as u32) as usize;
+        let interpretation = header.photometric_interpretation();
+        let compression = header.compression();
+        let offsets = self.get_value(ifd, tag::StripOffsets)?;
+        let strip_byte_counts = self.get_value(ifd, tag::StripByteCounts)?;
+        let endian = self.endian;
+
+        let mut buffer: Vec<u16> = vec![0; buffer_size];
+        let mut read_size = 0;
+        for (offset, byte_count) in offsets.into_iter().zip(strip_byte_counts.into_iter()) {
+            let byte_count = byte_count as usize;
+
+            self.reader.goto(u64::from(offset))?;
+
+            read_size += match compression {
+                None => {
+                    let will_read_size = read_size + byte_count;
+                    if will_read_size > buffer_size {
+                        return Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { want: buffer_size, got: will_read_size }))
+                    }
+
+                    let mut read_size_now = 0;
+                    
+                    while read_size_now >= byte_count {
+                        for bits in bits_per_sample.iter() {
+                            if *bits <= 8 {
+                                let data = read_u8(interpretation, &mut self.reader)?;
+                                read_size_now += 1;
+                                buffer.push(u16::from(data));
+
+                            } else if *bits <= 16 {
+                                let data = read_u16(interpretation, endian, &mut self.reader)?;
+                                read_size_now += 2;
+                                buffer.push(data);
+
+                            } else {
+                                return Err(DecodeError::from(DecodeErrorKind::IncorrectBitsPerSample{ data: bits_per_sample.clone() }))
+                            }
+                        }
+                    }
+                    // TODO: return error when read_size_now > byte_count
+                    
+                    read_size_now
+                }
+                
+                Some(Compression::LZW) => {
+                    let (mut reader, uncompressed_size) = LZWReader::new(&mut self.reader, byte_count)?;
+                    let will_read_size = read_size + uncompressed_size;
+                    if will_read_size > buffer_size {
+                        return Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { want: buffer_size, got: will_read_size }))
+                    }
+                    
+                    let mut read_size_now = 0;
+                    
+                    while read_size_now >= byte_count {
+                        for bits in bits_per_sample.iter() {
+                            if *bits <= 8 {
+                                let data = read_u8(interpretation, &mut reader)?;
+                                read_size_now += 1;
+                                buffer.push(u16::from(data));
+
+                            } else if *bits <= 16 {
+                                let data = read_u16(interpretation, endian, &mut reader)?;
+                                read_size_now += 2;
+                                buffer.push(data);
+
+                            } else {
+                                return Err(DecodeError::from(DecodeErrorKind::IncorrectBitsPerSample{ data: bits_per_sample.clone() }))
+                            }
+                        }
+                    }
+                    // TODO: return error when read_size_now > byte_count
+
+                    read_size_now
+                }
+            }
+        }
+
+        if read_size != buffer_size {
+            Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { want: buffer_size, got: read_size }))
+        } else {
+            Ok(buffer)
+        }
     }
 } 
 
@@ -251,7 +340,7 @@ impl<R> Iterator for Decoder<R> where R: Read + Seek {
 }
 
 #[inline(always)]
-fn read_byte_only_u16_detail<R>(interpretation: PhotometricInterpretation, endian: Endian, length: usize, mut reader: R, buffer: &mut [u16]) -> DecodeResult<()> where R: Read {
+fn read_u16s<R>(interpretation: PhotometricInterpretation, endian: Endian, length: usize, mut reader: R, buffer: &mut [u16]) -> DecodeResult<()> where R: Read {
     reader.read_u16_into(endian, &mut buffer[..length/2])?;
     if interpretation == PhotometricInterpretation::BlackIsZero {
         for data in buffer[..length/2].iter_mut() {
@@ -262,7 +351,16 @@ fn read_byte_only_u16_detail<R>(interpretation: PhotometricInterpretation, endia
 }
 
 #[inline(always)]
-fn read_byte_only_u8_detail<R>(interpretation: PhotometricInterpretation, _endian: Endian, length: usize, mut reader: R, buffer: &mut [u8]) -> DecodeResult<()> where R: Read {
+fn read_u16<R>(interpretation: PhotometricInterpretation, endian: Endian, mut reader: R) -> DecodeResult<u16> where R: Read {
+    let mut value = reader.read_u16(endian)?;
+    if interpretation == PhotometricInterpretation::BlackIsZero {
+        value = u16::max_value() - value;
+    }
+    Ok(value)
+}
+
+#[inline(always)]
+fn read_u8s<R>(interpretation: PhotometricInterpretation, _endian: Endian, length: usize, mut reader: R, buffer: &mut [u8]) -> DecodeResult<()> where R: Read {
     reader.read_exact(&mut buffer[..length])?;
     if interpretation == PhotometricInterpretation::BlackIsZero {
         for data in buffer[..length].iter_mut() {
@@ -270,5 +368,14 @@ fn read_byte_only_u8_detail<R>(interpretation: PhotometricInterpretation, _endia
         }
     }
     Ok(())
+}
+
+#[inline(always)]
+fn read_u8<R>(interpretation: PhotometricInterpretation, mut reader: R) -> DecodeResult<u8> where R: Read {
+    let mut value = reader.read_u8()?;
+    if interpretation == PhotometricInterpretation::BlackIsZero {
+        value = u8::max_value() - value;
+    }
+    Ok(value)
 }
 

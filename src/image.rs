@@ -305,6 +305,12 @@ impl ImageHeader {
     }
 }
 
+#[derive(Debug)]
+pub enum ImageData {
+    U8(Vec<u8>),
+    U16(Vec<u16>),
+}
+
 /// 
 /// `tuple in Vec` or `Vec in tuple`
 ///
@@ -319,12 +325,12 @@ impl ImageHeader {
 #[derive(Debug)]
 pub struct Image {
     header: ImageHeader,
-    data: Vec<u16>,
+    data: ImageData,
 }
 
 impl Image {
     /// This functions constructs `Image`.
-    pub(crate) fn new(header: ImageHeader, data: Vec<u16>) -> Image {
+    pub(crate) fn new(header: ImageHeader, data: ImageData) -> Image {
         Image {
             header: header,
             data: data,
@@ -336,9 +342,20 @@ impl Image {
         &self.header
     }
 
-    /// This function returns the reference of u16 data of every pixel.
-    pub fn u16_data(&self) -> &Vec<u16> {
-        &self.data
+    /// u16 data of every pixel.
+    pub fn u16_data(&self) -> Option<&Vec<u16>> {
+        match self.data {
+            ImageData::U16(ref data) => Some(data),
+            _ => None,
+        }
+    }
+
+    /// u8 data of every pixel.
+    pub fn u8_data(&self) -> Option<&Vec<u8>> {
+        match self.data {
+            ImageData::U8(ref data) => Some(data),
+            _ => None,
+        }
     }
 }
 

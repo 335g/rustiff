@@ -214,7 +214,7 @@ impl<R> Decoder<R> where R: Read + Seek {
         let header = self.header_with(ifd)?;
         let bits_per_sample = header.bits_per_sample().bits().clone();
         if bits_per_sample.is_empty() {
-            return Err(DecodeError::from(DecodeErrorKind::IncorrectBitsPerSample { data: bits_per_sample }));
+            return Err(DecodeError::from(DecodeErrorKind::UnsupportedBitsPerSample { data: bits_per_sample }));
         }
         
         let mut buffer = if bits_per_sample.iter().all(|&n| n <= 8) {
@@ -227,7 +227,7 @@ impl<R> Decoder<R> where R: Read + Seek {
             ImageData::U16(self.read_byte_u8_or_u16(ifd, &header)?)
 
         } else {
-            return Err(DecodeError::from(DecodeErrorKind::IncorrectBitsPerSample { data: bits_per_sample }));
+            return Err(DecodeError::from(DecodeErrorKind::UnsupportedBitsPerSample { data: bits_per_sample }));
         };
         
         Ok(Image::new(header, buffer))
@@ -274,7 +274,7 @@ impl<R> Decoder<R> where R: Read + Seek {
                                 buffer.push(data);
 
                             } else {
-                                return Err(DecodeError::from(DecodeErrorKind::IncorrectBitsPerSample{ data: bits_per_sample.clone() }))
+                                return Err(DecodeError::from(DecodeErrorKind::UnsupportedBitsPerSample{ data: bits_per_sample.clone() }))
                             }
                         }
                     }
@@ -305,7 +305,7 @@ impl<R> Decoder<R> where R: Read + Seek {
                                 buffer.push(data);
 
                             } else {
-                                return Err(DecodeError::from(DecodeErrorKind::IncorrectBitsPerSample{ data: bits_per_sample.clone() }))
+                                return Err(DecodeError::from(DecodeErrorKind::UnsupportedBitsPerSample{ data: bits_per_sample.clone() }))
                             }
                         }
                     }

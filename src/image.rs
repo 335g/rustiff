@@ -138,7 +138,7 @@ impl BitsPerSample {
                     None
                 }
             })
-            .ok_or(DecodeError::from(DecodeErrorKind::IncorrectBitsPerSample{ data: bits }))?;
+            .ok_or(DecodeError::from(DecodeErrorKind::UnsupportedBitsPerSample{ data: bits }))?;
         Ok(BitsPerSample(bits))
     }
 

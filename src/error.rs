@@ -75,7 +75,7 @@ pub enum DecodeErrorKind {
     /// Values less than or equal to 16 are supported. It can be different for each samples. 
     /// For example, if there are three samples such as RGB, R is 8 and G is 16.
     #[fail(display = "({:?}) is incorrect data for tag::BitsPerSample", data)]
-    IncorrectBitsPerSample { data: Vec<u16> },
+    UnsupportedBitsPerSample { data: Vec<u16> },
 
     /// This error occurs when The value obtained by the `decoder::Decoder::get_value` is
     /// not supported value. 

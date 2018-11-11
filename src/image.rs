@@ -149,7 +149,7 @@ impl BitsPerSample {
 }
 
 #[derive(Debug, Fail)]
-pub enum ImageHeaderError {
+pub enum ImageHeaderBuildError {
     #[fail(display = "Incompatible data ({:?}, {:?}, {:?})", photometric_interpretation, bits_per_sample, samples_per_pixel)]
     IncompatibleData { 
         photometric_interpretation: PhotometricInterpretation,
@@ -245,7 +245,7 @@ impl<PI, BPS, SPP, W, H> ImageHeaderBuilder<PI, BPS, SPP, W, H> where PI: HasVal
 }
 
 impl ImageHeaderBuilder<Filled<PhotometricInterpretation>, Filled<BitsPerSample>, Filled<u16>, Filled<u32>, Filled<u32>> {
-    pub fn build(self) -> Result<ImageHeader, ImageHeaderError> {
+    pub fn build(self) -> Result<ImageHeader, ImageHeaderBuildError> {
         let photometric_interpretation = self.photometric_interpretation.0;
         let bits_per_sample = self.bits_per_sample.0;
         let samples_per_pixel = self.samples_per_pixel.0;

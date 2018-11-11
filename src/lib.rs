@@ -64,7 +64,7 @@ pub use error::{
 pub use image::{
     Image,
     ImageHeader,
-    ImageHeaderError,
+    ImageHeaderBuildError,
     Compression,
     BitsPerSample,
     PhotometricInterpretation,

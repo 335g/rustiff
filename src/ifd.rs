@@ -80,7 +80,7 @@ impl IFD {
         if anytag == tag {
             Ok(self.insert_anytag(anytag, entry))
         } else {
-            Err(TagError::UnsupportedTag{ tag: tag })
+            Err(TagError::UnsupportedTag { tag: tag })
         }
     }
     
@@ -95,7 +95,7 @@ impl IFD {
         if anytag == tag {
             Ok(self.get_anytag(anytag))
         } else {
-            Err(TagError::UnsupportedTag{ tag: tag })
+            Err(TagError::UnsupportedTag { tag: tag })
         }
     }
 

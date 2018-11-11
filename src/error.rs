@@ -7,7 +7,7 @@ use tag::{
 use image::{
     PhotometricInterpretation,
     BitsPerSample,
-    ImageHeaderError,
+    ImageHeaderBuildError,
 };
 use std::io;
 use std::fmt::{
@@ -24,8 +24,12 @@ use failure::{
 #[derive(Debug, Fail)]
 pub enum TagError<T: TagType> {
     /// 
-    #[fail(display = "Unsupported tag: {:?}", tag)]
+    #[fail(display = "Unsupported (tag: {:?})", tag)]
     UnsupportedTag { tag: T },
+
+    
+    //#[fail(display = "Unsupported (tag: {:?}, data: {:?}), reason: {}", tag, data, reason)]
+    //UnsupportedData { tag: T, data: T::Value, reason: String },
 }
 
 /// `Result` type for handling `DecodeError`.
@@ -33,20 +37,20 @@ pub type DecodeResult<T> = ::std::result::Result<T, DecodeError>;
 
 /// 
 #[derive(Debug, Fail)]
-pub enum HeaderErrorKind {
+pub enum IncorrectHeaderKind {
     /// Tiff file header has 2 byte data corresponding to byte order.
     /// This error occurs when there is no correct data.
-    #[fail(display = "Incorrect Byte Order")]
+    #[fail(display = "Incorrect header: Byte Order")]
     NoByteOrder,
 
     /// There is `0x00h 0x2Ah` data after data corresponding to byte order.
     /// This error occurs when there is no this 2 byte data.
-    #[fail(display = "No Version")]
+    #[fail(display = "Incorrect header: No Version")]
     NoVersion,
     
     /// There is 4 byte data corresponding to an address of Image File Directory (IFD).
     /// This error occurs when there is no this 4 byte data.
-    #[fail(display = "No IFD address")]
+    #[fail(display = "Incorrect header: No IFD address")]
     NoIFDAddress,
 }
 
@@ -54,21 +58,22 @@ pub enum HeaderErrorKind {
 #[derive(Debug, Fail)]
 pub enum DecodeErrorKind {
     /// This error occurs when `io::Error` occurs.
-    #[fail(display = "IO Error: {:?}", error)]
-    Io { error: io::Error },
+    #[fail(display = "{}", _0)]
+    Io(#[fail(cause)] io::Error),
     
-    /// Tiff file firstly has header part.
     /// This error occurs when header part is not correct.
-    #[fail(display = "Incorrect header: {:?}", detail)]
-    IncorrectHeader { detail: HeaderErrorKind },
+    #[fail(display = "{}", _0)]
+    IncorrectHeader(#[fail(cause)] IncorrectHeaderKind),
     
     /// This error occurs when the IFD doesn't have this tag.
     #[fail(display = "Can't find the tag ({:?})", tag)]
     CannotFindTheTag { tag: AnyTag },
     
     /// This error occurs when `image::BitsPerSample::new` constructs `image::BitsPerSample` 
-    /// with incorrect values. Incorrect values are all 8 or all 16.
+    /// with incorrect values. 
     ///
+    /// Values less than or equal to 16 are supported. It can be different for each samples. 
+    /// For example, if there are three samples such as RGB, R is 8 and G is 16.
     #[fail(display = "({:?}) is incorrect data for tag::BitsPerSample", data)]
     IncorrectBitsPerSample { data: Vec<u16> },
 
@@ -80,32 +85,34 @@ pub enum DecodeErrorKind {
     #[fail(display = "Tag ({:?}) does not support data: ({:?})", tag, data)]
     UnsupportedData { tag: AnyTag, data: u32 },
     
-    /// `decoder::Decoder` reads data from file for each strip in `decoder::read_byte_detail_u8`
-    /// or `decoder::read_byte_detail_u16`. This errors occur when trying to read a size 
-    /// different from buffer size (= width * height * samples/pixel).
+    /// This error occurs when `datatype` & `count` used in the function of `TagType::decode` 
+    /// don't correspond to parsing `TagType::Value`.
+    ///
+    /// All tag type implements `TagType` and have the `TagType::Value` types.
+    #[fail(display = "Tag ({:?}) doesn't support this datatype/count : {:?}/{}", tag, datatype, count)]
+    UnsupportedDataTypeAndCount { tag: AnyTag, datatype: DataType, count: usize },
+    
+    /// This error occurs when trying to read a different size from buffer size.
+    ///
+    /// Buffer size is `width * height * samples_per_pixel`.
+    /// `decoder::Decoder` reads data from file for each strip in `decoder::read_byte_only_u8`
+    /// or `decoder::read_byte_only_u16` or `decoder::read_byte_u8_or_u16`.
     #[fail(display = "want(calc from `width *  height * samples/pixel`): {}, got: {}", want, got)]
     IncorrectBufferSize { want: usize, got: usize },
 
-    /// This error occurs when `PhotometricInterpretation` and `BitsPerSample` and `SamplesPerPixel`
-    /// are not compatible. Especially, when extracting image information (with `decode::image` &
-    /// `decode::image_with`) and extracting image header information (with `decode::header` &
-    /// `decode::header_with`). Just getting value by `decoder::get_value` will not result
-    /// in an error.
-    #[fail(display = "{:?}", err)]
-    IncompatibleData { err: ImageHeaderError },
-
-    /// All tag type implements `TagType` and have the `TagType::Value` types. This error occurs
-    /// when `datatype` & `count` used in the function of `TagType::decode` don't correspond to 
-    /// parsing `TagType::Value`.
-    #[fail(display = "Tag ({:?}) doesn't support this datatype/count : {:?}/{}", tag, datatype, count)]
-    NoSupportDataType { tag: AnyTag, datatype: DataType, count: usize },
-
+    /// This error occurs when `ImageHeaderBuilder` cannot build `ImageHeader`.
     ///
+    /// For example, if `PhotometricInterpretation` and `BitsPerSample` and `SamplesPerPixel`
+    /// are incompatible, an error occurs.
+    #[fail(display = "{}", _0)]
+    IncompatibleHeaderData(#[fail(cause)] ImageHeaderBuildError), 
+
+    /// 
     #[fail(display = "Unsupported tag: {:?}", boxed_tag)]
     UnsupportedTag { boxed_tag: Box<dyn Fail> },
 }
 
-/// Erro type for decoding.
+/// Error type for decoding.
 #[derive(Debug)]
 pub struct DecodeError {
     inner: Context<DecodeErrorKind>,
@@ -139,19 +146,19 @@ impl DecodeError {
 
 impl From<io::Error> for DecodeError {
     fn from(err: io::Error) -> DecodeError {
-        DecodeError::new(DecodeErrorKind::Io { error: err })
+        DecodeError::new(DecodeErrorKind::Io(err)) 
     }
 }
 
-impl From<HeaderErrorKind> for DecodeError {
-    fn from(err: HeaderErrorKind) -> DecodeError {
-        DecodeError::new(DecodeErrorKind::IncorrectHeader { detail: err })
+impl From<IncorrectHeaderKind> for DecodeError {
+    fn from(kind: IncorrectHeaderKind) -> DecodeError {
+        DecodeError::new(DecodeErrorKind::IncorrectHeader(kind))
     }
 }
 
-impl From<ImageHeaderError> for DecodeError {
-    fn from(err: ImageHeaderError) -> DecodeError {
-        DecodeError::new(DecodeErrorKind::IncompatibleData { err: err })
+impl From<ImageHeaderBuildError> for DecodeError {
+    fn from(err: ImageHeaderBuildError) -> DecodeError {
+        DecodeError::new(DecodeErrorKind::IncompatibleHeaderData(err))
     }
 }
 

@@ -31,9 +31,6 @@ pub trait TagType: Fail + Clone + Copy {
 
 macro_rules! define_tags {
     ($($name:ident, $id:expr;)*) => {
-        //$(#[derive(Debug, Clone, Copy, PartialEq, Eq, Fail)]
-        //pub struct $name;
-
         $(impl Display for $name {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 write!(f, "{}", $name)
@@ -104,7 +101,7 @@ macro_rules! short_or_long_value {
                 match datatype {
                     DataType::Short if count == 1 => Ok(offset.read_u16(endian)? as u32),
                     DataType::Long if count == 1 => Ok(offset.read_u32(endian)?),
-                    _ => Err(DecodeError::from(DecodeErrorKind::NoSupportDataType { tag: AnyTag::from(*self), datatype: datatype, count: count })),
+                    _ => Err(DecodeError::from(DecodeErrorKind::UnsupportedDataTypeAndCount { tag: AnyTag::from(*self), datatype: datatype, count: count })),
                 }
             }
         }
@@ -121,7 +118,7 @@ macro_rules! short_value {
             fn decode<'a, R: Read + Seek + 'a>(&'a self, mut _reader: R, mut offset: &'a [u8], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value> {
                 match datatype {
                     DataType::Short if count == 1 => Ok(offset.read_u16(endian)?),
-                    _ => Err(DecodeError::from(DecodeErrorKind::NoSupportDataType { tag: AnyTag::from(*self), datatype: datatype, count: count })),
+                    _ => Err(DecodeError::from(DecodeErrorKind::UnsupportedDataTypeAndCount { tag: AnyTag::from(*self), datatype: datatype, count: count })),
                 }
             }
         }
@@ -163,7 +160,7 @@ macro_rules! short_or_long_values {
 
                         Ok(v)
                     }
-                    _ => Err(DecodeError::from(DecodeErrorKind::NoSupportDataType { tag: AnyTag::from(*self), datatype: datatype, count: count })),
+                    _ => Err(DecodeError::from(DecodeErrorKind::UnsupportedDataTypeAndCount { tag: AnyTag::from(*self), datatype: datatype, count: count })),
                 }
             }
         }
@@ -194,7 +191,7 @@ macro_rules! short_values {
 
                         Ok(v)
                     }
-                    _ => Err(DecodeError::from(DecodeErrorKind::NoSupportDataType { tag: AnyTag::from(*self), datatype: datatype, count: count })),
+                    _ => Err(DecodeError::from(DecodeErrorKind::UnsupportedDataTypeAndCount { tag: AnyTag::from(*self), datatype: datatype, count: count })),
                 }
             }
         }

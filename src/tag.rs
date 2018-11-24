@@ -63,13 +63,22 @@ macro_rules! define_tags {
 
             // TODO: replace TryFrom
             pub fn try_from<T>(tag: T) -> Result<AnyTag, TagError<T>> where T: TagType {
-                let anytag = AnyTag::from(tag.id());
+                let anytag = AnyTag::from_u16(tag.id());
                 if anytag == tag {
                     Ok(anytag)
                 } else {
                     Err(TagError::<T>(tag))
                 }
             }
+
+            ///
+            pub(crate) fn from_u16(n: u16) -> AnyTag {
+                match n {
+                    $($id => AnyTag::$name,)*
+                    _ => AnyTag::Unknown(n),
+                }
+            }
+
         }
 
         impl Display for AnyTag {
@@ -90,15 +99,6 @@ macro_rules! define_tags {
             }
         }
 
-        impl From<u16> for AnyTag {
-            fn from(n: u16) -> AnyTag {
-                match n {
-                    $($id => AnyTag::$name,)*
-                    _ => AnyTag::Unknown(n),
-                }
-            }
-        }
-        
         impl<T> PartialEq<T> for AnyTag where T: TagType {
             fn eq(&self, rhs: &T) -> bool {
                 match *self {

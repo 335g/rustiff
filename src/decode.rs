@@ -160,7 +160,7 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
     
     fn read_entry(&mut self) -> DecodeResult<(AnyTag, Entry)> {
-        let tag = AnyTag::from(self.reader.read_u16(self.endian)?);
+        let tag = AnyTag::from_u16(self.reader.read_u16(self.endian)?);
         let datatype = DataType::from(self.reader.read_u16(self.endian)?);
         let count = self.reader.read_u32(self.endian)?;
         let offset = self.reader.read_4byte()?;

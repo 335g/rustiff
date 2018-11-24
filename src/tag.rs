@@ -21,8 +21,8 @@ use byte::{
 };
 use failure::Fail;
 
-pub trait TagType: Fail + Clone + Copy {
-    type Value: std::fmt::Debug + Send + Sync;
+pub trait TagType: fmt::Debug + Display + Send + Sync + 'static + Clone + Copy {
+    type Value: fmt::Debug + Send + Sync;
 
     fn id(&self) -> u16;
     fn default_value() -> Option<Self::Value>;
@@ -47,7 +47,7 @@ macro_rules! define_tags {
             }
         })*
         
-        #[derive(Debug, Clone, Eq, PartialEq, Hash, Fail)]
+        #[derive(Debug, Clone, Eq, PartialEq, Hash)]
         pub enum AnyTag {
             $($name,)*
             Unknown(u16),

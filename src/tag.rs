@@ -22,18 +22,28 @@ use byte::{
 use failure::Fail;
 
 pub trait TagType: Fail + Clone + Copy {
-    type Value;
+    type Value: std::fmt::Debug + Send + Sync;
 
     fn id(&self) -> u16;
     fn default_value() -> Option<Self::Value>;
     fn decode<'a, R: Read + Seek + 'a>(&'a self, reader: R, offset: &'a [u8], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value>;
 }
 
+#[derive(Debug, Clone, Fail)]
+#[fail(display = "Cannot use the tag: {}", _0)]
+pub struct TagError<T: TagType>(T);
+
+impl<T> TagError<T> where T: TagType {
+    pub fn tag(self) -> T {
+        self.0
+    }
+}
+
 macro_rules! define_tags {
     ($($name:ident, $id:expr;)*) => {
         $(impl Display for $name {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                write!(f, "{}", $name)
+                write!(f, "tag::{}", $name)
             }
         })*
         
@@ -50,6 +60,16 @@ macro_rules! define_tags {
                     AnyTag::Unknown(n) => n,
                 }
             }
+
+            // TODO: replace TryFrom
+            pub fn try_from<T>(tag: T) -> Result<AnyTag, TagError<T>> where T: TagType {
+                let anytag = AnyTag::from(tag.id());
+                if anytag == tag {
+                    Ok(anytag)
+                } else {
+                    Err(TagError::<T>(tag))
+                }
+            }
         }
 
         impl Display for AnyTag {
@@ -62,10 +82,10 @@ macro_rules! define_tags {
         }
 
         impl<T> From<T> for AnyTag where T: TagType {
-            fn from(x: T) -> AnyTag {
-                match x.id() {
+            fn from(tag: T) -> AnyTag {
+                match tag.id() {
                     $($id => AnyTag::$name,)*
-                    _ => AnyTag::Unknown(x.id()),
+                    _ => AnyTag::Unknown(tag.id()),
                 }
             }
         }
@@ -83,6 +103,7 @@ macro_rules! define_tags {
             fn eq(&self, rhs: &T) -> bool {
                 match *self {
                     $(AnyTag::$name => TypeId::of::<$name>() == TypeId::of::<T>(),)*
+                    AnyTag::Unknown(n) => n == rhs.id(),
                     _ => false
                 }
             }

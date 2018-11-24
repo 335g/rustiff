@@ -2,7 +2,7 @@
 use error::{
     DecodeError,
     DecodeErrorKind,
-    IncorrectHeaderKind,
+    FileHeaderErrorKind,
     DecodeResult,
 };
 use byte::{
@@ -100,21 +100,21 @@ impl<R> Decoder<R> where R: Read + Seek {
     pub fn new(mut reader: R) -> DecodeResult<Decoder<R>> {
         let mut byte_order = [0u8; 2];
         if let Err(_) = reader.read_exact(&mut byte_order) {
-            return Err(DecodeError::from(IncorrectHeaderKind::NoByteOrder));
+            return Err(DecodeError::from(FileHeaderErrorKind::NoByteOrder));
         }
         let endian = match &byte_order {
             b"II" => Endian::Little,
             b"MM" => Endian::Big,
-            _ => return Err(DecodeError::from(IncorrectHeaderKind::NoByteOrder)),
+            _ => return Err(DecodeError::from(FileHeaderErrorKind::NoByteOrder)),
         };
 
         match reader.read_u16(endian) {
             Ok(x) if x == 42 => {},
-            _ => return Err(DecodeError::from(IncorrectHeaderKind::NoVersion))
+            _ => return Err(DecodeError::from(FileHeaderErrorKind::NoVersion))
         }
         let start = match reader.read_u32(endian) {
             Ok(x) => x,
-            Err(_) => return Err(DecodeError::from(IncorrectHeaderKind::NoIFDAddress))
+            Err(_) => return Err(DecodeError::from(FileHeaderErrorKind::NoIFDAddress))
         };
         let decoder = Decoder {
             start: start,
@@ -174,7 +174,7 @@ impl<R> Decoder<R> where R: Read + Seek {
         let width = self.get_value(ifd, tag::ImageWidth)?;
         let height = self.get_value(ifd, tag::ImageLength)?;
         let interpretation = PhotometricInterpretation::from_u16(self.get_value(ifd, tag::PhotometricInterpretation)?)?;
-        let bits_per_sample = BitsPerSample::new(self.get_value(ifd, tag::BitsPerSample)?)?;
+        let bits_per_sample = BitsPerSample::from_u16s(self.get_value(ifd, tag::BitsPerSample)?)?;
         let samples_per_pixel = self.get_value(ifd, tag::SamplesPerPixel)?;
         let builder = ImageHeaderBuilder::default()
             .width(width)
@@ -214,10 +214,15 @@ impl<R> Decoder<R> where R: Read + Seek {
         let header = self.header_with(ifd)?;
         let bits_per_sample = header.bits_per_sample().bits().clone();
         if bits_per_sample.is_empty() {
-            return Err(DecodeError::from(DecodeErrorKind::UnsupportedBitsPerSample { data: bits_per_sample }));
+            let kind = DecodeErrorKind::UnsupportedMultipleData {
+                tag: AnyTag::BitsPerSample,
+                data: bits_per_sample.into_iter().map(|n| u32::from(n)).collect::<Vec<_>>(),
+                reason: "At least tag::BitsPerSample must have an one value"
+            };
+            return Err(DecodeError::from(kind));
         }
         
-        let mut buffer = if bits_per_sample.iter().all(|&n| n <= 8) {
+        let data = if bits_per_sample.iter().all(|&n| n <= 8) {
             ImageData::U8(self.read_byte_only_u8(ifd, &header)?)
 
         } else if bits_per_sample.iter().all(|&n| 8 < n && n <= 16) {
@@ -227,10 +232,15 @@ impl<R> Decoder<R> where R: Read + Seek {
             ImageData::U16(self.read_byte_u8_or_u16(ifd, &header)?)
 
         } else {
-            return Err(DecodeError::from(DecodeErrorKind::UnsupportedBitsPerSample { data: bits_per_sample }));
+            let kind = DecodeErrorKind::UnsupportedMultipleData {
+                tag: AnyTag::BitsPerSample,
+                data: bits_per_sample.into_iter().map(|n| u32::from(n)).collect::<Vec<_>>(),
+                reason: "tag::BitsPerSample must have a value less than 16."
+            };
+            return Err(DecodeError::from(kind));
         };
         
-        Ok(Image::new(header, buffer))
+        Ok(Image::new(header, data))
     }
 
     fn read_byte_u8_or_u16(&mut self, ifd: &IFD, header: &ImageHeader) -> DecodeResult<Vec<u16>> {
@@ -274,7 +284,12 @@ impl<R> Decoder<R> where R: Read + Seek {
                                 buffer.push(data);
 
                             } else {
-                                return Err(DecodeError::from(DecodeErrorKind::UnsupportedBitsPerSample{ data: bits_per_sample.clone() }))
+                                let kind = DecodeErrorKind::UnsupportedMultipleData { 
+                                    tag: AnyTag::BitsPerSample,
+                                    data: bits_per_sample.iter().map(|n| u32::from(*n)).collect::<Vec<_>>(),
+                                    reason: "tag::BitsPerSample must have a value less than 16."
+                                };
+                                return Err(DecodeError::from(kind));
                             }
                         }
                     }
@@ -305,7 +320,12 @@ impl<R> Decoder<R> where R: Read + Seek {
                                 buffer.push(data);
 
                             } else {
-                                return Err(DecodeError::from(DecodeErrorKind::UnsupportedBitsPerSample{ data: bits_per_sample.clone() }))
+                                let kind = DecodeErrorKind::UnsupportedMultipleData {
+                                    tag: AnyTag::BitsPerSample,
+                                    data: bits_per_sample.iter().map(|n| u32::from(*n)).collect::<Vec<_>>(),
+                                    reason: "tag::BitsPerSample supports values less than 16."
+                                };
+                                return Err(DecodeError::from(kind));
                             }
                         }
                     }

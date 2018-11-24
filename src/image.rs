@@ -4,12 +4,25 @@ use error::{
     DecodeErrorKind,
     DecodeResult,
 };
-use tag::AnyTag;
+use tag::{
+    self,
+    TagType,
+    AnyTag,
+};
 use tool::{
     HasValue,
     Empty,
     Filled,
 };
+
+///
+#[derive(Debug, Fail)]
+#[fail(display = "{} cannot be constructed with unsupported value({:?}), reason: {}", tag, value, reason)]
+pub struct ConstructError<T: TagType> {
+    tag: T,
+    value: T::Value,
+    reason: &'static str,
+}
 
 /// The color space of the image data.
 ///
@@ -84,7 +97,7 @@ pub enum PhotometricInterpretation {
 }
 
 impl PhotometricInterpretation {
-    pub fn from_u16(n: u16) -> Result<PhotometricInterpretation, DecodeError> {
+    pub fn from_u16(n: u16) -> Result<PhotometricInterpretation, ConstructError<tag::PhotometricInterpretation>> {
         use self::PhotometricInterpretation::*;
 
         match n {
@@ -96,7 +109,13 @@ impl PhotometricInterpretation {
             5 => Ok(CMYK),
             6 => Ok(YCbCr),
             7 => Ok(CIELab),
-            n => Err(DecodeError::from(DecodeErrorKind::UnsupportedData{ tag: AnyTag::PhotometricInterpretation, data: n as u32 })),
+            n => {
+                Err(ConstructError {
+                    tag: tag::PhotometricInterpretation,
+                    value: n,
+                    reason: "tag::PhotometricInterpretation supports between 0 and 7.",
+                })
+            },
         }
     }
 }
@@ -111,11 +130,17 @@ pub enum Compression {
 }
 
 impl Compression {
-    pub fn from_u16(n: u16) -> DecodeResult<Option<Compression>> {
+    pub fn from_u16(n: u16) -> Result<Option<Compression>, ConstructError<tag::Compression>> {
         match n {
             1 => Ok(None),
             5 => Ok(Some(Compression::LZW)),
-            n => Err(DecodeError::from(DecodeErrorKind::UnsupportedData{ tag: AnyTag::Compression, data: n as u32 })),
+            n => {
+                Err(ConstructError {
+                    tag: tag::Compression,
+                    value: n,
+                    reason: "tag::Compression supports only 1 (No compression) and 5 (LZW)."
+                })
+            },
         }
     }
 }
@@ -128,7 +153,7 @@ pub struct BitsPerSample(Vec<u16>);
 
 impl BitsPerSample {
     /// Initializer
-    pub fn new(bits: Vec<u16>) -> DecodeResult<BitsPerSample> {
+    pub fn from_u16s(bits: Vec<u16>) -> Result<BitsPerSample, ConstructError<tag::BitsPerSample>> {
         let bits = bits.iter()
             .try_fold(vec![], |mut acc, &x| {
                 if 0 < x && x <= 16 {
@@ -138,7 +163,12 @@ impl BitsPerSample {
                     None
                 }
             })
-            .ok_or(DecodeError::from(DecodeErrorKind::UnsupportedBitsPerSample{ data: bits }))?;
+            .ok_or(ConstructError {
+                tag: tag::BitsPerSample,
+                value: bits,
+                reason: "tag::BitsPerSample supports only values less than 16."
+            })?;
+
         Ok(BitsPerSample(bits))
     }
 

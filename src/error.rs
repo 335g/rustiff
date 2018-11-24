@@ -2,12 +2,14 @@
 use ifd::DataType;
 use tag::{
     TagType,
+    TagError,
     AnyTag,
 };
 use image::{
     PhotometricInterpretation,
     BitsPerSample,
     ImageHeaderBuildError,
+    ConstructError,
 };
 use std::io;
 use std::fmt::{
@@ -20,30 +22,18 @@ use failure::{
     Backtrace,
 };
 
-///
-#[derive(Debug, Fail)]
-pub enum TagError<T: TagType> {
-    /// 
-    #[fail(display = "Unsupported (tag: {:?})", tag)]
-    UnsupportedTag { tag: T },
-
-    
-    //#[fail(display = "Unsupported (tag: {:?}, data: {:?}), reason: {}", tag, data, reason)]
-    //UnsupportedData { tag: T, data: T::Value, reason: String },
-}
-
 /// `Result` type for handling `DecodeError`.
 pub type DecodeResult<T> = ::std::result::Result<T, DecodeError>;
 
 /// 
 #[derive(Debug, Fail)]
-pub enum IncorrectHeaderKind {
+pub enum FileHeaderErrorKind {
     /// Tiff file header has 2 byte data corresponding to byte order.
     /// This error occurs when there is no correct data.
     #[fail(display = "Incorrect header: Byte Order")]
     NoByteOrder,
 
-    /// There is `0x00h 0x2Ah` data after data corresponding to byte order.
+    /// There is `0x00 0x2A` data after data corresponding to byte order.
     /// This error occurs when there is no this 2 byte data.
     #[fail(display = "Incorrect header: No Version")]
     NoVersion,
@@ -61,12 +51,12 @@ pub enum DecodeErrorKind {
     #[fail(display = "{}", _0)]
     Io(#[fail(cause)] io::Error),
     
-    /// This error occurs when header part is not correct.
+    /// This error occurs when file header is not correct.
     #[fail(display = "{}", _0)]
-    IncorrectHeader(#[fail(cause)] IncorrectHeaderKind),
+    IncorrectFileHeader(#[fail(cause)] FileHeaderErrorKind),
     
     /// This error occurs when the IFD doesn't have this tag.
-    #[fail(display = "Can't find the tag ({:?})", tag)]
+    #[fail(display = "Can't find the ({})", tag)]
     CannotFindTheTag { tag: AnyTag },
     
     /// This error occurs when `image::BitsPerSample::new` constructs `image::BitsPerSample` 
@@ -82,16 +72,23 @@ pub enum DecodeErrorKind {
     ///
     /// For example, `image::PhotometricInterpretation` supports the values between 0 and 7.
     /// Therefore, when other values are obtained, an error occurs.
-    #[fail(display = "Tag ({:?}) does not support data: ({:?})", tag, data)]
+    #[fail(display = "({}) does not support data: ({:?})", tag, data)]
     UnsupportedData { tag: AnyTag, data: u32 },
     
     /// This error occurs when `datatype` & `count` used in the function of `TagType::decode` 
     /// don't correspond to parsing `TagType::Value`.
     ///
     /// All tag type implements `TagType` and have the `TagType::Value` types.
-    #[fail(display = "Tag ({:?}) doesn't support this datatype/count : {:?}/{}", tag, datatype, count)]
+    #[fail(display = "({}) doesn't support this datatype({:?}) and count({})", tag, datatype, count)]
     UnsupportedDataTypeAndCount { tag: AnyTag, datatype: DataType, count: usize },
-    
+
+
+    #[fail(display = "({}) does not support data({:?}). reason: {:?}", tag, data, reason)]
+    UnsupportedUnitData { tag: AnyTag, data: u32, reason: &'static str },
+
+    #[fail(display = "({}) does not support data({:?}). reason: {:?}", tag, data, reason)]
+    UnsupportedMultipleData { tag: AnyTag, data: Vec<u32>, reason: &'static str },
+
     /// This error occurs when trying to read a different size from buffer size.
     ///
     /// Buffer size is `width * height * samples_per_pixel`.
@@ -108,8 +105,8 @@ pub enum DecodeErrorKind {
     IncompatibleHeaderData(#[fail(cause)] ImageHeaderBuildError), 
 
     /// 
-    #[fail(display = "Unsupported tag: {:?}", boxed_tag)]
-    UnsupportedTag { boxed_tag: Box<dyn Fail> },
+    #[fail(display = "cannot use the tag: {:?}", description)]
+    CannotUseTheTag { description: String }
 }
 
 /// Error type for decoding.
@@ -135,6 +132,7 @@ impl Display for DecodeError {
 }
 
 impl DecodeError {
+    #[inline]
     fn new(kind: DecodeErrorKind) -> DecodeError {
         DecodeError { inner: Context::new(kind) }
     }
@@ -150,9 +148,9 @@ impl From<io::Error> for DecodeError {
     }
 }
 
-impl From<IncorrectHeaderKind> for DecodeError {
-    fn from(kind: IncorrectHeaderKind) -> DecodeError {
-        DecodeError::new(DecodeErrorKind::IncorrectHeader(kind))
+impl From<FileHeaderErrorKind> for DecodeError {
+    fn from(kind: FileHeaderErrorKind) -> DecodeError {
+        DecodeError::new(DecodeErrorKind::IncorrectFileHeader(kind))
     }
 }
 
@@ -170,10 +168,14 @@ impl From<DecodeErrorKind> for DecodeError {
 
 impl<T> From<TagError<T>> for DecodeError where T: TagType {
     fn from(err: TagError<T>) -> DecodeError {
-        let tag = match err {
-            TagError::UnsupportedTag { tag: tag } => tag,
-        };
-        DecodeError::new(DecodeErrorKind::UnsupportedTag { boxed_tag: Box::new(tag) })
+        let tag = err.tag();
+        let description = format!("{:?}", tag);
+        DecodeError::from(DecodeErrorKind::CannotUseTheTag { description: description })
     }
 }
 
+impl<T> From<ConstructError<T>> for DecodeError where T: TagType {
+    fn from(err: ConstructError<T>) -> DecodeError {
+        unimplemented!()
+    }
+}

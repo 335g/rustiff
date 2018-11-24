@@ -6,8 +6,8 @@ use std::fmt::{
 use tag::{
     TagType,
     AnyTag,
+    TagError,
 };
-use error::TagError;
 
 #[derive(Debug, Clone, Copy)]
 pub enum DataType {
@@ -76,12 +76,9 @@ impl IFD {
     
     #[inline]
     pub fn insert<T: TagType>(&mut self, tag: T, entry: Entry) -> Result<Option<Entry>, TagError<T>> {
-        let anytag = AnyTag::from(tag.id());
-        if anytag == tag {
-            Ok(self.insert_anytag(anytag, entry))
-        } else {
-            Err(TagError::UnsupportedTag { tag: tag })
-        }
+        let anytag = AnyTag::try_from(tag)?;
+        
+        Ok(self.insert_anytag(anytag, entry))
     }
     
     #[inline]
@@ -91,12 +88,9 @@ impl IFD {
     
     #[inline]
     pub fn get<T: TagType>(&self, tag: T) -> Result<Option<&Entry>, TagError<T>> {
-        let anytag = AnyTag::from(tag.id());
-        if anytag == tag {
-            Ok(self.get_anytag(anytag))
-        } else {
-            Err(TagError::UnsupportedTag { tag: tag })
-        }
+        let anytag = AnyTag::try_from(tag)?;
+
+        Ok(self.get_anytag(anytag))
     }
 
     #[inline]

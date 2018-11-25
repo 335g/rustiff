@@ -61,16 +61,6 @@ macro_rules! define_tags {
                 }
             }
 
-            // TODO: replace TryFrom
-            pub fn try_from<T>(tag: T) -> Result<AnyTag, TagError<T>> where T: TagType {
-                let anytag = AnyTag::from_u16(tag.id());
-                if anytag == tag {
-                    Ok(anytag)
-                } else {
-                    Err(TagError::<T>(tag))
-                }
-            }
-
             ///
             pub(crate) fn from_u16(n: u16) -> AnyTag {
                 match n {
@@ -90,15 +80,6 @@ macro_rules! define_tags {
             }
         }
 
-        impl<T> From<T> for AnyTag where T: TagType {
-            fn from(tag: T) -> AnyTag {
-                match tag.id() {
-                    $($id => AnyTag::$name,)*
-                    _ => AnyTag::Unknown(tag.id()),
-                }
-            }
-        }
-
         impl<T> PartialEq<T> for AnyTag where T: TagType {
             fn eq(&self, rhs: &T) -> bool {
                 match *self {
@@ -107,6 +88,17 @@ macro_rules! define_tags {
                     _ => false
                 }
             }
+        }
+    }
+}
+
+impl AnyTag {
+    pub(crate) fn try_from<T>(tag: T) -> Result<AnyTag, TagError<T>> where T: TagType {
+        let anytag = AnyTag::from_u16(tag.id());
+        if anytag == tag {
+            Ok(anytag)
+        } else {
+            Err(TagError::<T>(tag))
         }
     }
 }
@@ -122,7 +114,7 @@ macro_rules! short_or_long_value {
                 match datatype {
                     DataType::Short if count == 1 => Ok(offset.read_u16(endian)? as u32),
                     DataType::Long if count == 1 => Ok(offset.read_u32(endian)?),
-                    _ => Err(DecodeError::from(DecodeErrorKind::UnsupportedDataTypeAndCount { tag: AnyTag::from(*self), datatype: datatype, count: count })),
+                    _ => Err(DecodeError::from(DecodeErrorKind::UnsupportedDataTypeAndCount { tag: AnyTag::try_from(*self)?, datatype: datatype, count: count })),
                 }
             }
         }
@@ -139,7 +131,7 @@ macro_rules! short_value {
             fn decode<'a, R: Read + Seek + 'a>(&'a self, mut _reader: R, mut offset: &'a [u8], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value> {
                 match datatype {
                     DataType::Short if count == 1 => Ok(offset.read_u16(endian)?),
-                    _ => Err(DecodeError::from(DecodeErrorKind::UnsupportedDataTypeAndCount { tag: AnyTag::from(*self), datatype: datatype, count: count })),
+                    _ => Err(DecodeError::from(DecodeErrorKind::UnsupportedDataTypeAndCount { tag: AnyTag::try_from(*self)?, datatype: datatype, count: count })),
                 }
             }
         }
@@ -181,7 +173,7 @@ macro_rules! short_or_long_values {
 
                         Ok(v)
                     }
-                    _ => Err(DecodeError::from(DecodeErrorKind::UnsupportedDataTypeAndCount { tag: AnyTag::from(*self), datatype: datatype, count: count })),
+                    _ => Err(DecodeError::from(DecodeErrorKind::UnsupportedDataTypeAndCount { tag: AnyTag::try_from(*self)?, datatype: datatype, count: count })),
                 }
             }
         }
@@ -212,7 +204,7 @@ macro_rules! short_values {
 
                         Ok(v)
                     }
-                    _ => Err(DecodeError::from(DecodeErrorKind::UnsupportedDataTypeAndCount { tag: AnyTag::from(*self), datatype: datatype, count: count })),
+                    _ => Err(DecodeError::from(DecodeErrorKind::UnsupportedDataTypeAndCount { tag: AnyTag::try_from(*self)?, datatype: datatype, count: count })),
                 }
             }
         }

@@ -137,7 +137,8 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
 
     fn get_entry<'a, T: TagType>(&mut self, ifd: &'a IFD, tag: T) -> DecodeResult<&'a Entry> {
-        ifd.get(tag)?.ok_or(DecodeError::from(DecodeErrorKind::CannotFindTheTag{ tag: AnyTag::from(tag) }))
+        ifd.get(tag)?
+            .ok_or(DecodeError::from(DecodeErrorKind::CannotFindTheTag{ tag: AnyTag::Unknown(tag.id()) }))
     }
     
     pub fn get_value<T: TagType>(&mut self, ifd: &IFD, tag: T) -> DecodeResult<T::Value> {

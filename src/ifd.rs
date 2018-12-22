@@ -82,7 +82,7 @@ impl IFD {
     }
     
     #[inline]
-    pub fn insert_anytag(&mut self, tag: AnyTag, entry: Entry) -> Option<Entry> {
+    pub(crate) fn insert_anytag(&mut self, tag: AnyTag, entry: Entry) -> Option<Entry> {
         self.0.insert(tag, entry)
     }
     
@@ -94,7 +94,7 @@ impl IFD {
     }
 
     #[inline]
-    pub fn get_anytag(&self, k: AnyTag) -> Option<&Entry> {
+    pub(crate) fn get_anytag(&self, k: AnyTag) -> Option<&Entry> {
         self.0.get(&k)
     }
 }

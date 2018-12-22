@@ -59,21 +59,21 @@ pub enum DecodeErrorKind {
     #[fail(display = "Can't find the ({})", tag)]
     CannotFindTheTag { tag: AnyTag },
     
-    /// This error occurs when `image::BitsPerSample::new` constructs `image::BitsPerSample` 
-    /// with incorrect values. 
-    ///
-    /// Values less than or equal to 16 are supported. It can be different for each samples. 
-    /// For example, if there are three samples such as RGB, R is 8 and G is 16.
-    #[fail(display = "({:?}) is incorrect data for tag::BitsPerSample", data)]
-    UnsupportedBitsPerSample { data: Vec<u16> },
+    ///// This error occurs when `image::BitsPerSample::new` constructs `image::BitsPerSample` 
+    ///// with incorrect values. 
+    /////
+    ///// Values less than or equal to 16 are supported. It can be different for each samples. 
+    ///// For example, if there are three samples such as RGB, R is 8 and G is 16.
+    //#[fail(display = "({:?}) is incorrect data for tag::BitsPerSample", data)]
+    //UnsupportedBitsPerSample { data: Vec<u16> },
 
-    /// This error occurs when The value obtained by the `decoder::Decoder::get_value` is
-    /// not supported value. 
-    ///
-    /// For example, `image::PhotometricInterpretation` supports the values between 0 and 7.
-    /// Therefore, when other values are obtained, an error occurs.
-    #[fail(display = "({}) does not support data: ({:?})", tag, data)]
-    UnsupportedData { tag: AnyTag, data: u32 },
+    ///// This error occurs when The value obtained by the `decoder::Decoder::get_value` is
+    ///// not supported value. 
+    /////
+    ///// For example, `image::PhotometricInterpretation` supports the values between 0 and 7.
+    ///// Therefore, when other values are obtained, an error occurs.
+    //#fail(display = "({}) does not support data: ({:?})", tag, data)]
+    //UnsupportedData { tag: AnyTag, data: u32 },
     
     /// This error occurs when `datatype` & `count` used in the function of `TagType::decode` 
     /// don't correspond to parsing `TagType::Value`.

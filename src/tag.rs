@@ -29,11 +29,11 @@ pub trait TagType: fmt::Debug + Display + Send + Sync + 'static + Clone + Copy {
     fn decode<'a, R: Read + Seek + 'a>(&'a self, reader: R, offset: &'a [u8], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value>;
 }
 
-#[derive(Debug, Clone, Fail)]
-#[fail(display = "Cannot use the tag: {}", _0)]
-pub struct TagError<T: TagType>(T);
+#[derive(Debug, Clone)]
+//#[fail(display = "Impossible tag: {}", _0)]
+pub struct ImpossibleTag<T: TagType>(T);
 
-impl<T> TagError<T> where T: TagType {
+impl<T> ImpossibleTag<T> where T: TagType {
     pub fn tag(self) -> T {
         self.0
     }
@@ -93,12 +93,13 @@ macro_rules! define_tags {
 }
 
 impl AnyTag {
-    pub(crate) fn try_from<T>(tag: T) -> Result<AnyTag, TagError<T>> where T: TagType {
+    #[inline]
+    pub(crate) fn try_from<T>(tag: T) -> Result<AnyTag, ImpossibleTag<T>> where T: TagType {
         let anytag = AnyTag::from_u16(tag.id());
         if anytag == tag {
             Ok(anytag)
         } else {
-            Err(TagError::<T>(tag))
+            Err(ImpossibleTag(tag))
         }
     }
 }

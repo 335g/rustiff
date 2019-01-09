@@ -6,8 +6,9 @@ use std::fmt::{
 use tag::{
     TagType,
     AnyTag,
-    TagError,
+    ImpossibleTag,
 };
+use error::DecodeError;
 
 #[derive(Debug, Clone, Copy)]
 pub enum DataType {
@@ -74,8 +75,9 @@ impl IFD {
         IFD(HashMap::new())
     }
     
+    // TODO: replace EncodeError
     #[inline]
-    pub fn insert<T: TagType>(&mut self, tag: T, entry: Entry) -> Result<Option<Entry>, TagError<T>> {
+    pub fn insert<T: TagType>(&mut self, tag: T, entry: Entry) -> Result<Option<Entry>, ImpossibleTag<T>> {
         let anytag = AnyTag::try_from(tag)?;
         
         Ok(self.insert_anytag(anytag, entry))
@@ -87,7 +89,7 @@ impl IFD {
     }
     
     #[inline]
-    pub fn get<T: TagType>(&self, tag: T) -> Result<Option<&Entry>, TagError<T>> {
+    pub fn get<T: TagType>(&self, tag: T) -> Result<Option<&Entry>, DecodeError> {
         let anytag = AnyTag::try_from(tag)?;
 
         Ok(self.get_anytag(anytag))

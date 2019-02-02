@@ -3,7 +3,6 @@ use error::{
     DecodeError,
     DecodeErrorKind,
     FileHeaderErrorKind,
-    DecodeResult,
 };
 use byte::{
     Endian,
@@ -33,11 +32,12 @@ use image::{
     ImageHeader,
     Compression,
     PhotometricInterpretation,
+    ConstructError,
 };
 
 macro_rules! read_byte {
     ($method:ident, $method2:ident, $t:ty) => {
-        fn $method(&mut self, ifd: &IFD, header: &ImageHeader) -> DecodeResult<Vec<$t>> {
+        fn $method(&mut self, ifd: &IFD, header: &ImageHeader) -> Result<Vec<$t>, DecodeError> {
             let bits_per_sample = header.bits_per_sample().bits();
             let width = header.width();
             let height = header.height();
@@ -97,7 +97,7 @@ pub struct Decoder<R> {
 }
 
 impl<R> Decoder<R> where R: Read + Seek {
-    pub fn new(mut reader: R) -> DecodeResult<Decoder<R>> {
+    pub fn new(mut reader: R) -> Result<Decoder<R>, DecodeError> {
         let mut byte_order = [0u8; 2];
         if let Err(_) = reader.read_exact(&mut byte_order) {
             return Err(DecodeError::from(FileHeaderErrorKind::NoByteOrder));
@@ -130,23 +130,23 @@ impl<R> Decoder<R> where R: Read + Seek {
         self.collect::<Vec<_>>()
     }
 
-    pub fn ifd(&mut self) -> DecodeResult<IFD> {
+    pub fn ifd(&mut self) -> Result<IFD, DecodeError> {
         let start = self.start;
         let (ifd, _) = self.read_ifd(start)?;
         Ok(ifd)
     }
 
-    fn get_entry<'a, T: TagType>(&mut self, ifd: &'a IFD, tag: T) -> DecodeResult<&'a Entry> {
+    fn get_entry<'a, T: TagType>(&mut self, ifd: &'a IFD, tag: T) -> Result<&'a Entry, DecodeError> {
         ifd.get(tag)?
-            .ok_or(DecodeError::from(DecodeErrorKind::CannotFindTheTag{ tag: AnyTag::Custom(tag.id()) }))
+            .ok_or(DecodeError::from(DecodeErrorKind::CannotFindTheTag{ tag: Box::new(tag) }))
     }
     
-    pub fn get_value<T: TagType>(&mut self, ifd: &IFD, tag: T) -> DecodeResult<T::Value> {
+    pub fn get_value<T: TagType>(&mut self, ifd: &IFD, tag: T) -> Result<T::Value, DecodeError> {
         let entry = self.get_entry(ifd, tag)?;
         tag.decode(&mut self.reader, entry.offset(), self.endian, entry.datatype(), entry.count() as usize)
     }
 
-    fn read_ifd(&mut self, from: u32) -> DecodeResult<(IFD, u32)>  {
+    fn read_ifd(&mut self, from: u32) -> Result<(IFD, u32), DecodeError>  {
         self.reader.goto(from as u64)?;
 
         let mut ifd = IFD::new();
@@ -165,7 +165,7 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
     
     #[inline]
-    pub fn header_with(&mut self, ifd: &IFD) -> DecodeResult<ImageHeader> {
+    pub fn header_with(&mut self, ifd: &IFD) -> Result<ImageHeader, DecodeError> {
         let width = self.get_value(ifd, tag::ImageWidth)?;
         let height = self.get_value(ifd, tag::ImageLength)?;
         let interpretation = PhotometricInterpretation::from_u16(self.get_value(ifd, tag::PhotometricInterpretation)?)?;
@@ -190,7 +190,7 @@ impl<R> Decoder<R> where R: Read + Seek {
         Ok(header)
     }
     
-    pub fn header(&mut self) -> DecodeResult<ImageHeader> {
+    pub fn header(&mut self) -> Result<ImageHeader, DecodeError> {
         let ifd = self.ifd()?;
 
         self.header_with(&ifd)
@@ -199,24 +199,15 @@ impl<R> Decoder<R> where R: Read + Seek {
     read_byte!(read_byte_only_u8, read_u8s, u8);
     read_byte!(read_byte_only_u16, read_u16s, u16);
 
-    pub fn image(&mut self) -> DecodeResult<Image> {
+    pub fn image(&mut self) -> Result<Image, DecodeError> {
         let ifd = self.ifd()?;
         self.image_with(&ifd)
     }
     
     #[inline]
-    pub fn image_with(&mut self, ifd: &IFD) -> DecodeResult<Image> {
+    pub fn image_with(&mut self, ifd: &IFD) -> Result<Image, DecodeError> {
         let header = self.header_with(ifd)?;
         let bits_per_sample = header.bits_per_sample().bits().clone();
-        if bits_per_sample.is_empty() {
-            let kind = DecodeErrorKind::UnsupportedMultipleData {
-                tag: AnyTag::BitsPerSample,
-                data: bits_per_sample.into_iter().map(|n| u32::from(n)).collect::<Vec<_>>(),
-                reason: "At least tag::BitsPerSample must have an one value"
-            };
-            return Err(DecodeError::from(kind));
-        }
-        
         let data = if bits_per_sample.iter().all(|&n| n <= 8) {
             ImageData::U8(self.read_byte_only_u8(ifd, &header)?)
 
@@ -227,18 +218,17 @@ impl<R> Decoder<R> where R: Read + Seek {
             ImageData::U16(self.read_byte_u8_or_u16(ifd, &header)?)
 
         } else {
-            let kind = DecodeErrorKind::UnsupportedMultipleData {
-                tag: AnyTag::BitsPerSample,
-                data: bits_per_sample.into_iter().map(|n| u32::from(n)).collect::<Vec<_>>(),
-                reason: "tag::BitsPerSample must have a value less than 16."
-            };
-            return Err(DecodeError::from(kind));
+            return Err(DecodeError::from(ConstructError::new(
+                tag::BitsPerSample,
+                bits_per_sample,
+                "tag::BitsPerSample must have a value less than 16.".to_string()
+            )));
         };
         
         Ok(Image::new(header, data))
     }
 
-    fn read_byte_u8_or_u16(&mut self, ifd: &IFD, header: &ImageHeader) -> DecodeResult<Vec<u16>> {
+    fn read_byte_u8_or_u16(&mut self, ifd: &IFD, header: &ImageHeader) -> Result<Vec<u16>, DecodeError> {
         let bits_per_sample = header.bits_per_sample().bits();
         let width = header.width();
         let height = header.height();
@@ -279,12 +269,11 @@ impl<R> Decoder<R> where R: Read + Seek {
                                 buffer.push(data);
 
                             } else {
-                                let kind = DecodeErrorKind::UnsupportedMultipleData { 
-                                    tag: AnyTag::BitsPerSample,
-                                    data: bits_per_sample.iter().map(|n| u32::from(*n)).collect::<Vec<_>>(),
-                                    reason: "tag::BitsPerSample must have a value less than 16."
-                                };
-                                return Err(DecodeError::from(kind));
+                                return Err(DecodeError::from(ConstructError::new(
+                                    tag::BitsPerSample,
+                                    bits_per_sample.clone(),
+                                    "tag::BitsPerSample must have a value less than 16.".to_string()
+                                )));
                             }
                         }
                     }
@@ -315,12 +304,11 @@ impl<R> Decoder<R> where R: Read + Seek {
                                 buffer.push(data);
 
                             } else {
-                                let kind = DecodeErrorKind::UnsupportedMultipleData {
-                                    tag: AnyTag::BitsPerSample,
-                                    data: bits_per_sample.iter().map(|n| u32::from(*n)).collect::<Vec<_>>(),
-                                    reason: "tag::BitsPerSample supports values less than 16."
-                                };
-                                return Err(DecodeError::from(kind));
+                                return Err(DecodeError::from(ConstructError::new(
+                                    tag::BitsPerSample,
+                                    bits_per_sample.clone(),
+                                    "tag::BitsPerSample must have a value less than 16.".to_string()
+                                )));
                             }
                         }
                     }
@@ -355,7 +343,7 @@ impl<R> Iterator for Decoder<R> where R: Read + Seek {
 }
 
 #[inline(always)]
-fn read_u16s<R>(interpretation: PhotometricInterpretation, endian: Endian, length: usize, mut reader: R, buffer: &mut [u16]) -> DecodeResult<()> where R: Read {
+fn read_u16s<R>(interpretation: PhotometricInterpretation, endian: Endian, length: usize, mut reader: R, buffer: &mut [u16]) -> Result<(), DecodeError> where R: Read {
     reader.read_u16_into(endian, &mut buffer[..length/2])?;
     if interpretation == PhotometricInterpretation::BlackIsZero {
         for data in buffer[..length/2].iter_mut() {
@@ -366,7 +354,7 @@ fn read_u16s<R>(interpretation: PhotometricInterpretation, endian: Endian, lengt
 }
 
 #[inline(always)]
-fn read_u16<R>(interpretation: PhotometricInterpretation, endian: Endian, mut reader: R) -> DecodeResult<u16> where R: Read {
+fn read_u16<R>(interpretation: PhotometricInterpretation, endian: Endian, mut reader: R) -> Result<u16, DecodeError> where R: Read {
     let mut value = reader.read_u16(endian)?;
     if interpretation == PhotometricInterpretation::BlackIsZero {
         value = u16::max_value() - value;
@@ -375,7 +363,7 @@ fn read_u16<R>(interpretation: PhotometricInterpretation, endian: Endian, mut re
 }
 
 #[inline(always)]
-fn read_u8s<R>(interpretation: PhotometricInterpretation, _endian: Endian, length: usize, mut reader: R, buffer: &mut [u8]) -> DecodeResult<()> where R: Read {
+fn read_u8s<R>(interpretation: PhotometricInterpretation, _endian: Endian, length: usize, mut reader: R, buffer: &mut [u8]) -> Result<(), DecodeError> where R: Read {
     reader.read_exact(&mut buffer[..length])?;
     if interpretation == PhotometricInterpretation::BlackIsZero {
         for data in buffer[..length].iter_mut() {
@@ -386,7 +374,7 @@ fn read_u8s<R>(interpretation: PhotometricInterpretation, _endian: Endian, lengt
 }
 
 #[inline(always)]
-fn read_u8<R>(interpretation: PhotometricInterpretation, mut reader: R) -> DecodeResult<u8> where R: Read {
+fn read_u8<R>(interpretation: PhotometricInterpretation, mut reader: R) -> Result<u8, DecodeError> where R: Read {
     let mut value = reader.read_u8()?;
     if interpretation == PhotometricInterpretation::BlackIsZero {
         value = u8::max_value() - value;

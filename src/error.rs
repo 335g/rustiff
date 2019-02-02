@@ -57,21 +57,14 @@ pub enum DecodeErrorKind {
     
     /// This error occurs when the IFD doesn't have this tag.
     #[fail(display = "Can't find the ({})", tag)]
-    CannotFindTheTag { tag: AnyTag },
+    CannotFindTheTag { tag: Box<dyn Fail> },
     
     /// This error occurs when `datatype` & `count` used in the function of `TagType::decode` 
     /// don't correspond to parsing `TagType::Value`.
     ///
     /// All tag type implements `TagType` and have the `TagType::Value` types.
     #[fail(display = "({}) doesn't support this datatype({:?}) and count({})", tag, datatype, count)]
-    UnsupportedDataTypeAndCount { tag: AnyTag, datatype: DataType, count: usize },
-
-
-    #[fail(display = "({}) does not support data({:?}). reason: {:?}", tag, data, reason)]
-    UnsupportedUnitData { tag: AnyTag, data: u32, reason: &'static str },
-
-    #[fail(display = "({}) does not support data({:?}). reason: {:?}", tag, data, reason)]
-    UnsupportedMultipleData { tag: AnyTag, data: Vec<u32>, reason: &'static str },
+    UnsupportedDataTypeAndCount { tag: Box<dyn Fail>, datatype: DataType, count: usize },
 
     /// This error occurs when trying to read a different size from buffer size.
     ///
@@ -88,9 +81,12 @@ pub enum DecodeErrorKind {
     #[fail(display = "{}", _0)]
     IncompatibleHeaderData(#[fail(cause)] ImageHeaderBuildError), 
 
-    
-    #[fail(display = "impossible tag: {:?}", tag_desc)]
-    ImpossibleTag { tag_desc: String }
+    #[fail(display = "impossible tag: {}", _0)]
+    ImpossibleTag(Box<dyn Fail>),
+
+    /// This error occurs when 
+    #[fail(display = "{}", _0)]
+    CannotConstruct(Box<dyn Fail>),
 }
 
 /// Error type for decoding.
@@ -151,14 +147,13 @@ impl From<DecodeErrorKind> for DecodeError {
 }
 
 impl<T> From<ImpossibleTag<T>> for DecodeError where T: TagType {
-    fn from(err: ImpossibleTag<T>) -> DecodeError {
-        let tag_desc = format!("{:?}", err.tag());
-        DecodeError::from(DecodeErrorKind::ImpossibleTag { tag_desc: tag_desc })
+    fn from(tag: ImpossibleTag<T>) -> DecodeError {
+        DecodeError::from(DecodeErrorKind::ImpossibleTag(Box::new(tag.tag())))
     }
 }
 
 impl<T> From<ConstructError<T>> for DecodeError where T: TagType {
     fn from(err: ConstructError<T>) -> DecodeError {
-        unimplemented!()
+        DecodeError::from(DecodeErrorKind::CannotConstruct(Box::new(err)))
     }
 }

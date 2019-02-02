@@ -2,7 +2,6 @@
 use error::{
     DecodeError,
     DecodeErrorKind,
-    DecodeResult,
 };
 use tag::{
     self,
@@ -21,7 +20,17 @@ use tool::{
 pub struct ConstructError<T: TagType> {
     tag: T,
     value: T::Value,
-    reason: &'static str,
+    reason: String
+}
+
+impl<T> ConstructError<T> where T: TagType {
+    pub(crate) fn new(tag: T, value: T::Value, reason: String) -> Self {
+        ConstructError {
+            tag: tag,
+            value: value,
+            reason: reason,
+        }
+    }
 }
 
 /// The color space of the image data.
@@ -110,11 +119,11 @@ impl PhotometricInterpretation {
             6 => Ok(YCbCr),
             7 => Ok(CIELab),
             n => {
-                Err(ConstructError {
-                    tag: tag::PhotometricInterpretation,
-                    value: n,
-                    reason: "tag::PhotometricInterpretation supports between 0 and 7.",
-                })
+                Err(ConstructError::new(
+                    tag::PhotometricInterpretation,
+                    n,
+                    "tag::PhotometricInterpretation supports between 0 and 7.".to_string()
+                ))
             },
         }
     }
@@ -135,11 +144,11 @@ impl Compression {
             1 => Ok(None),
             5 => Ok(Some(Compression::LZW)),
             n => {
-                Err(ConstructError {
-                    tag: tag::Compression,
-                    value: n,
-                    reason: "tag::Compression supports only 1 (No compression) and 5 (LZW)."
-                })
+                Err(ConstructError::new(
+                    tag::Compression,
+                    n,
+                    "tag::Compression supports only 1 (No compression) and 5 (LZW).".to_string()
+                ))
             },
         }
     }
@@ -152,21 +161,31 @@ impl Compression {
 pub struct BitsPerSample(Vec<u16>);
 
 impl BitsPerSample {
-    /// Initializer
+    /// Constructor
     pub fn from_u16s(bits: Vec<u16>) -> Result<BitsPerSample, ConstructError<tag::BitsPerSample>> {
         let bits = bits.iter()
             .try_fold(vec![], |mut acc, &x| {
                 if 0 < x && x <= 16 {
                     acc.push(x);
-                    Some(acc)
+                    Ok(acc)
                 } else {
-                    None
+                    Err(ConstructError::new(
+                        tag::BitsPerSample,
+                        bits.clone(),
+                        "tag::BitsPerSample supports only values less than 16.".to_string()
+                    ))
                 }
             })
-            .ok_or(ConstructError {
-                tag: tag::BitsPerSample,
-                value: bits,
-                reason: "tag::BitsPerSample supports only values less than 16."
+            .and_then(|x| {
+                if x.is_empty() {
+                    Err(ConstructError::new(
+                        tag::BitsPerSample,
+                        bits.clone(),
+                        "tag::BitsPerSample supports only when there is more than one value.".to_string()
+                    ))
+                } else {
+                    Ok(x)
+                }
             })?;
 
         Ok(BitsPerSample(bits))

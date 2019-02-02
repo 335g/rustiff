@@ -30,7 +30,6 @@ pub trait TagType: fmt::Debug + Display + Send + Sync + 'static + Clone + Copy {
 }
 
 #[derive(Debug, Clone)]
-//#[fail(display = "Impossible tag: {}", _0)]
 pub struct ImpossibleTag<T: TagType>(T);
 
 impl<T> ImpossibleTag<T> where T: TagType {
@@ -50,14 +49,14 @@ macro_rules! define_tags {
         #[derive(Debug, Clone, Eq, PartialEq, Hash)]
         pub enum AnyTag {
             $($name,)*
-            Unknown(u16),
+            Custom(u16),
         }
 
         impl AnyTag {
             pub fn id(&self) -> u16 {
                 match *self {
                     $(AnyTag::$name => $id,)*
-                    AnyTag::Unknown(n) => n,
+                    AnyTag::Custom(n) => n,
                 }
             }
 
@@ -65,7 +64,7 @@ macro_rules! define_tags {
             pub(crate) fn from_u16(n: u16) -> AnyTag {
                 match n {
                     $($id => AnyTag::$name,)*
-                    _ => AnyTag::Unknown(n),
+                    _ => AnyTag::Custom(n),
                 }
             }
 
@@ -75,7 +74,7 @@ macro_rules! define_tags {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 match *self {
                     $(AnyTag::$name => $name.fmt(f),)*
-                    AnyTag::Unknown(n) => write!(f, "Unknown tag: {}", n),
+                    AnyTag::Custom(n) => write!(f, "Unknown tag: {}", n),
                 }
             }
         }
@@ -84,7 +83,7 @@ macro_rules! define_tags {
             fn eq(&self, rhs: &T) -> bool {
                 match *self {
                     $(AnyTag::$name => TypeId::of::<$name>() == TypeId::of::<T>(),)*
-                    AnyTag::Unknown(n) => n == rhs.id(),
+                    AnyTag::Custom(n) => n == rhs.id(),
                     _ => false
                 }
             }

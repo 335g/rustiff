@@ -10,6 +10,7 @@ use tag::{
 };
 use error::DecodeError;
 
+/// DataType in IFD
 #[derive(Debug, Clone, Copy)]
 pub enum DataType {
     Byte,
@@ -67,16 +68,23 @@ impl Display for Entry {
     }
 }
 
+/// IFD (Image File Directory)
 #[derive(Debug, Clone)]
 pub struct IFD(HashMap<AnyTag, Entry>);
 
 impl IFD {
+    #[allow(missing_docs)]
     #[inline]
     pub fn new() -> IFD {
         IFD(HashMap::new())
     }
     
     // TODO: replace EncodeError
+    /// Insert an `ifd::Entry` into the IFD.
+    /// 
+    /// Return value behavior confirms to `collections::HashMap`.
+    /// If the map did not have the tag present, `Option<Entry>::None` returned.
+    /// If the map did have this tag present, the `Entry` is updated, and the old `Entry` is returned.
     #[inline]
     pub fn insert<T: TagType>(&mut self, tag: T, entry: Entry) -> Result<Option<Entry>, ImpossibleTag<T>> {
         let anytag = AnyTag::try_from(tag)?;
@@ -84,18 +92,21 @@ impl IFD {
         Ok(self.insert_anytag(anytag, entry))
     }
     
+    #[allow(missing_docs)]
     #[inline]
     pub(crate) fn insert_anytag(&mut self, tag: AnyTag, entry: Entry) -> Option<Entry> {
         self.0.insert(tag, entry)
     }
     
+    /// Returns the reference to the `ifd::Entry` to the tag.
     #[inline]
     pub fn get<T: TagType>(&self, tag: T) -> Result<Option<&Entry>, DecodeError> {
         let anytag = AnyTag::try_from(tag)?;
 
         Ok(self.get_anytag(anytag))
     }
-
+    
+    #[allow(missing_docs)]
     #[inline]
     pub(crate) fn get_anytag(&self, k: AnyTag) -> Option<&Entry> {
         self.0.get(&k)

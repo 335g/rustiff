@@ -101,6 +101,7 @@ pub enum PhotometricInterpretation {
 }
 
 impl PhotometricInterpretation {
+    /// Constructor
     pub fn from_u16(n: u16) -> Result<PhotometricInterpretation, ConstructError<tag::PhotometricInterpretation>> {
         use self::PhotometricInterpretation::*;
 
@@ -193,8 +194,10 @@ impl BitsPerSample {
     }
 }
 
+/// Error type when building `ImageHeader` by `ImageHeaderBuilder`.
 #[derive(Debug, Fail)]
 pub enum ImageHeaderBuildError {
+    #[allow(missing_docs)]
     #[fail(display = "Incompatible data ({:?}, {:?}, {:?})", photometric_interpretation, bits_per_sample, samples_per_pixel)]
     IncompatibleData { 
         photometric_interpretation: PhotometricInterpretation,
@@ -204,8 +207,6 @@ pub enum ImageHeaderBuildError {
 }
 
 /// Builder for `ImageHeader`.
-///
-/// 
 #[derive(Debug)]
 pub struct ImageHeaderBuilder<PI, BPS, SPP, W, H> {
     photometric_interpretation: PI,
@@ -315,7 +316,7 @@ impl ImageHeaderBuilder<Filled<PhotometricInterpretation>, Filled<BitsPerSample>
     }
 }
 
-
+/// Image header
 #[derive(Debug, Clone)]
 pub struct ImageHeader {
     photometric_interpretation: PhotometricInterpretation,
@@ -353,23 +354,17 @@ impl ImageHeader {
     }
 }
 
+/// Image data
 #[derive(Debug)]
 pub enum ImageData {
+    /// Image data with 8bit value.
     U8(Vec<u8>),
+
+    /// Image data with 16bit value.
     U16(Vec<u16>),
 }
 
-/// 
-/// `tuple in Vec` or `Vec in tuple`
-///
-/// |R, R, R, ..., R|, |G, G, G, ..., G|, |B, B, B, ... B|
-/// ex) (Vec<u8>, Vec<u16>, Vec<u8>)
-/// (Vec<bits_per_sample of R>, Vec<bits_per_sample of G>, Vec<bits_per_sample of B>)
-///
-/// |R, G, B|, |R, G, B|, ..., |R, G, B|
-/// ex) Vec<(u8, u16, u8)>
-/// Vec<(bits_per_sample of R, bits_per_sample of G, bits_per_sample of B)>
-/// 
+/// Image data and header.
 #[derive(Debug)]
 pub struct Image {
     header: ImageHeader,

@@ -107,13 +107,13 @@ impl<R> Decoder<R> where R: Read + Seek {
     ///
     /// #for_example
     /// 
-    ///             +----------------(1) Byte order (MM: Motorola type, II: Intel type)
-    ///             |     +----------(2) Version number (42)
-    ///             |     |     +--- (3) Pointer of IFD
+    ///             +----------------(2 byte) Byte order (MM: Motorola type, II: Intel type)
+    ///             |     +----------(2 byte) Version number (== 42)
+    ///             |     |     +--- (4 byte) Pointer of IFD
     ///             |     |     |
     ///             v     v     v 
-    /// 00000000 | 49 49 2A 00 08 00 00 00 -- --
-    /// 00000010 | -- -- -- -- -- -- -- -- -- --
+    /// 00000000 | 49 49 2A 00 08 00 00 00 -- -- -- -- -- -- -- --
+    /// 00000010 | -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
     ///
     pub fn new(mut reader: R) -> Result<Decoder<R>, DecodeError> {
         let mut byte_order = [0u8; 2];
@@ -168,7 +168,19 @@ impl<R> Decoder<R> where R: Read + Seek {
         tag.decode(&mut self.reader, entry.offset(), self.endian, entry.datatype(), entry.count() as usize)
     }
 
-    #[allow(missing_docs)]
+    /// IFD constructor
+    ///
+    /// #for_example
+    ///                                                       +---- (4 byte) Entry.count (u32)
+    ///                                                 +-----+---- (2 byte) Entry.datatype (`ifd::DataType`)
+    ///                                           +-----+-----+---- (2 byte) Tag 
+    ///                                     +-----+-----+-----+---- (2 byte) Count of IFD entry (`ifd::Entry`)
+    ///                   +-----------------+-----+-----+-----+---- (4 byte) Entry.offset ([u8; 4])
+    ///                   |                 |     |     |     |
+    ///                   |                 v     v     v     v
+    /// 00000000 | -- --  v -- -- -- -- -- 00 10 FE 00 04 00 01 00
+    /// 00000010 | 00 00 00 00 00 00 ...
+    ///
     fn read_ifd(&mut self, from: u64) -> Result<(IFD, u64), DecodeError>  {
         self.reader.goto(from)?;
 

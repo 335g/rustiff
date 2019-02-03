@@ -20,7 +20,10 @@ use byte::{
 };
 use failure::Fail;
 
+/// Trait for tag.
 pub trait TagType: Fail + Clone + Copy {
+    
+    /// 
     type Value: fmt::Debug + Send + Sync;
 
     fn id(&self) -> u16;

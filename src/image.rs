@@ -1,12 +1,7 @@
 
-use error::{
-    DecodeError,
-    DecodeErrorKind,
-};
 use tag::{
     self,
     TagType,
-    AnyTag,
 };
 use tool::{
     HasValue,

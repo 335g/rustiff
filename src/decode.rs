@@ -38,7 +38,6 @@ use image::{
 macro_rules! read_byte {
     ($method:ident, $method2:ident, $t:ty) => {
         fn $method(&mut self, ifd: &IFD, header: &ImageHeader) -> Result<Vec<$t>, DecodeError> {
-            let bits_per_sample = header.bits_per_sample().bits();
             let width = header.width();
             let height = header.height();
             let samples_per_pixel = header.samples_per_pixel();
@@ -88,6 +87,7 @@ macro_rules! read_byte {
     }
 }
 
+/// Decoder
 #[derive(Debug)]
 pub struct Decoder<R> {
     reader: R,
@@ -97,6 +97,13 @@ pub struct Decoder<R> {
 }
 
 impl<R> Decoder<R> where R: Read + Seek {
+    /// Constructor
+    ///
+    /// #errors
+    ///
+    /// This method returns the error `DecodeErrorKind::IncorrectFileHeader`
+    /// when file header is incorrect. This file header is 8 byte before `IFD` 
+    /// from the start.
     pub fn new(mut reader: R) -> Result<Decoder<R>, DecodeError> {
         let mut byte_order = [0u8; 2];
         if let Err(_) = reader.read_exact(&mut byte_order) {
@@ -125,27 +132,32 @@ impl<R> Decoder<R> where R: Read + Seek {
 
         Ok(decoder)
     }
-
-    pub fn ifds(&mut self) -> Vec<IFD> {
-        self.collect::<Vec<_>>()
-    }
-
+    
+    /// `IFD` constructor.
+    ///
+    /// Tiff file may have more than one `IFD`, but in most cases it ie one and
+    /// you don't mind if you can access the first `IFD`. This function construct
+    /// the first `IFD`.
     pub fn ifd(&mut self) -> Result<IFD, DecodeError> {
         let start = self.start;
         let (ifd, _) = self.read_ifd(start)?;
+
         Ok(ifd)
     }
 
+    #[allow(missing_docs)]
     fn get_entry<'a, T: TagType>(&mut self, ifd: &'a IFD, tag: T) -> Result<&'a Entry, DecodeError> {
         ifd.get(tag)?
             .ok_or(DecodeError::from(DecodeErrorKind::CannotFindTheTag{ tag: Box::new(tag) }))
     }
     
+    /// Get the `tag::Value` of the tag in `IFD`.
     pub fn get_value<T: TagType>(&mut self, ifd: &IFD, tag: T) -> Result<T::Value, DecodeError> {
         let entry = self.get_entry(ifd, tag)?;
         tag.decode(&mut self.reader, entry.offset(), self.endian, entry.datatype(), entry.count() as usize)
     }
 
+    #[allow(missing_docs)]
     fn read_ifd(&mut self, from: u32) -> Result<(IFD, u32), DecodeError>  {
         self.reader.goto(from as u64)?;
 
@@ -164,6 +176,7 @@ impl<R> Decoder<R> where R: Read + Seek {
         Ok((ifd, next))
     }
     
+    /// Get the `image::ImageHeader` in `IFD`.
     #[inline]
     pub fn header_with(&mut self, ifd: &IFD) -> Result<ImageHeader, DecodeError> {
         let width = self.get_value(ifd, tag::ImageWidth)?;
@@ -190,6 +203,7 @@ impl<R> Decoder<R> where R: Read + Seek {
         Ok(header)
     }
     
+    /// Get the `image::ImageHeader` in the first `IFD`.
     pub fn header(&mut self) -> Result<ImageHeader, DecodeError> {
         let ifd = self.ifd()?;
 
@@ -198,12 +212,14 @@ impl<R> Decoder<R> where R: Read + Seek {
     
     read_byte!(read_byte_only_u8, read_u8s, u8);
     read_byte!(read_byte_only_u16, read_u16s, u16);
-
+    
+    /// Get the `image::Image` in the first `IFD`.
     pub fn image(&mut self) -> Result<Image, DecodeError> {
         let ifd = self.ifd()?;
         self.image_with(&ifd)
     }
     
+    /// Get the `image::Image` in `IFD`.
     #[inline]
     pub fn image_with(&mut self, ifd: &IFD) -> Result<Image, DecodeError> {
         let header = self.header_with(ifd)?;
@@ -227,7 +243,8 @@ impl<R> Decoder<R> where R: Read + Seek {
         
         Ok(Image::new(header, data))
     }
-
+    
+    #[allow(missing_docs)]
     fn read_byte_u8_or_u16(&mut self, ifd: &IFD, header: &ImageHeader) -> Result<Vec<u16>, DecodeError> {
         let bits_per_sample = header.bits_per_sample().bits();
         let width = header.width();
@@ -342,6 +359,7 @@ impl<R> Iterator for Decoder<R> where R: Read + Seek {
     }
 }
 
+#[allow(missing_docs)]
 #[inline(always)]
 fn read_u16s<R>(interpretation: PhotometricInterpretation, endian: Endian, length: usize, mut reader: R, buffer: &mut [u16]) -> Result<(), DecodeError> where R: Read {
     reader.read_u16_into(endian, &mut buffer[..length/2])?;
@@ -353,6 +371,7 @@ fn read_u16s<R>(interpretation: PhotometricInterpretation, endian: Endian, lengt
     Ok(())
 }
 
+#[allow(missing_docs)]
 #[inline(always)]
 fn read_u16<R>(interpretation: PhotometricInterpretation, endian: Endian, mut reader: R) -> Result<u16, DecodeError> where R: Read {
     let mut value = reader.read_u16(endian)?;
@@ -362,6 +381,7 @@ fn read_u16<R>(interpretation: PhotometricInterpretation, endian: Endian, mut re
     Ok(value)
 }
 
+#[allow(missing_docs)]
 #[inline(always)]
 fn read_u8s<R>(interpretation: PhotometricInterpretation, _endian: Endian, length: usize, mut reader: R, buffer: &mut [u8]) -> Result<(), DecodeError> where R: Read {
     reader.read_exact(&mut buffer[..length])?;
@@ -373,6 +393,7 @@ fn read_u8s<R>(interpretation: PhotometricInterpretation, _endian: Endian, lengt
     Ok(())
 }
 
+#[allow(missing_docs)]
 #[inline(always)]
 fn read_u8<R>(interpretation: PhotometricInterpretation, mut reader: R) -> Result<u8, DecodeError> where R: Read {
     let mut value = reader.read_u8()?;

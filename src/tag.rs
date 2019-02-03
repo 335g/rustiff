@@ -83,7 +83,6 @@ macro_rules! define_tags {
                 match *self {
                     $(AnyTag::$name => TypeId::of::<$name>() == TypeId::of::<T>(),)*
                     AnyTag::Custom(n) => n == rhs.id(),
-                    _ => false
                 }
             }
         }

@@ -9,7 +9,7 @@ use tool::{
     Filled,
 };
 
-///
+/// 
 #[derive(Debug, Fail)]
 #[fail(display = "{} cannot be constructed with unsupported value({:?}), reason: {}", tag, value, reason)]
 pub struct ConstructError<T: TagType> {
@@ -93,10 +93,10 @@ pub enum PhotometricInterpretation {
     /// (0,0,0,0) represents white.
     CMYK,
     
-    ///
+    #[allow(missing_docs)]
     YCbCr,
 
-    ///
+    #[allow(missing_docs)]
     CIELab,
 }
 
@@ -134,6 +134,7 @@ pub enum Compression {
 }
 
 impl Compression {
+    /// Constructor
     pub fn from_u16(n: u16) -> Result<Option<Compression>, ConstructError<tag::Compression>> {
         match n {
             1 => Ok(None),
@@ -202,7 +203,9 @@ pub enum ImageHeaderBuildError {
     },
 }
 
-
+/// Builder for `ImageHeader`.
+///
+/// 
 #[derive(Debug)]
 pub struct ImageHeaderBuilder<PI, BPS, SPP, W, H> {
     photometric_interpretation: PI,
@@ -323,6 +326,7 @@ pub struct ImageHeader {
     height: u32,
 }
 
+#[allow(missing_docs)]
 impl ImageHeader {
     pub fn width(&self) -> u32 {
         self.width

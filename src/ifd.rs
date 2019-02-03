@@ -31,6 +31,7 @@ impl From<u16> for DataType {
     }
 }
 
+/// IFD entry
 #[derive(Debug, Clone, Fail)]
 pub struct Entry {
     datatype: DataType,

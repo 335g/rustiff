@@ -92,8 +92,8 @@ macro_rules! read_byte {
 pub struct Decoder<R> {
     reader: R,
     endian: Endian,
-    start: u32,
-    next: u32,
+    start: u64,
+    next: u64,
 }
 
 impl<R> Decoder<R> where R: Read + Seek {
@@ -104,6 +104,17 @@ impl<R> Decoder<R> where R: Read + Seek {
     /// This method returns the error `DecodeErrorKind::IncorrectFileHeader`
     /// when file header is incorrect. This file header is 8 byte before `IFD` 
     /// from the start.
+    ///
+    /// #for_example
+    /// 
+    ///             +----------------(1) Byte order (MM: Motorola type, II: Intel type)
+    ///             |     +----------(2) Version number (42)
+    ///             |     |     +--- (3) Pointer of IFD
+    ///             |     |     |
+    ///             v     v     v 
+    /// 00000000 | 49 49 2A 00 08 00 00 00 -- --
+    /// 00000010 | -- -- -- -- -- -- -- -- -- --
+    ///
     pub fn new(mut reader: R) -> Result<Decoder<R>, DecodeError> {
         let mut byte_order = [0u8; 2];
         if let Err(_) = reader.read_exact(&mut byte_order) {
@@ -120,7 +131,7 @@ impl<R> Decoder<R> where R: Read + Seek {
             _ => return Err(DecodeError::from(FileHeaderErrorKind::NoVersion))
         }
         let start = match reader.read_u32(endian) {
-            Ok(x) => x,
+            Ok(x) => u64::from(x),
             Err(_) => return Err(DecodeError::from(FileHeaderErrorKind::NoIFDAddress))
         };
         let decoder = Decoder {
@@ -158,8 +169,8 @@ impl<R> Decoder<R> where R: Read + Seek {
     }
 
     #[allow(missing_docs)]
-    fn read_ifd(&mut self, from: u32) -> Result<(IFD, u32), DecodeError>  {
-        self.reader.goto(from as u64)?;
+    fn read_ifd(&mut self, from: u64) -> Result<(IFD, u64), DecodeError>  {
+        self.reader.goto(from)?;
 
         let mut ifd = IFD::new();
         for _ in 0..self.reader.read_u16(self.endian)? {
@@ -173,7 +184,7 @@ impl<R> Decoder<R> where R: Read + Seek {
 
         let next = self.reader.read_u32(self.endian)?;
 
-        Ok((ifd, next))
+        Ok((ifd, u64::from(next)))
     }
     
     /// Get the `image::ImageHeader` in `IFD`.

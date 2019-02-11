@@ -1,6 +1,7 @@
 
 use ifd::DataType;
 use tag::{
+    IdType,
     TagType,
     ImpossibleTag,
 };
@@ -56,7 +57,7 @@ pub enum DecodeErrorKind {
     #[fail(display = "Can't find the ({})", tag)]
     CannotFindTheTag { 
         /// The tag to be used.
-        tag: Box<dyn Fail>
+        tag: Box<dyn IdType>
     },
     
     /// This error occurs when `datatype` & `count` used in the function of `tag::TagType::decode` 
@@ -66,7 +67,7 @@ pub enum DecodeErrorKind {
     #[fail(display = "({}) doesn't support this datatype({:?}) and count({})", tag, datatype, count)]
     UnsupportedDataTypeAndCount { 
         /// Specified tag.
-        tag: Box<dyn Fail>,
+        tag: Box<dyn IdType>,
 
         /// Specified `DataType` in `tag::TagType::decode`.
         datatype: DataType, 
@@ -102,7 +103,7 @@ pub enum DecodeErrorKind {
     #[fail(display = "impossible tag: {}", tag)]
     ImpossibleTag { 
         /// Specified tag.
-        tag: Box<dyn Fail>
+        tag: Box<dyn IdType>
     },
 
     /// This error occurs when construct fails.

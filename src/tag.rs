@@ -21,7 +21,7 @@ use byte::{
 use failure::Fail;
 
 /// Trait to identify
-pub trait IdType: Fail + Clone + Copy {
+pub trait IdType: Fail {
     /// Identifier.
     ///
     /// This must not be equal to supported tag's identifier.
@@ -31,7 +31,7 @@ pub trait IdType: Fail + Clone + Copy {
 
 
 /// Trait for tag.
-pub trait TagType: IdType {
+pub trait TagType: IdType + Clone + Copy {
     /// Decoded type by this tag.
     type Value: fmt::Debug + Send + Sync;
 

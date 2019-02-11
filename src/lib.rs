@@ -51,8 +51,10 @@ mod byte;
 mod decode;
 mod ifd;
 mod image;
-pub mod tag;
 mod tool;
+
+#[allow(missing_docs)]
+pub mod tag;
 
 pub use decode::Decoder;
 pub use ifd::IFD;

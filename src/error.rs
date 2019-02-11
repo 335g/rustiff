@@ -82,10 +82,10 @@ pub enum DecodeErrorKind {
     /// or `decoder::read_byte_only_u16` or `decoder::read_byte_u8_or_u16`.
     #[fail(display = "want(calc from `width *  height * samples/pixel`): {}, got: {}", want, got)]
     IncorrectBufferSize { 
-        /// 
+        /// Wanted size (= `width * height * samples_per_pixel`).
         want: usize, 
         
-        /// 
+        /// Actualy got size.
         got: usize
     },
 

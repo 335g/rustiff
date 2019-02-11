@@ -95,9 +95,6 @@ pub enum PhotometricInterpretation {
     
     #[allow(missing_docs)]
     YCbCr,
-
-    #[allow(missing_docs)]
-    CIELab,
 }
 
 impl PhotometricInterpretation {
@@ -113,12 +110,11 @@ impl PhotometricInterpretation {
             4 => Ok(TransparencyMask),
             5 => Ok(CMYK),
             6 => Ok(YCbCr),
-            7 => Ok(CIELab),
             n => {
                 Err(ConstructError::new(
                     tag::PhotometricInterpretation,
                     n,
-                    "tag::PhotometricInterpretation supports between 0 and 7.".to_string()
+                    "tag::PhotometricInterpretation supports between 0 and 6.".to_string()
                 ))
             },
         }

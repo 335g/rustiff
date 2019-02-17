@@ -31,7 +31,7 @@ impl<T> ConstructError<T> where T: TagType {
 /// The color space of the image data.
 ///
 /// IFD constructs this with `tag::PhotometricInterpretation`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum PhotometricInterpretation {
     /// For bilievel and grayscale images.
     ///
@@ -124,7 +124,7 @@ impl PhotometricInterpretation {
 /// Compression scheme used on the image data.
 ///
 /// IFD constructs this with `tag::Compression`.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Compression {
     /// LZW compression
     LZW,
@@ -150,7 +150,7 @@ impl Compression {
 /// Bits/Sample
 /// 
 /// IFD constructs this with `tag::BitsPerSample`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct BitsPerSample(Vec<u16>);
 
 impl BitsPerSample {
@@ -376,9 +376,14 @@ impl Image {
         }
     }
     
-    /// This function reutrns the reference of `ImageHeader`.
+    /// This function returns the reference of `ImageHeader`.
     pub fn header(&self) -> &ImageHeader {
         &self.header
+    }
+
+    /// This function returns the reference of `ImageData`.
+    pub fn data(&self) -> &ImageData {
+        &self.data
     }
 
     /// u16 data of every pixel.

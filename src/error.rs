@@ -1,4 +1,9 @@
 
+use std::io;
+use std::fmt::{
+    self,
+    Display,
+};
 use ifd::DataType;
 use tag::{
     IdType,
@@ -8,11 +13,6 @@ use tag::{
 use image::{
     ImageHeaderBuildError,
     ConstructError,
-};
-use std::io;
-use std::fmt::{
-    self,
-    Display,
 };
 use failure::{
     Context,

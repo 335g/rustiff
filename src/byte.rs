@@ -1,17 +1,14 @@
 
+use std::io::{
+    self,
+    Read,
+    Seek,
+    Cursor,
+};
 use byteorder::{
     LittleEndian,
     BigEndian,
     ReadBytesExt,
-};
-
-use std::{
-    io::{
-        self,
-        Read,
-        Seek,
-        Cursor,
-    },
 };
 
 /// enum for `byteorder::BigEndian` and `byteorder::LittleEndian`.

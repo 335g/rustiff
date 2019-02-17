@@ -24,17 +24,34 @@ use failure::{
 pub type DecodeResult<T> = ::std::result::Result<T, DecodeError>;
 
 /// 
-#[derive(Debug, Fail)]
+#[derive(Debug, Eq, PartialEq, Fail)]
 pub enum FileHeaderErrorKind {
-    /// Tiff file header has 2 byte data corresponding to byte order.
-    /// This error occurs when there is no correct data.
-    #[fail(display = "Incorrect header: Byte Order")]
+    /// Tiff file header has 2 byte data at the beginning.
+    /// This error occurs when there is no 2 byte data.
+    #[fail(display = "Incorrect header: No Byte Order")]
     NoByteOrder,
+
+    /// Tiff file header has 2 byte data at the beginning.
+    /// 2 byte data should be b'II' or b'MM'.
+    /// This error occurs when 2 byte data is incorrect data.
+    #[fail(display = "Incorrect header: Incorrect Byte Order, byte_order(`{:?}`) must be `b`II`` or `b`MM``", byte_order)]
+    IncorrectByteOrder {
+        #[allow(missing_docs)]
+        byte_order: [u8; 2]
+    },
 
     /// There is `0x00 0x2A` data after data corresponding to byte order.
     /// This error occurs when there is no this 2 byte data.
-    #[fail(display = "Incorrect header: No Version")]
+    #[fail(display = "Incorrect header: No Version, version must be 42.")]
     NoVersion,
+
+    /// There is `0x00 0x2A` data after data corresponding to byte order.
+    /// This error occurs when 2 byte data is not equal 42.
+    #[fail(display = "Incorrect header: Incorrect Version")]
+    IncorrectVersion { 
+        #[allow(missing_docs)]
+        version: u16
+    },
     
     /// There is 4 byte data corresponding to an address of Image File Directory (IFD).
     /// This error occurs when there is no this 4 byte data.

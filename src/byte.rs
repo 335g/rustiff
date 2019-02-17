@@ -15,7 +15,7 @@ use byteorder::{
 ///
 /// They should be treated as the same type, because `decoder::Decoder` 
 /// determine endian according to file contents.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Endian {
     Big,
     Little,

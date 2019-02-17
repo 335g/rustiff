@@ -97,16 +97,17 @@ pub struct Decoder<R> {
 }
 
 impl<R> Decoder<R> where R: Read + Seek {
-    /// Constructor
+    /// Constructor method
     ///
-    /// #errors
+    /// ### errors
     ///
     /// This method returns the error `DecodeErrorKind::IncorrectFileHeader`
     /// when file header is incorrect. This file header is 8 byte before `IFD` 
     /// from the start.
     ///
-    /// #for_example
-    /// 
+    /// ### for_example
+    ///
+    /// ```ignore
     ///             +----------------(2 byte) Byte order (MM: Motorola type, II: Intel type)
     ///             |     +----------(2 byte) Version number (== 42)
     ///             |     |     +--- (4 byte) Pointer of IFD
@@ -114,7 +115,7 @@ impl<R> Decoder<R> where R: Read + Seek {
     ///             v     v     v 
     /// 00000000 | 49 49 2A 00 08 00 00 00 -- -- -- -- -- -- -- --
     /// 00000010 | -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
-    ///
+    /// ```
     pub fn new(mut reader: R) -> Result<Decoder<R>, DecodeError> {
         let mut byte_order = [0u8; 2];
         if let Err(_) = reader.read_exact(&mut byte_order) {
@@ -123,12 +124,13 @@ impl<R> Decoder<R> where R: Read + Seek {
         let endian = match &byte_order {
             b"II" => Endian::Little,
             b"MM" => Endian::Big,
-            _ => return Err(DecodeError::from(FileHeaderErrorKind::NoByteOrder)),
+            _ => return Err(DecodeError::from(FileHeaderErrorKind::IncorrectByteOrder { byte_order: byte_order })),
         };
 
         match reader.read_u16(endian) {
             Ok(x) if x == 42 => {},
-            _ => return Err(DecodeError::from(FileHeaderErrorKind::NoVersion))
+            Ok(x) => return Err(DecodeError::from(FileHeaderErrorKind::IncorrectVersion { version: x })),
+            Err(_) => return Err(DecodeError::from(FileHeaderErrorKind::NoVersion)),
         }
         let start = match reader.read_u32(endian) {
             Ok(x) => u64::from(x),
@@ -171,6 +173,8 @@ impl<R> Decoder<R> where R: Read + Seek {
     /// IFD constructor
     ///
     /// #for_example
+    ///
+    /// ```ignore
     ///                                                       +---- (4 byte) Entry.count (u32)
     ///                                                 +-----+---- (2 byte) Entry.datatype (`ifd::DataType`)
     ///                                           +-----+-----+---- (2 byte) Tag 
@@ -180,7 +184,7 @@ impl<R> Decoder<R> where R: Read + Seek {
     ///                   |                 v     v     v     v
     /// 00000000 | -- --  v -- -- -- -- -- 00 10 FE 00 04 00 01 00
     /// 00000010 | 00 00 00 00 00 00 ...
-    ///
+    /// ```
     fn read_ifd(&mut self, from: u64) -> Result<(IFD, u64), DecodeError>  {
         self.reader.goto(from)?;
 
@@ -424,5 +428,27 @@ fn read_u8<R>(interpretation: PhotometricInterpretation, mut reader: R) -> Resul
         value = u8::max_value() - value;
     }
     Ok(value)
+}
+
+#[cfg(test)]
+mod test {
+    use super::Decoder;
+    use super::Endian;
+    use std::fs::File;
+    
+    #[test]
+    fn test_decoder_constructor() {
+        let file = File::open("tests/images/005_no_data.tif").expect("incorrect file path");
+        let decoder = Decoder::new(file);
+        
+        match decoder {
+            Ok(decoder) => {
+                assert_eq!(decoder.endian, Endian::Little);
+                assert_eq!(decoder.start, 8);
+                assert_eq!(decoder.next, 8);
+            },
+            Err(_) => panic!("It should not be error."),
+        }
+    }
 }
 

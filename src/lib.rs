@@ -6,7 +6,7 @@
 //! 
 //! [`IFD(Image File Directory)`](struct.IFD.html) is used when multiple images are included in one file.
 //! 
-//! Many tags define in [`tag module`](tag/index.html).
+//! Many tags are defined in [`tag module`](tag/index.html).
 //! 
 //! # Setup
 //!
@@ -14,12 +14,12 @@
 //!
 //! ```toml
 //! [dependencies]
-//! rustiff = "0.1"
+//! rustiff = "0.2"
 //! ```
 //!
-//! and this to your crate root:
+//! and this to your crate root (if rust 2015):
 //!
-//! ```rust
+//! ```ignore
 //! extern crate rustiff;
 //! ```
 //!
@@ -28,7 +28,7 @@
 //! This example shows how to read data conforming to TIFF format and print each pixel data
 //! to stdout.
 //! 
-//! ```no_run
+//! ```ignore
 //! extern crate rustiff;
 //!
 //! use std::fs::File;
@@ -63,6 +63,7 @@ pub use ifd::IFD;
 pub use error::{
     DecodeError,
     DecodeErrorKind,
+    FileHeaderErrorKind,
     DecodeResult,
 };
 pub use image::{

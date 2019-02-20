@@ -70,6 +70,7 @@ pub use image::{
     Image,
     ImageHeader,
     ImageHeaderBuildError,
+    ImageData,
     Compression,
     BitsPerSample,
     PhotometricInterpretation,

@@ -172,7 +172,7 @@ impl<R> Decoder<R> where R: Read + Seek {
 
     /// IFD constructor
     ///
-    /// #for_example
+    /// ### for_example
     ///
     /// ```ignore
     ///                                                       +---- (4 byte) Entry.count (u32)
@@ -269,6 +269,15 @@ impl<R> Decoder<R> where R: Read + Seek {
         };
         
         Ok(Image::new(header, data))
+    }
+
+    #[allow(missing_docs)]
+    #[inline(always)]
+    fn strips_per_image(&mut self, ifd: &IFD) -> Result<u32, DecodeError> {
+        let image_length = self.get_value(&ifd, tag::ImageWidth)?;
+        let rows_per_strip = self.get_value(&ifd, tag::RowsPerStrip)?;
+
+        Ok((image_length + rows_per_strip - 1)/rows_per_strip)
     }
     
     #[allow(missing_docs)]

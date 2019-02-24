@@ -85,7 +85,8 @@ pub enum DecodeErrorKind {
     #[fail(display = "({}) doesn't support this datatype({:?}) and count({})", tag, datatype, count)]
     UnsupportedDataTypeAndCount { 
         /// Specified tag.
-        tag: Box<dyn IdType>,
+        //tag: Box<dyn IdType>,
+        tag: AnyTag,
 
         /// Specified `DataType` in `tag::TagType::decode`.
         datatype: DataType, 
@@ -118,7 +119,7 @@ pub enum DecodeErrorKind {
     /// This error occurs when you try to use the tag that cannot be used.
     ///
     /// Specifically, when to use `IFD::insert` or `AnyTag::try_from`, etc...
-    #[fail(display = "impossible tag: {}", tag)]
+    #[fail(display = "Impossible tag: {}", tag)]
     ImpossibleTag { 
         /// Specified tag.
         tag: Box<dyn IdType>

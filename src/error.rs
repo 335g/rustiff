@@ -6,7 +6,6 @@ use std::fmt::{
 };
 use ifd::DataType;
 use tag::{
-    IdType,
     TagType,
     ImpossibleTag,
     AnyTag,
@@ -85,7 +84,6 @@ pub enum DecodeErrorKind {
     #[fail(display = "({}) doesn't support this datatype({:?}) and count({})", tag, datatype, count)]
     UnsupportedDataTypeAndCount { 
         /// Specified tag.
-        //tag: Box<dyn IdType>,
         tag: AnyTag,
 
         /// Specified `DataType` in `tag::TagType::decode`.
@@ -122,7 +120,9 @@ pub enum DecodeErrorKind {
     #[fail(display = "Impossible tag: {}", tag)]
     ImpossibleTag { 
         /// Specified tag.
-        tag: Box<dyn IdType>
+        ///
+        /// This can be downcasted by `failure::Fail::downcast_ref` to the tag.
+        tag: Box<dyn Fail>
     },
 
     /// This error occurs when construct fails.
@@ -133,7 +133,9 @@ pub enum DecodeErrorKind {
     /// `image::PhotometricInterpretation::from_u16` with other than 0 to 7.
     #[fail(display = "{}", construct_error)]
     CannotConstruct { 
-        /// `image::ConstructError`
+        /// Construct error
+        ///
+        /// This can be downcasted by `failure::Fail::downcast_ref` to the `image::ConstructError`.
         construct_error: Box<dyn Fail>
     },
 }

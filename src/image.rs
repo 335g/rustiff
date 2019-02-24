@@ -1,4 +1,5 @@
 
+use std::fmt;
 use tag::{
     self,
     TagType,
@@ -9,7 +10,6 @@ use tool::{
     Filled,
 };
 
-/// 
 #[derive(Debug, Fail)]
 #[fail(display = "{} cannot be constructed with unsupported value({:?}), reason: {}", tag, value, reason)]
 pub struct ConstructError<T: TagType> {

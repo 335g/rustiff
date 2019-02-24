@@ -351,13 +351,15 @@ impl ImageHeader {
 }
 
 /// Image data
+///
+/// TODO: explanation inner vec
 #[derive(Debug)]
 pub enum ImageData {
     /// Image data with 8bit value.
-    U8(Vec<u8>),
+    U8(Vec<Vec<u8>>),
 
     /// Image data with 16bit value.
-    U16(Vec<u16>),
+    U16(Vec<Vec<u16>>),
 }
 
 /// Image data and header.
@@ -381,26 +383,47 @@ impl Image {
         &self.header
     }
 
-    /// This function returns the reference of `ImageData`.
-    pub fn data(&self) -> &ImageData {
-        &self.data
-    }
+    ///// This function returns the reference of `ImageData`.
+    //pub fn data(&self) -> &ImageData {
+    //    &self.data
+    //}
 
-    /// u16 data of every pixel.
-    pub fn u16_data(&self) -> Option<&Vec<u16>> {
-        match self.data {
-            ImageData::U16(ref data) => Some(data),
-            _ => None,
-        }
-    }
+    ///// u16 data of every pixel.
+    //pub fn u16_data(&self) -> Option<&Vec<u16>> {
+    //    match self.data {
+    //        ImageData::U16(ref data) => Some(data),
+    //        _ => None,
+    //    }
+    //}
 
-    /// u8 data of every pixel.
-    pub fn u8_data(&self) -> Option<&Vec<u8>> {
-        match self.data {
-            ImageData::U8(ref data) => Some(data),
-            _ => None,
-        }
-    }
+    ///// u8 data of every pixel.
+    //pub fn u8_data(&self) -> Option<&Vec<u8>> {
+    //    match self.data {
+    //        ImageData::U8(ref data) => Some(data),
+    //        _ => None,
+    //    }
+    //}
+
+    
 }
 
+#[allow(missing_docs)]
+#[derive(Debug, Clone)]
+pub struct Point {
+    pub x: usize,
+    pub y: usize,
+}
 
+#[allow(missing_docs)]
+#[derive(Debug, Clone)]
+pub struct Size {
+    pub width: usize,
+    pub height: usize,
+}
+
+#[allow(missing_docs)]
+#[derive(Debug, Clone)]
+pub struct Frame {
+    origin: Point,
+    size: Size,
+}

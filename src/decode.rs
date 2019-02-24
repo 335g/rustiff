@@ -35,57 +35,57 @@ use image::{
     ConstructError,
 };
 
-macro_rules! read_byte {
-    ($method:ident, $method2:ident, $t:ty) => {
-        fn $method(&mut self, ifd: &IFD, header: &ImageHeader) -> Result<Vec<$t>, DecodeError> {
-            let width = header.width();
-            let height = header.height();
-            let samples_per_pixel = header.samples_per_pixel();
-            let buffer_size = (width * height * samples_per_pixel as u32) as usize;
-            let interpretation = header.photometric_interpretation();
-            let compression = header.compression();
-            let offsets = self.get_value(ifd, tag::StripOffsets)?;
-            let strip_byte_counts = self.get_value(ifd, tag::StripByteCounts)?;
-            
-            let mut buffer: Vec<$t> = vec![0; buffer_size];
-            let mut read_size = 0;
-            for (offset, byte_count) in offsets.into_iter().zip(strip_byte_counts.into_iter()) {
-                let byte_count = byte_count as usize;
-                
-                self.reader.goto(u64::from(offset))?;
-
-                read_size += match compression {
-                    None => {
-                        let will_read_size = read_size + byte_count;
-                        if will_read_size > buffer_size {
-                            return Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { want: buffer_size, got: will_read_size }))
-                        }
-
-                        $method2(interpretation, self.endian, byte_count, &mut self.reader, &mut buffer[read_size..])?;
-                        byte_count
-                    }
-
-                    Some(Compression::LZW) => {
-                        let (mut reader, uncompressed_size) = LZWReader::new(&mut self.reader, byte_count)?;
-                        let will_read_size = read_size + uncompressed_size;
-                        if will_read_size > buffer_size {
-                            return Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { want: buffer_size, got: will_read_size }))
-                        }
-                        
-                        $method2(interpretation, self.endian, uncompressed_size, &mut reader, &mut buffer[read_size..])?;
-                        uncompressed_size
-                    }
-                };
-            }
-
-            if read_size != buffer_size {
-                Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { want: buffer_size, got: read_size }))
-            } else {
-                Ok(buffer)
-            }
-        }
-    }
-}
+//macro_rules! read_byte {
+//    ($method:ident, $method2:ident, $t:ty) => {
+//        fn $method(&mut self, ifd: &IFD, header: &ImageHeader) -> Result<Vec<$t>, DecodeError> {
+//            let width = header.width();
+//            let height = header.height();
+//            let samples_per_pixel = header.samples_per_pixel();
+//            let buffer_size = (width * height * samples_per_pixel as u32) as usize;
+//            let interpretation = header.photometric_interpretation();
+//            let compression = header.compression();
+//            let offsets = self.get_value(ifd, tag::StripOffsets)?;
+//            let strip_byte_counts = self.get_value(ifd, tag::StripByteCounts)?;
+//            
+//            let mut buffer: Vec<$t> = vec![0; buffer_size];
+//            let mut read_size = 0;
+//            for (offset, byte_count) in offsets.into_iter().zip(strip_byte_counts.into_iter()) {
+//                let byte_count = byte_count as usize;
+//                
+//                self.reader.goto(u64::from(offset))?;
+//
+//                read_size += match compression {
+//                    None => {
+//                        let will_read_size = read_size + byte_count;
+//                        if will_read_size > buffer_size {
+//                            return Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { want: buffer_size, got: will_read_size }))
+//                        }
+//
+//                        $method2(interpretation, self.endian, byte_count, &mut self.reader, &mut buffer[read_size..])?;
+//                        byte_count
+//                    }
+//
+//                    Some(Compression::LZW) => {
+//                        let (mut reader, uncompressed_size) = LZWReader::new(&mut self.reader, byte_count)?;
+//                        let will_read_size = read_size + uncompressed_size;
+//                        if will_read_size > buffer_size {
+//                            return Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { want: buffer_size, got: will_read_size }))
+//                        }
+//                        
+//                        $method2(interpretation, self.endian, uncompressed_size, &mut reader, &mut buffer[read_size..])?;
+//                        uncompressed_size
+//                    }
+//                };
+//            }
+//
+//            if read_size != buffer_size {
+//                Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { want: buffer_size, got: read_size }))
+//            } else {
+//                Ok(buffer)
+//            }
+//        }
+//    }
+//}
 
 /// Decoder
 #[derive(Debug)]
@@ -237,39 +237,39 @@ impl<R> Decoder<R> where R: Read + Seek {
         self.header_with(&ifd)
     }
     
-    read_byte!(read_byte_only_u8, read_u8s, u8);
-    read_byte!(read_byte_only_u16, read_u16s, u16);
+    //read_byte!(read_byte_only_u8, read_u8s, u8);
+    //read_byte!(read_byte_only_u16, read_u16s, u16);
     
-    /// Get the `image::Image` in the first `IFD`.
-    pub fn image(&mut self) -> Result<Image, DecodeError> {
-        let ifd = self.ifd()?;
-        self.image_with(&ifd)
-    }
-    
-    /// Get the `image::Image` in `IFD`.
-    #[inline]
-    pub fn image_with(&mut self, ifd: &IFD) -> Result<Image, DecodeError> {
-        let header = self.header_with(ifd)?;
-        let bits_per_sample = header.bits_per_sample().bits().clone();
-        let data = if bits_per_sample.iter().all(|&n| n <= 8) {
-            ImageData::U8(self.read_byte_only_u8(ifd, &header)?)
+    ///// Get the `image::Image` in the first `IFD`.
+    //pub fn image(&mut self) -> Result<Image, DecodeError> {
+    //    let ifd = self.ifd()?;
+    //    self.image_with(&ifd)
+    //}
+    //
+    ///// Get the `image::Image` in `IFD`.
+    //#[inline]
+    //pub fn image_with(&mut self, ifd: &IFD) -> Result<Image, DecodeError> {
+    //    let header = self.header_with(ifd)?;
+    //    let bits_per_sample = header.bits_per_sample().bits().clone();
+    //    let data = if bits_per_sample.iter().all(|&n| n <= 8) {
+    //        ImageData::U8(self.read_byte_only_u8(ifd, &header)?)
 
-        } else if bits_per_sample.iter().all(|&n| 8 < n && n <= 16) {
-            ImageData::U16(self.read_byte_only_u16(ifd, &header)?)
+    //    } else if bits_per_sample.iter().all(|&n| 8 < n && n <= 16) {
+    //        ImageData::U16(self.read_byte_only_u16(ifd, &header)?)
 
-        } else if bits_per_sample.iter().all(|&n| n <= 16) {
-            ImageData::U16(self.read_byte_u8_or_u16(ifd, &header)?)
+    //    } else if bits_per_sample.iter().all(|&n| n <= 16) {
+    //        ImageData::U16(self.read_byte_u8_or_u16(ifd, &header)?)
 
-        } else {
-            return Err(DecodeError::from(ConstructError::new(
-                tag::BitsPerSample,
-                bits_per_sample,
-                "tag::BitsPerSample must have a value less than 16.".to_string()
-            )));
-        };
-        
-        Ok(Image::new(header, data))
-    }
+    //    } else {
+    //        return Err(DecodeError::from(ConstructError::new(
+    //            tag::BitsPerSample,
+    //            bits_per_sample,
+    //            "tag::BitsPerSample must have a value less than 16.".to_string()
+    //        )));
+    //    };
+    //    
+    //    Ok(Image::new(header, data))
+    //}
 
     #[allow(missing_docs)]
     #[inline(always)]
@@ -280,104 +280,104 @@ impl<R> Decoder<R> where R: Read + Seek {
         Ok((image_length + rows_per_strip - 1)/rows_per_strip)
     }
     
-    #[allow(missing_docs)]
-    fn read_byte_u8_or_u16(&mut self, ifd: &IFD, header: &ImageHeader) -> Result<Vec<u16>, DecodeError> {
-        let bits_per_sample = header.bits_per_sample().bits();
-        let width = header.width();
-        let height = header.height();
-        let samples_per_pixel = header.samples_per_pixel();
-        let buffer_size = (width * height * samples_per_pixel as u32) as usize;
-        let interpretation = header.photometric_interpretation();
-        let compression = header.compression();
-        let offsets = self.get_value(ifd, tag::StripOffsets)?;
-        let strip_byte_counts = self.get_value(ifd, tag::StripByteCounts)?;
-        let endian = self.endian;
+    //#[allow(missing_docs)]
+    //fn read_byte_u8_or_u16(&mut self, ifd: &IFD, header: &ImageHeader) -> Result<Vec<u16>, DecodeError> {
+    //    let bits_per_sample = header.bits_per_sample().bits();
+    //    let width = header.width();
+    //    let height = header.height();
+    //    let samples_per_pixel = header.samples_per_pixel();
+    //    let buffer_size = (width * height * samples_per_pixel as u32) as usize;
+    //    let interpretation = header.photometric_interpretation();
+    //    let compression = header.compression();
+    //    let offsets = self.get_value(ifd, tag::StripOffsets)?;
+    //    let strip_byte_counts = self.get_value(ifd, tag::StripByteCounts)?;
+    //    let endian = self.endian;
 
-        let mut buffer: Vec<u16> = vec![0; buffer_size];
-        let mut read_size = 0;
-        for (offset, byte_count) in offsets.into_iter().zip(strip_byte_counts.into_iter()) {
-            let byte_count = byte_count as usize;
+    //    let mut buffer: Vec<u16> = vec![0; buffer_size];
+    //    let mut read_size = 0;
+    //    for (offset, byte_count) in offsets.into_iter().zip(strip_byte_counts.into_iter()) {
+    //        let byte_count = byte_count as usize;
 
-            self.reader.goto(u64::from(offset))?;
+    //        self.reader.goto(u64::from(offset))?;
 
-            read_size += match compression {
-                None => {
-                    let will_read_size = read_size + byte_count;
-                    if will_read_size > buffer_size {
-                        return Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { want: buffer_size, got: will_read_size }))
-                    }
+    //        read_size += match compression {
+    //            None => {
+    //                let will_read_size = read_size + byte_count;
+    //                if will_read_size > buffer_size {
+    //                    return Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { want: buffer_size, got: will_read_size }))
+    //                }
 
-                    let mut read_size_now = 0;
-                    
-                    while read_size_now >= byte_count {
-                        for bits in bits_per_sample.iter() {
-                            if *bits <= 8 {
-                                let data = read_u8(interpretation, &mut self.reader)?;
-                                read_size_now += 1;
-                                buffer.push(u16::from(data));
+    //                let mut read_size_now = 0;
+    //                
+    //                while read_size_now >= byte_count {
+    //                    for bits in bits_per_sample.iter() {
+    //                        if *bits <= 8 {
+    //                            let data = read_u8(interpretation, &mut self.reader)?;
+    //                            read_size_now += 1;
+    //                            buffer.push(u16::from(data));
 
-                            } else if *bits <= 16 {
-                                let data = read_u16(interpretation, endian, &mut self.reader)?;
-                                read_size_now += 2;
-                                buffer.push(data);
+    //                        } else if *bits <= 16 {
+    //                            let data = read_u16(interpretation, endian, &mut self.reader)?;
+    //                            read_size_now += 2;
+    //                            buffer.push(data);
 
-                            } else {
-                                return Err(DecodeError::from(ConstructError::new(
-                                    tag::BitsPerSample,
-                                    bits_per_sample.clone(),
-                                    "tag::BitsPerSample must have a value less than 16.".to_string()
-                                )));
-                            }
-                        }
-                    }
-                    // TODO: return error when read_size_now > byte_count
-                    
-                    read_size_now
-                }
-                
-                Some(Compression::LZW) => {
-                    let (mut reader, uncompressed_size) = LZWReader::new(&mut self.reader, byte_count)?;
-                    let will_read_size = read_size + uncompressed_size;
-                    if will_read_size > buffer_size {
-                        return Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { want: buffer_size, got: will_read_size }))
-                    }
-                    
-                    let mut read_size_now = 0;
-                    
-                    while read_size_now >= byte_count {
-                        for bits in bits_per_sample.iter() {
-                            if *bits <= 8 {
-                                let data = read_u8(interpretation, &mut reader)?;
-                                read_size_now += 1;
-                                buffer.push(u16::from(data));
+    //                        } else {
+    //                            return Err(DecodeError::from(ConstructError::new(
+    //                                tag::BitsPerSample,
+    //                                bits_per_sample.clone(),
+    //                                "tag::BitsPerSample must have a value less than 16.".to_string()
+    //                            )));
+    //                        }
+    //                    }
+    //                }
+    //                // TODO: return error when read_size_now > byte_count
+    //                
+    //                read_size_now
+    //            }
+    //            
+    //            Some(Compression::LZW) => {
+    //                let (mut reader, uncompressed_size) = LZWReader::new(&mut self.reader, byte_count)?;
+    //                let will_read_size = read_size + uncompressed_size;
+    //                if will_read_size > buffer_size {
+    //                    return Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { want: buffer_size, got: will_read_size }))
+    //                }
+    //                
+    //                let mut read_size_now = 0;
+    //                
+    //                while read_size_now >= byte_count {
+    //                    for bits in bits_per_sample.iter() {
+    //                        if *bits <= 8 {
+    //                            let data = read_u8(interpretation, &mut reader)?;
+    //                            read_size_now += 1;
+    //                            buffer.push(u16::from(data));
 
-                            } else if *bits <= 16 {
-                                let data = read_u16(interpretation, endian, &mut reader)?;
-                                read_size_now += 2;
-                                buffer.push(data);
+    //                        } else if *bits <= 16 {
+    //                            let data = read_u16(interpretation, endian, &mut reader)?;
+    //                            read_size_now += 2;
+    //                            buffer.push(data);
 
-                            } else {
-                                return Err(DecodeError::from(ConstructError::new(
-                                    tag::BitsPerSample,
-                                    bits_per_sample.clone(),
-                                    "tag::BitsPerSample must have a value less than 16.".to_string()
-                                )));
-                            }
-                        }
-                    }
-                    // TODO: return error when read_size_now > byte_count
+    //                        } else {
+    //                            return Err(DecodeError::from(ConstructError::new(
+    //                                tag::BitsPerSample,
+    //                                bits_per_sample.clone(),
+    //                                "tag::BitsPerSample must have a value less than 16.".to_string()
+    //                            )));
+    //                        }
+    //                    }
+    //                }
+    //                // TODO: return error when read_size_now > byte_count
 
-                    read_size_now
-                }
-            }
-        }
+    //                read_size_now
+    //            }
+    //        }
+    //    }
 
-        if read_size != buffer_size {
-            Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { want: buffer_size, got: read_size }))
-        } else {
-            Ok(buffer)
-        }
-    }
+    //    if read_size != buffer_size {
+    //        Err(DecodeError::from(DecodeErrorKind::IncorrectBufferSize { want: buffer_size, got: read_size }))
+    //    } else {
+    //        Ok(buffer)
+    //    }
+    //}
 } 
 
 impl<R> Iterator for Decoder<R> where R: Read + Seek {

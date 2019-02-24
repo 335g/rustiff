@@ -71,15 +71,17 @@ macro_rules! define_tags {
         ///
         /// A tag that conforms to `tag::TagType` changes this automatically.
         /// It is not necessary to use this directly.
-        #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+        #[derive(Debug, Clone, Eq, PartialEq, Hash, Fail)]
         pub enum AnyTag {
             $(#[allow(missing_docs)]
+            #[fail(display = "Supported tag: {{ name: $name, id: $id }}")]
             $name,)*
 
             /// Unsupported tag.
             ///
             /// `rustiff` user can use unsupported tag to implement `tag::TagType`.
             /// This tag chnages to `AnyTag::Custom` with `tag::TagType::id()`.
+            #[fail(display = "Unsupported tag: {{ id: {} }}", _0)]
             Custom(u16),
         }
 
@@ -102,15 +104,6 @@ macro_rules! define_tags {
                 }
             }
 
-        }
-
-        impl Display for AnyTag {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                match *self {
-                    $(AnyTag::$name => $name.fmt(f),)*
-                    AnyTag::Custom(n) => write!(f, "Unknown tag: {}", n),
-                }
-            }
         }
 
         impl<T> PartialEq<T> for AnyTag where T: TagType {

@@ -9,6 +9,7 @@ use tag::{
     IdType,
     TagType,
     ImpossibleTag,
+    AnyTag,
 };
 use image::{
     ImageHeaderBuildError,
@@ -74,7 +75,7 @@ pub enum DecodeErrorKind {
     #[fail(display = "Can't find the ({})", tag)]
     CannotFindTheTag { 
         /// The tag to be used.
-        tag: Box<dyn IdType>
+        tag: AnyTag,
     },
     
     /// This error occurs when `datatype` & `count` used in the function of `tag::TagType::decode` 

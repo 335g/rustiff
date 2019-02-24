@@ -70,7 +70,6 @@ macro_rules! define_tags {
         /// Tag to get associated value from `ifd::IFD`.
         ///
         /// A tag that conforms to `tag::TagType` changes this automatically.
-        /// It is not necessary to use this directly.
         #[derive(Debug, Clone, Eq, PartialEq, Hash, Fail)]
         pub enum AnyTag {
             $(#[allow(missing_docs)]

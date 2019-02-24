@@ -160,8 +160,10 @@ impl<R> Decoder<R> where R: Read + Seek {
 
     #[allow(missing_docs)]
     fn get_entry<'a, T: TagType>(&mut self, ifd: &'a IFD, tag: T) -> Result<&'a Entry, DecodeError> {
-        ifd.get(tag)?
-            .ok_or(DecodeError::from(DecodeErrorKind::CannotFindTheTag{ tag: Box::new(tag) }))
+        let anytag = AnyTag::try_from(tag)?;
+
+        ifd.get_anytag(anytag.clone())
+            .ok_or(DecodeError::from(DecodeErrorKind::CannotFindTheTag{ tag: anytag }))
     }
     
     /// Get the `tag::Value` of the tag in `IFD`.

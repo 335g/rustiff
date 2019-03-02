@@ -29,7 +29,7 @@ pub trait TagType: Fail + Clone + Copy {
     ///
     /// This must not be equal to supported tag's identifier.
     /// If both identifier are equal, error (= `ImpossibleTag`) occurs when you use this tag.
-    const id: u16;
+    const ID: u16;
 
     /// Default value when `ifd::IFD` doesn't have the value with this tag.
     fn default_value() -> Option<Self::Value>;
@@ -96,10 +96,10 @@ macro_rules! define_tags {
         }
 
         impl<T> PartialEq<T> for AnyTag where T: TagType {
-            fn eq(&self, rhs: &T) -> bool {
+            fn eq(&self, _: &T) -> bool {
                 match *self {
                     $(AnyTag::$name => TypeId::of::<$name>() == TypeId::of::<T>(),)*
-                    AnyTag::Custom(n) => n == T::id,
+                    AnyTag::Custom(n) => n == T::ID,
                 }
             }
         }
@@ -112,7 +112,7 @@ impl AnyTag {
     /// Identifier of trying to use tag
     #[inline]
     pub(crate) fn try_from<T>(tag: T) -> Result<AnyTag, ImpossibleTag<T>> where T: TagType {
-        let anytag = AnyTag::from_u16(T::id);
+        let anytag = AnyTag::from_u16(T::ID);
         if anytag == tag {
             Ok(anytag)
         } else {
@@ -126,7 +126,7 @@ macro_rules! short_or_long_value {
         impl TagType for $name {
             type Value = u32;
             
-            const id: u16 = $id;
+            const ID: u16 = $id;
             fn default_value() -> Option<u32> { $def }
             fn decode<'a, R: Read + Seek + 'a>(&'a self, mut _reader: R, mut offset: &'a [u8], endian: Endian, datatype: DataType, count: usize) -> Result<Self::Value, DecodeError> {
                 match datatype {
@@ -148,7 +148,7 @@ macro_rules! short_value {
         impl TagType for $name {
             type Value = u16;
 
-            const id: u16 = $id;
+            const ID: u16 = $id;
             fn default_value() -> Option<u16> { $def }
             fn decode<'a, R: Read + Seek + 'a>(&'a self, mut _reader: R, mut offset: &'a [u8], endian: Endian, datatype: DataType, count: usize) -> Result<Self::Value, DecodeError> {
                 match datatype {
@@ -169,7 +169,7 @@ macro_rules! short_or_long_values {
         impl TagType for $name {
             type Value = Vec<u32>;
 
-            const id: u16 = $id;
+            const ID: u16 = $id;
             fn default_value() -> Option<Vec<u32>> { $def }
             fn decode<'a, R: Read + Seek + 'a>(&'a self, mut reader: R, mut offset: &'a [u8], endian: Endian, datatype: DataType, count: usize) -> Result<Self::Value, DecodeError> {
                 match datatype {
@@ -215,7 +215,7 @@ macro_rules! short_values {
         impl TagType for $name {
             type Value = Vec<u16>;
 
-            const id: u16 = $id;
+            const ID: u16 = $id;
             fn default_value() -> Option<Vec<u16>> { $def }
             fn decode<'a, R: Read + Seek + 'a>(&'a self, mut reader: R, mut offset: &'a [u8], endian: Endian, datatype: DataType, count: usize) -> Result<Self::Value, DecodeError> {
                 match datatype {

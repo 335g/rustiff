@@ -33,6 +33,7 @@ use image::{
     Compression,
     PhotometricInterpretation,
     ConstructError,
+    Resolution,
 };
 
 //macro_rules! read_byte {
@@ -238,6 +239,14 @@ impl<R> Decoder<R> where R: Read + Seek {
 
         self.header_with(&ifd)
     }
+
+    //#[inline]
+    //pub fn max_resolution_with(&self, ifd: &IFD) -> Result<Resolution, DecodeError> {
+    //    let header = self.header_with(&ifd)?;
+        
+    
+    //pub fn image_with(&mut self, ifd: &IFD) -> Result<Image, DecodeError> {
+
     
     //read_byte!(read_byte_only_u8, read_u8s, u8);
     //read_byte!(read_byte_only_u16, read_u16s, u16);
@@ -281,7 +290,16 @@ impl<R> Decoder<R> where R: Read + Seek {
 
         Ok((image_length + rows_per_strip - 1)/rows_per_strip)
     }
-    
+
+    pub fn image_with(&mut self, ifd: &IFD) -> Result<Image, DecodeError> {
+        let rows_per_strip = self.get_value(&ifd, tag::RowsPerStrip)?;
+        let width = self.get_value(&ifd, tag::ImageWidth)?;
+        let bits_per_sample = BitsPerSample::from_u16s(self.get_value(ifd, tag::BitsPerSample)?)?;
+        let samples_per_strip = width * rows_per_strip * (bits_per_sample.len() as u32);
+
+
+        unimplemented!()
+    }
     //#[allow(missing_docs)]
     //fn read_byte_u8_or_u16(&mut self, ifd: &IFD, header: &ImageHeader) -> Result<Vec<u16>, DecodeError> {
     //    let bits_per_sample = header.bits_per_sample().bits();

@@ -1,5 +1,9 @@
 
 use std::fmt;
+use std::ops::{
+    Deref,
+    DerefMut,
+};
 use tag::{
     self,
     TagType,
@@ -183,10 +187,19 @@ impl BitsPerSample {
 
         Ok(BitsPerSample(bits))
     }
+}
 
-    /// Contents of `BitsPerSample`
-    pub fn bits(&self) -> &Vec<u16> {
+impl Deref for BitsPerSample {
+    type Target = Vec<u16>;
+
+    fn deref(&self) -> &Vec<u16> {
         &self.0
+    }
+}
+
+impl DerefMut for BitsPerSample {
+    fn deref_mut(&mut self) -> &mut Vec<u16> {
+        &mut self.0
     }
 }
 
@@ -355,11 +368,13 @@ impl ImageHeader {
 /// TODO: explanation inner vec
 #[derive(Debug)]
 pub enum ImageData {
-    /// Image data with 8bit value.
-    U8(Vec<Vec<u8>>),
+    U8(Vec<u8>),
+    U16(Vec<u16>),
+}
 
-    /// Image data with 16bit value.
-    U16(Vec<Vec<u16>>),
+pub enum ImageBuffer<'a> {
+    U8(&'a mut [u8]),
+    U16(&'a mut [u16]),
 }
 
 /// Image data and header.
@@ -404,7 +419,21 @@ impl Image {
     //    }
     //}
 
-    
+}
+
+#[derive(Debug)]
+pub enum Resolution {
+    U8,
+    U16,
+}
+
+impl Resolution {
+    pub fn size(&self) -> usize {
+        match *self {
+            Resolution::U8 => 8,
+            Resolution::U16 => 16,
+        }
+    }
 }
 
 #[allow(missing_docs)]

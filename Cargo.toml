@@ -10,5 +10,4 @@ description = "TIFF decoding/encoding library in Rust."
 
 [dependencies]
 byteorder = "1.2"
-failure = "0.1"
 lzw = "0.10"

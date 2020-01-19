@@ -1,6 +1,6 @@
 use crate::decode::DecodeFrom;
 use crate::error::{DecodeError, DecodeErrorKind, DecodeResult, TagErrorKind};
-use crate::val::{self, Long, Short};
+use crate::val::{self, Long, Short, Value, Values};
 use either::Either;
 use std::any::TypeId;
 use std::fmt;
@@ -117,7 +117,7 @@ macro_rules! define_tags {
 pub enum ImageWidth {}
 
 impl Tag for ImageWidth {
-    type Value = Either<Short, Long>;
+    type Value = Value;
 
     const ID: u16 = 256;
 }
@@ -147,7 +147,7 @@ impl Tag for ImageWidth {
 pub enum ImageLength {}
 
 impl Tag for ImageLength {
-    type Value = Either<Short, Long>;
+    type Value = Value;
 
     const ID: u16 = 257;
 }
@@ -313,7 +313,7 @@ impl Tag for PhotometricInterpretation {
 pub enum StripOffset {}
 
 impl Tag for StripOffset {
-    type Value = Either<Vec<Short>, Vec<Long>>;
+    type Value = Values;
 
     const ID: u16 = 273;
 }
@@ -385,7 +385,7 @@ impl Tag for SamplesPerPixel {
 pub enum RowsPerStrip {}
 
 impl Tag for RowsPerStrip {
-    type Value = Either<Short, Long>;
+    type Value = Value;
 
     const ID: u16 = 278;
 }
@@ -420,7 +420,7 @@ impl Tag for RowsPerStrip {
 pub enum StripByteCounts {}
 
 impl Tag for StripByteCounts {
-    type Value = Either<Vec<Short>, Vec<Long>>;
+    type Value = Values;
 
     const ID: u16 = 279;
 }

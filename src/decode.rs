@@ -184,9 +184,19 @@ where
 
     #[allow(missing_docs)]
     fn strip_count(&mut self, ifd: &IFD) -> DecodeResult<u32> {
-        let rows_per_strip = self.get_value::<tag::RowsPerStrip>(ifd)?;
+        let height = self.get_value::<tag::ImageLength>(ifd)?;
+        let rows_per_strip = self.get_value::<tag::RowsPerStrip>(ifd)
+            .unwrap_or(height);
 
-        unimplemented!()
+        if rows_per_strip.number() == 0 {
+            Ok(0)
+
+        } else {
+            let height = height.number();
+            let rows_per_strip = rows_per_strip.number();
+
+            Ok((height + rows_per_strip - 1)/rows_per_strip)
+        }
     }
 }
 

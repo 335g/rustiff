@@ -37,6 +37,19 @@ macro_rules! deref_inner {
 }
 
 deref_inner!(Rational, (u32, u32));
+deref_inner!(Value, Either<Short, Long>);
+deref_inner!(Values, Either<Shorts, Longs>);
+
+impl Value {
+    pub fn number(self) -> Long {
+        self.either(
+            |x| x as Long,
+            |x| x
+        )
+    }
+}
+
+impl Copy for Value {}
 
 pub type Byte = u8;
 pub type Bytes = Vec<u8>;
@@ -120,19 +133,16 @@ decodefrom_n!(Bytes, DataType::Byte, EndianRead::read_u8);
 decodefrom_n!(Shorts, DataType::Short, EndianRead::read_u16);
 decodefrom_n!(Longs, DataType::Long, EndianRead::read_u32);
 
-impl DecodeFrom for Either<Short, Long> {
-    fn decode<R: Read + Seek>(
-        decoder: &mut Decoder<R>,
-        entry: &Entry,
-    ) -> DecodeResult<Either<Short, Long>> {
+impl DecodeFrom for Value {
+    fn decode<R: Read + Seek>(decoder: &mut Decoder<R>, entry: &Entry) -> DecodeResult<Self> {
         match entry.ty() {
             DataType::Short => {
                 let val: u16 = DecodeFrom::decode(decoder, entry)?;
-                Ok(Either::Left(val))
+                Ok(Value(Either::Left(val)))
             }
             DataType::Long => {
                 let val: u32 = DecodeFrom::decode(decoder, entry)?;
-                Ok(Either::Right(val))
+                Ok(Value(Either::Right(val)))
             }
             x => Err(DecodeError::from(DecodeValueErrorDetail::InvalidDataType(
                 x,
@@ -141,16 +151,16 @@ impl DecodeFrom for Either<Short, Long> {
     }
 }
 
-impl DecodeFrom for Either<Vec<Short>, Vec<Long>> {
+impl DecodeFrom for Values {
     fn decode<R: Read + Seek>(decoder: &mut Decoder<R>, entry: &Entry) -> DecodeResult<Self> {
         match entry.ty() {
             DataType::Short => {
-                let val: Vec<u16> = DecodeFrom::decode(decoder, entry)?;
-                Ok(Either::Left(val))
+                let val: Shorts = DecodeFrom::decode(decoder, entry)?;
+                Ok(Self(Either::Left(val)))
             }
             DataType::Long => {
-                let val: Vec<u32> = DecodeFrom::decode(decoder, entry)?;
-                Ok(Either::Right(val))
+                let val: Longs = DecodeFrom::decode(decoder, entry)?;
+                Ok(Self(Either::Right(val)))
             }
             x => Err(DecodeError::from(DecodeValueErrorDetail::InvalidDataType(
                 x,

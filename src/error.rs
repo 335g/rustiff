@@ -15,6 +15,10 @@ impl DecodeError {
     pub(crate) fn new(kind: DecodeErrorKind) -> DecodeError {
         DecodeError(kind)
     }
+
+    pub fn kind(&self) -> &DecodeErrorKind {
+        &self.0
+    }
 }
 
 impl fmt::Display for DecodeError {
@@ -170,7 +174,7 @@ impl fmt::Display for DecodeValueErrorDetail {
 
 impl Error for DecodeValueErrorDetail {}
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct TagErrorKind {
     detail: TagErrorKindDetail,
     typename: &'static str,
@@ -200,7 +204,7 @@ impl fmt::Display for TagErrorKind {
 
 impl Error for TagErrorKind {}
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 enum TagErrorKindDetail {
     CannotConstructTag,
     CannotFindTag,

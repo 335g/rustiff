@@ -4,7 +4,7 @@ use crate::error::{
     TagErrorKind,
 };
 use crate::ifd::{DataType, Entry, IFD};
-use crate::tag::{AnyTag, Tag};
+use crate::tag::{self, AnyTag, Tag};
 use crate::val::{BitsPerSample, Compression, PhotometricInterpretation};
 use byteorder::ByteOrder;
 use std::collections::HashSet;
@@ -21,7 +21,6 @@ pub struct Decoder<R> {
     reader: R,
     endian: Endian,
     start: u64,
-    next: u64,
 }
 
 impl<R> Decoder<R> {
@@ -84,18 +83,16 @@ where
             .read_u32(endian)
             .map_err(|_| FileHeaderErrorDetail::NoIFDAddress)?
             .into();
-        let next = start;
 
         Ok(Decoder {
             reader,
             endian,
             start,
-            next,
         })
     }
 
     /// IFD constructor
-    /// 
+    ///
     /// This function returns IFD and next IFD address.
     /// If you don't use multiple IFD, it's usually better to use [`ifd`] function.
     ///
@@ -112,7 +109,7 @@ where
     /// 00000000 | -- --  v -- -- -- -- -- 00 10 FE 00 04 00 01 00
     /// 00000010 | 00 00 00 00 00 00 ...
     /// ```
-    /// 
+    ///
     /// [`ifd`]: decode.Decoder.ifd
     pub fn ifd_and_next_addr(&mut self, from: u64) -> DecodeResult<(IFD, u64)> {
         self.reader.goto(from)?;
@@ -157,9 +154,26 @@ where
     }
 
     /// Get the `Tag::Value` in `IFD`.
+    /// This function returns default value if T has default value and IFD doesn't have the value.
     pub fn get_value<T: Tag>(&mut self, ifd: &IFD) -> DecodeResult<T::Value> {
-        let entry = self.get_entry::<T>(ifd)?;
-        self.decode::<T::Value>(entry)
+        let entry = self.get_entry::<T>(ifd);
+        
+        if let &Ok(entry) = &entry {
+            self.decode::<T::Value>(entry)
+        } else {
+            let err = entry.err().unwrap();
+            let kind = err.kind();
+
+            if let Some(default_value) = T::DEFAULT_VALUE {
+                if let DecodeErrorKind::Tag(_) = kind {
+                    Ok(default_value)
+                } else {
+                    Err(err)
+                }
+            } else {
+                Err(err)
+            }
+        }
     }
 
     #[inline]
@@ -169,7 +183,9 @@ where
     }
 
     #[allow(missing_docs)]
-    fn strip_count(&mut self) -> DecodeResult<u32> {
+    fn strip_count(&mut self, ifd: &IFD) -> DecodeResult<u32> {
+        let rows_per_strip = self.get_value::<tag::RowsPerStrip>(ifd)?;
+
         unimplemented!()
     }
 }

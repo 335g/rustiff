@@ -1,13 +1,15 @@
 [package]
 name = "rustiff"
-version = "0.1.2"
+version = "0.2.0"
 authors = ["335g <actionstar620@yahoo.co.jp>"]
 repository = "https://github.com/335g/rustiff"
 keywords = ["tiff", "tif", "image", "decode", "encode"]
 license-file = "LICENSE-MIT"
 readme = "README.md"
 description = "TIFF decoding/encoding library in Rust."
+edition = "2018"
 
 [dependencies]
-byteorder = "1.2"
+byteorder = "1.3"
 lzw = "0.10"
+either = "1.5"

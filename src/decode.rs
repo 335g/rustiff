@@ -147,7 +147,7 @@ where
 
     #[inline]
     #[allow(missing_docs)]
-    fn get_entry<'a, T: Tag>(&mut self, ifd: &'a IFD, tag: T) -> DecodeResult<&'a Entry> {
+    fn get_entry<'a, T: Tag>(&mut self, ifd: &'a IFD) -> DecodeResult<&'a Entry> {
         let anytag = AnyTag::try_from::<T>()?;
 
         let entry = ifd
@@ -157,8 +157,8 @@ where
     }
 
     /// Get the `Tag::Value` in `IFD`.
-    pub fn get_value<T: Tag>(&mut self, ifd: &IFD, tag: T) -> DecodeResult<T::Value> {
-        let entry = self.get_entry(ifd, tag)?;
+    pub fn get_value<T: Tag>(&mut self, ifd: &IFD) -> DecodeResult<T::Value> {
+        let entry = self.get_entry::<T>(ifd)?;
         self.decode::<T::Value>(entry)
     }
 

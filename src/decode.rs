@@ -95,6 +95,9 @@ where
     }
 
     /// IFD constructor
+    /// 
+    /// This function returns IFD and next IFD address.
+    /// If you don't use multiple IFD, it's usually better to use [`ifd`] function.
     ///
     /// ### for_example
     ///
@@ -109,7 +112,9 @@ where
     /// 00000000 | -- --  v -- -- -- -- -- 00 10 FE 00 04 00 01 00
     /// 00000010 | 00 00 00 00 00 00 ...
     /// ```
-    fn read_ifd(&mut self, from: u64) -> DecodeResult<(IFD, u64)> {
+    /// 
+    /// [`ifd`]: decode.Decoder.ifd
+    pub fn ifd_and_next_addr(&mut self, from: u64) -> DecodeResult<(IFD, u64)> {
         self.reader.goto(from)?;
         let endian = self.endian;
 
@@ -124,7 +129,7 @@ where
             ifd.insert_tag(tag, entry);
         }
 
-        let next = self.reader.read_u32(self.endian)?.into();
+        let next = self.read_u32(endian)?.into();
 
         Ok((ifd, next))
     }
@@ -135,7 +140,7 @@ where
     /// you don't mind if you can access the first `IFD`. This function construct
     /// the first `IFD`
     pub fn ifd(&mut self) -> DecodeResult<IFD> {
-        let (ifd, _) = self.read_ifd(self.start)?;
+        let (ifd, _) = self.ifd_and_next_addr(self.start)?;
 
         Ok(ifd)
     }
@@ -161,6 +166,11 @@ where
     #[allow(missing_docs)]
     fn decode<D: DecodeFrom>(&mut self, entry: &Entry) -> DecodeResult<D> {
         D::decode(self, entry)
+    }
+
+    #[allow(missing_docs)]
+    fn strip_count(&mut self) -> DecodeResult<u32> {
+        unimplemented!()
     }
 }
 

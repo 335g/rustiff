@@ -7,6 +7,7 @@ use crate::ifd::DataType;
 use crate::tag::Tag;
 
 pub type DecodeResult<T> = std::result::Result<T, DecodeError>;
+pub type EncodeResult<T> = std::result::Result<T, EncodeError>;
 
 #[derive(Debug)]
 pub struct DecodeError(DecodeErrorKind);
@@ -208,4 +209,53 @@ impl Error for TagErrorKind {}
 enum TagErrorKindDetail {
     CannotConstructTag,
     CannotFindTag,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum IFDError {
+
+}
+
+
+
+#[derive(Debug)]
+pub struct EncodeError(EncodeErrorKind);
+
+#[derive(Debug)]
+pub enum EncodeErrorKind {
+
+}
+
+impl EncodeError {
+    pub(crate) fn new(kind: EncodeErrorKind) -> EncodeError {
+        EncodeError(kind)
+    }
+
+    pub fn kind(&self) -> &EncodeErrorKind {
+        &self.0
+    }
+}
+
+impl fmt::Display for EncodeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Encode error: {:?}", self.0)
+    }
+}
+
+impl Error for EncodeError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        Some(&self.0)
+    }
+}
+
+impl fmt::Display for EncodeErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        unimplemented!()
+    }
+}
+
+impl Error for EncodeErrorKind {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        unimplemented!()
+    }
 }

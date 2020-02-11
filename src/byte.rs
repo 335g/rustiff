@@ -1,4 +1,4 @@
-use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
+use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
 use std::io;
 
 /// enum for `byteorder::BigEndian` and `byteorder::LittleEndian`.
@@ -65,7 +65,7 @@ pub trait EndianRead: io::Read {
     ///
     /// [`Read::read_exact`]: https://doc.rust-lang.org/std/io/trait.Read.html#method.read_exact
     ///
-    #[inline]
+    #[inline(always)]
     fn read_4byte(&mut self) -> io::Result<[u8; 4]> {
         let mut val = [0u8; 4];
         let _ = self.read_exact(&mut val)?;
@@ -83,3 +83,33 @@ pub trait SeekExt: io::Seek {
 }
 
 impl<S: io::Seek> SeekExt for S {}
+
+pub trait EndianWrite: io::Write {
+    #[inline(always)]
+    fn write_u8(&mut self, _byte_order: Endian, n: u8) -> io::Result<()> {
+        <Self as WriteBytesExt>::write_u8(self, n)
+    }
+
+    #[inline(always)]
+    fn write_u16(&mut self, byte_order: Endian, n: u16) -> io::Result<()> {
+        match byte_order {
+            Endian::Big => <Self as WriteBytesExt>::write_u16::<BigEndian>(self, n),
+            Endian::Little => <Self as WriteBytesExt>::write_u16::<LittleEndian>(self, n),
+        }
+    }
+
+    #[inline(always)]
+    fn write_u32(&mut self, byte_order: Endian, n: u32) -> io::Result<()> {
+        match byte_order {
+            Endian::Big => <Self as WriteBytesExt>::write_u32::<BigEndian>(self, n),
+            Endian::Little => <Self as WriteBytesExt>::write_u32::<LittleEndian>(self, n)
+        }
+    }
+
+    #[inline(always)]
+    fn write_4byte(&mut self, x: [u8; 4]) -> io::Result<()> {
+        <Self as io::Write>::write_all(self, &x)
+    }
+}
+
+impl<W: io::Write> EndianWrite for W {}

@@ -1,11 +1,13 @@
 use crate::byte::{Endian, EndianRead};
 use crate::decode::{DecodeFrom, Decoder};
-use crate::error::{DecodeError, DecodeResult, DecodeValueErrorDetail};
+use crate::encode::{EncodeTo, Encoder};
+use crate::error::{DecodeError, DecodeResult, DecodeValueErrorDetail, EncodeError, EncodeResult};
 use crate::ifd::{DataType, Entry};
 use crate::{field_is_data_pointer, valid_count};
 use either::Either;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::ops::Deref;
+use std::convert::From;
 
 macro_rules! deref_inner {
     ($name:ident, $inner:ty) => {
@@ -46,6 +48,18 @@ impl Value {
             |x| x as Long,
             |x| x
         )
+    }
+}
+
+impl From<Short> for Value {
+    fn from(x: Short) -> Value {
+        Value::new(Either::Left(x))
+    }
+}
+
+impl From<Long> for Value {
+    fn from(x: Long) -> Value {
+        Value::new(Either::Right(x))
     }
 }
 
@@ -132,6 +146,12 @@ decodefrom_1!(Long, DataType::Long, EndianRead::read_u32);
 decodefrom_n!(Bytes, DataType::Byte, EndianRead::read_u8);
 decodefrom_n!(Shorts, DataType::Short, EndianRead::read_u16);
 decodefrom_n!(Longs, DataType::Long, EndianRead::read_u32);
+
+impl EncodeTo for Byte {
+    fn encode<W: Write>(encoder: &mut Encoder<W>) -> EncodeResult<()> {
+        unimplemented!()
+    }
+}
 
 impl DecodeFrom for Value {
     fn decode<R: Read + Seek>(decoder: &mut Decoder<R>, entry: &Entry) -> DecodeResult<Self> {

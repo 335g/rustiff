@@ -1,8 +1,9 @@
-use crate::error::{DecodeError, DecodeResult, DecodeValueErrorDetail};
-use crate::tag::{AnyTag, Tag};
+use crate::error::{DecodeError, DecodeResult, DecodeValueErrorDetail, IFDError};
+use crate::tag::{self, AnyTag, Tag};
+use crate::val::Value;
 use std::collections::HashMap;
-use std::convert::From;
-use std::convert::TryFrom;
+use std::convert::{From, TryFrom};
+use std::marker::PhantomData;
 
 /// Data type in IFD
 #[derive(Debug, Clone, Copy)]

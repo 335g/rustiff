@@ -1,8 +1,9 @@
 
 use std::io::Write;
-use crate::ifd::Entry;
+use crate::dir::{Entry, FileDirectory};
 use crate::error::{EncodeResult, EncodeError, EncodeErrorKind};
 use crate::byte::Endian;
+use crate::tag::Tag;
 
 pub trait EncodeTo: Sized {
     fn encode<W: Write>(encoder: &mut Encoder<W>) -> EncodeResult<()>;
@@ -25,7 +26,10 @@ impl<W> Encoder<W> where W: Write {
     /// 
     /// write from A to B while deciding the position correctly
     pub fn write_up(&mut self) -> EncodeResult<()> {
+        unimplemented!()
+    }
 
+    pub fn put_value<T: Tag>(&mut self, ifd: FileDirectory) -> EncodeResult<Option<T::Value>> {
         unimplemented!()
     }
 }

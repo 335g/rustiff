@@ -2,7 +2,7 @@ use crate::byte::{Endian, EndianRead};
 use crate::decode::{DecodeFrom, Decoder};
 use crate::encode::{EncodeTo, Encoder};
 use crate::error::{DecodeError, DecodeResult, DecodeValueErrorDetail, EncodeError, EncodeResult};
-use crate::ifd::{DataType, Entry};
+use crate::dir::{DataType, Entry};
 use crate::{field_is_data_pointer, valid_count};
 use either::Either;
 use std::io::{Read, Seek, SeekFrom, Write};

@@ -6,7 +6,7 @@ mod byte;
 mod decode;
 mod encode;
 mod error;
-mod ifd;
+mod dir;
 pub mod tag;
 pub mod val;
 

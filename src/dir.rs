@@ -96,12 +96,12 @@ impl Entry {
 
 /// IFD (Image File Directory)
 #[derive(Debug, Clone)]
-pub struct IFD(HashMap<AnyTag, Entry>);
+pub struct FileDirectory(HashMap<AnyTag, Entry>);
 
-impl IFD {
+impl FileDirectory {
     #[allow(missing_docs)]
-    pub(crate) fn new() -> IFD {
-        IFD(HashMap::new())
+    pub(crate) fn new() -> Self {
+        FileDirectory(HashMap::new())
     }
 
     /// Insert an `ifd::Entry` into the IFD
@@ -137,3 +137,7 @@ impl IFD {
         self.0.get(&tag)
     }
 }
+
+#[derive(Debug)]
+pub struct StoredDirectory(HashMap<AnyTag, Vec<u8>>);
+

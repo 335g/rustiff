@@ -3,7 +3,7 @@ use std::error::Error;
 use std::fmt;
 use std::io;
 
-use crate::ifd::DataType;
+use crate::dir::DataType;
 use crate::tag::Tag;
 
 pub type DecodeResult<T> = std::result::Result<T, DecodeError>;
@@ -154,6 +154,7 @@ pub enum DecodeValueErrorDetail {
     InvalidCount(u32),
     InvalidDataType(DataType),
     Overflow(std::num::TryFromIntError),
+    NoValueThatShouldBe,
 }
 
 impl fmt::Display for DecodeValueErrorDetail {
@@ -169,6 +170,7 @@ impl fmt::Display for DecodeValueErrorDetail {
                 write!(f, "Invalid data type: {:?}", datatype)
             }
             DecodeValueErrorDetail::Overflow(ref value) => write!(f, "Overflow: {}", value),
+            DecodeValueErrorDetail::NoValueThatShouldBe => write!(f, "There is no value should be"),
         }
     }
 }
@@ -193,9 +195,9 @@ impl TagErrorKind {
 impl fmt::Display for TagErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.detail {
-            TagErrorKindDetail::CannotConstructTag => {
-                write!(f, "Cannot construct the tag: {}", self.typename)
-            }
+            // TagErrorKindDetail::CannotConstructTag => {
+            //     write!(f, "Cannot construct the tag: {}", self.typename)
+            // }
             TagErrorKindDetail::CannotFindTag => {
                 write!(f, "Cannot find the tag: {}", self.typename)
             }
@@ -207,7 +209,7 @@ impl Error for TagErrorKind {}
 
 #[derive(Debug, Eq, PartialEq)]
 enum TagErrorKindDetail {
-    CannotConstructTag,
+    //CannotConstructTag,
     CannotFindTag,
 }
 

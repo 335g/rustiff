@@ -1,6 +1,6 @@
 
 use std::io::Write;
-use crate::dir::{Entry, FileDirectory};
+use crate::dir::{Entry, FileDir};
 use crate::error::{EncodeResult, EncodeError, EncodeErrorKind};
 use crate::byte::Endian;
 use crate::tag::Tag;
@@ -29,7 +29,7 @@ impl<W> Encoder<W> where W: Write {
         unimplemented!()
     }
 
-    pub fn put_value<T: Tag>(&mut self, ifd: FileDirectory) -> EncodeResult<Option<T::Value>> {
+    pub fn put_value<T: Tag>(&mut self, ifd: FileDir) -> EncodeResult<Option<T::Value>> {
         unimplemented!()
     }
 }

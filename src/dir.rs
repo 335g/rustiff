@@ -52,17 +52,10 @@ impl TryFrom<u16> for DataType {
     }
 }
 
-impl DataType {
-    fn overflow(&self, count: u32) -> bool {
-        use DataType::*;
-
-        match self {
-            Byte | Ascii | SByte | Undefined => count > 4,
-            Short | SShort => count > 2,
-            Long | SLong | Float => count > 1,
-            _ => true,
-        }
-    }
+#[derive(Debug, Clone)]
+pub enum Field {
+    Address([u8; 4]),
+    Data(Vec<u8>),
 }
 
 #[derive(Debug, Clone)]
@@ -90,7 +83,14 @@ impl Entry {
     }
 
     pub fn overflow(&self) -> bool {
-        self.ty.overflow(self.count)
+        use DataType::*;
+
+        match self.ty {
+            Byte | Ascii | SByte | Undefined => self.count > 4,
+            Short | SShort => self.count > 2,
+            Long | SLong | Float => self.count > 1,
+            _ => true,
+        }
     }
 }
 

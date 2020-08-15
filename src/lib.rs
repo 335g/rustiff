@@ -9,5 +9,9 @@ mod error;
 mod dir;
 pub mod tag;
 pub mod val;
-
 pub mod macros;
+
+pub use decode::{
+    DecodeFrom,
+    Decoder,
+};

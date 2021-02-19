@@ -13,7 +13,7 @@ use std::convert::TryFrom;
 use std::io::{self, Read, Seek};
 use std::marker::PhantomData;
 
-pub trait DecodeFrom: Sized {
+pub trait Decoded: Sized {
     fn decode<R: Read + Seek>(decoder: &mut Decoder<R>, entry: &Entry) -> DecodeResult<Self>;
 }
 
@@ -167,7 +167,7 @@ where
 
     #[inline]
     #[allow(missing_docs)]
-    fn decode<D: DecodeFrom>(&mut self, entry: &Entry) -> DecodeResult<D> {
+    fn decode<D: Decoded>(&mut self, entry: &Entry) -> DecodeResult<D> {
         D::decode(self, entry)
     }
 

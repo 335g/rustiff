@@ -12,4 +12,4 @@ pub mod macros;
 pub mod tag;
 pub mod val;
 
-pub use decode::{DecodeFrom, Decoder};
+pub use decode::{Decoded, Decoder};

@@ -1,5 +1,5 @@
 use crate::byte::{Endian, EndianRead};
-use crate::decode::{DecodeFrom, Decoder};
+use crate::decode::{Decoded, Decoder};
 use crate::dir::{DataType, Entry};
 use crate::encode::{EncodeTo, Encoder};
 use crate::error::{DecodeError, DecodeResult, DecodeValueErrorDetail, EncodeError, EncodeResult};
@@ -75,7 +75,7 @@ pub type Longs = Vec<u32>;
 
 macro_rules! decodefrom_1 {
     ($name:ident, $datatype:pat, $method:path) => {
-        impl DecodeFrom for $name {
+        impl Decoded for $name {
             fn decode<R: Read + Seek>(
                 decoder: &mut Decoder<R>,
                 entry: &Entry,
@@ -100,7 +100,7 @@ macro_rules! decodefrom_1 {
 
 macro_rules! decodefrom_n {
     ($name:ident, $datatype:pat, $method:path) => {
-        impl DecodeFrom for $name {
+        impl Decoded for $name {
             fn decode<R: Read + Seek>(
                 decoder: &mut Decoder<R>,
                 entry: &Entry,
@@ -154,15 +154,15 @@ impl EncodeTo for Byte {
     }
 }
 
-impl DecodeFrom for Value {
+impl Decoded for Value {
     fn decode<R: Read + Seek>(decoder: &mut Decoder<R>, entry: &Entry) -> DecodeResult<Self> {
         match entry.ty() {
             DataType::Short => {
-                let val: u16 = DecodeFrom::decode(decoder, entry)?;
+                let val: u16 = Decoded::decode(decoder, entry)?;
                 Ok(Value(Either::Left(val)))
             }
             DataType::Long => {
-                let val: u32 = DecodeFrom::decode(decoder, entry)?;
+                let val: u32 = Decoded::decode(decoder, entry)?;
                 Ok(Value(Either::Right(val)))
             }
             x => Err(DecodeError::from(DecodeValueErrorDetail::InvalidDataType(
@@ -172,15 +172,15 @@ impl DecodeFrom for Value {
     }
 }
 
-impl DecodeFrom for Values {
+impl Decoded for Values {
     fn decode<R: Read + Seek>(decoder: &mut Decoder<R>, entry: &Entry) -> DecodeResult<Self> {
         match entry.ty() {
             DataType::Short => {
-                let val: Shorts = DecodeFrom::decode(decoder, entry)?;
+                let val: Shorts = Decoded::decode(decoder, entry)?;
                 Ok(Self(Either::Left(val)))
             }
             DataType::Long => {
-                let val: Longs = DecodeFrom::decode(decoder, entry)?;
+                let val: Longs = Decoded::decode(decoder, entry)?;
                 Ok(Self(Either::Right(val)))
             }
             x => Err(DecodeError::from(DecodeValueErrorDetail::InvalidDataType(
@@ -263,7 +263,7 @@ pub enum PhotometricInterpretation {
     CIELab,
 }
 
-impl DecodeFrom for PhotometricInterpretation {
+impl Decoded for PhotometricInterpretation {
     fn decode<R: Read + Seek>(decoder: &mut Decoder<R>, entry: &Entry) -> DecodeResult<Self> {
         valid_count!(entry, 1..2)?;
         let endian = decoder.endian();
@@ -301,7 +301,7 @@ pub enum Compression {
     LZW,
 }
 
-impl DecodeFrom for Option<Compression> {
+impl Decoded for Option<Compression> {
     fn decode<R: Read + Seek>(decoder: &mut Decoder<R>, entry: &Entry) -> DecodeResult<Self> {
         valid_count!(entry, 1..2)?;
         let val = entry.field().read_u16(decoder.endian())?;
@@ -345,7 +345,7 @@ impl BitsPerSample {
     }
 }
 
-impl DecodeFrom for BitsPerSample {
+impl Decoded for BitsPerSample {
     fn decode<R: Read + Seek>(decoder: &mut Decoder<R>, entry: &Entry) -> DecodeResult<Self> {
         valid_count!(entry, vec![1, 3, 4])?;
         let endian = decoder.endian();

@@ -1,13 +1,13 @@
 use crate::byte::{Endian, EndianRead};
 use crate::decode::{DecodeFrom, Decoder};
+use crate::dir::{DataType, Entry};
 use crate::encode::{EncodeTo, Encoder};
 use crate::error::{DecodeError, DecodeResult, DecodeValueErrorDetail, EncodeError, EncodeResult};
-use crate::dir::{DataType, Entry};
 use crate::{field_is_data_pointer, valid_count};
 use either::Either;
+use std::convert::From;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::ops::Deref;
-use std::convert::From;
 
 macro_rules! deref_inner {
     ($name:ident, $inner:ty) => {
@@ -43,11 +43,12 @@ deref_inner!(Value, Either<Short, Long>);
 deref_inner!(Values, Either<Shorts, Longs>);
 
 impl Value {
-    pub fn number(self) -> Long {
-        self.either(
-            |x| x as Long,
-            |x| x
-        )
+    pub fn as_long(self) -> Long {
+        self.either(|x| x as Long, |x| x)
+    }
+
+    pub fn as_size(self) -> usize {
+        self.either(|x| x as usize, |x| x as usize)
     }
 }
 
@@ -322,6 +323,26 @@ pub enum BitsPerSample {
     C1(u16),
     C3(u16, u16, u16),
     C4(u16, u16, u16, u16),
+}
+
+impl BitsPerSample {
+    pub fn len(&self) -> usize {
+        match *self {
+            BitsPerSample::C1(_) => 1,
+            BitsPerSample::C3(_, _, _) => 3,
+            BitsPerSample::C4(_, _, _, _) => 4,
+        }
+    }
+
+    pub fn max(&self) -> u16 {
+        use std::cmp::max;
+
+        match *self {
+            BitsPerSample::C1(v1) => v1,
+            BitsPerSample::C3(v1, v2, v3) => max(max(v1, v2), v3),
+            BitsPerSample::C4(v1, v2, v3, v4) => max(max(max(v1, v2), v3), v4),
+        }
+    }
 }
 
 impl DecodeFrom for BitsPerSample {

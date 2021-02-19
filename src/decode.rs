@@ -1,9 +1,10 @@
 use crate::byte::{Endian, EndianRead, SeekExt};
+use crate::data::Data;
+use crate::dir::{DataType, Entry, FileDir};
 use crate::error::{
     DecodeError, DecodeErrorKind, DecodeResult, DecodeValueErrorDetail, FileHeaderErrorDetail,
     TagErrorKind,
 };
-use crate::dir::{DataType, Entry, FileDir};
 use crate::tag::{self, AnyTag, Tag};
 use crate::val::{BitsPerSample, Compression, PhotometricInterpretation};
 use byteorder::ByteOrder;
@@ -147,9 +148,8 @@ where
     fn get_entry<'a, T: Tag>(&mut self, ifd: &'a FileDir) -> DecodeResult<Option<&'a Entry>> {
         let anytag = AnyTag::try_from::<T>()?;
 
-        let entry = ifd
-            .get_tag(anytag);
-            //.ok_or(TagErrorKind::cannot_find_tag::<T>())?;
+        let entry = ifd.get_tag(anytag);
+        //.ok_or(TagErrorKind::cannot_find_tag::<T>())?;
         Ok(entry)
     }
 
@@ -161,7 +161,7 @@ where
         match entry {
             Ok(Some(entry)) => self.decode::<T::Value>(entry).map(|x| Some(x)),
             Ok(None) => Ok(T::DEFAULT_VALUE),
-            Err(e) => Err(e)
+            Err(e) => Err(e),
         }
     }
 
@@ -173,21 +173,51 @@ where
 
     #[allow(missing_docs)]
     fn strip_count(&mut self, ifd: &FileDir) -> DecodeResult<u32> {
-        let height = self.get_value::<tag::ImageLength>(ifd)?
+        let height = self
+            .get_value::<tag::ImageLength>(ifd)?
             .ok_or(DecodeValueErrorDetail::NoValueThatShouldBe)?;
-        let rows_per_strip = self.get_value::<tag::RowsPerStrip>(ifd)
-            .unwrap_or(Some(height))
-            .unwrap();
+        let rows_per_strip = self
+            .get_value::<tag::RowsPerStrip>(ifd)?
+            .unwrap_or_else(|| height);
 
-        if rows_per_strip.number() == 0 {
+        if rows_per_strip.as_long() == 0 {
             Ok(0)
-
         } else {
-            let height = height.number();
-            let rows_per_strip = rows_per_strip.number();
+            let height = height.as_long();
+            let rows_per_strip = rows_per_strip.as_long();
 
-            Ok((height + rows_per_strip - 1)/rows_per_strip)
+            Ok((height + rows_per_strip - 1) / rows_per_strip)
         }
+    }
+
+    pub fn image(&mut self, ifd: &FileDir) -> DecodeResult<Data> {
+        let width = self
+            .get_value::<tag::ImageWidth>(&ifd)?
+            .ok_or(DecodeValueErrorDetail::NoValueThatShouldBe)?
+            .as_size();
+        let height = self
+            .get_value::<tag::ImageLength>(&ifd)?
+            .ok_or(DecodeValueErrorDetail::NoValueThatShouldBe)?
+            .as_size();
+        let bits_per_sample = self
+            .get_value::<tag::BitsPerSample>(&ifd)?
+            .ok_or(DecodeValueErrorDetail::NoValueThatShouldBe)?;
+
+        let buffer_size = width * height * bits_per_sample.len();
+
+        let mut data = match bits_per_sample.max() {
+            n if n <= 8 => Data::byte_with(buffer_size),
+            n if n <= 16 => Data::short_with(buffer_size),
+            n => {
+                return Err(DecodeError::from(DecodeValueErrorDetail::InvalidValue(
+                    vec![n as u32],
+                )))
+            }
+        };
+
+        // TODO: load data
+
+        return Ok(data);
     }
 }
 

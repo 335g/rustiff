@@ -102,7 +102,7 @@ pub trait EndianWrite: io::Write {
     fn write_u32(&mut self, byte_order: Endian, n: u32) -> io::Result<()> {
         match byte_order {
             Endian::Big => <Self as WriteBytesExt>::write_u32::<BigEndian>(self, n),
-            Endian::Little => <Self as WriteBytesExt>::write_u32::<LittleEndian>(self, n)
+            Endian::Little => <Self as WriteBytesExt>::write_u32::<LittleEndian>(self, n),
         }
     }
 

@@ -214,19 +214,13 @@ enum TagErrorKindDetail {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub enum IFDError {
-
-}
-
-
+pub enum IFDError {}
 
 #[derive(Debug)]
 pub struct EncodeError(EncodeErrorKind);
 
 #[derive(Debug)]
-pub enum EncodeErrorKind {
-
-}
+pub enum EncodeErrorKind {}
 
 impl EncodeError {
     pub(crate) fn new(kind: EncodeErrorKind) -> EncodeError {

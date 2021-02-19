@@ -140,4 +140,3 @@ impl FileDir {
 
 #[derive(Debug)]
 pub struct StoredDir(HashMap<AnyTag, Vec<u8>>);
-

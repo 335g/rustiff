@@ -3,15 +3,13 @@
 #![allow(unused_variables)]
 
 mod byte;
+mod data;
 mod decode;
+mod dir;
 mod encode;
 mod error;
-mod dir;
+pub mod macros;
 pub mod tag;
 pub mod val;
-pub mod macros;
 
-pub use decode::{
-    DecodeFrom,
-    Decoder,
-};
+pub use decode::{DecodeFrom, Decoder};

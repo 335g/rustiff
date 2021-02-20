@@ -2,8 +2,7 @@ use crate::byte::{Endian, EndianRead, SeekExt};
 use crate::data::Data;
 use crate::dir::{DataType, Entry, FileDir};
 use crate::error::{
-    DecodeError, DecodeErrorDetail, DecodeResult, DecodeValueError, FileHeaderError,
-    TagError,
+    DecodeError, DecodeErrorDetail, DecodeResult, DecodeValueError, FileHeaderError, TagError,
 };
 use crate::tag::{self, AnyTag, Tag};
 use crate::val::{BitsPerSample, Compression, PhotometricInterpretation};
@@ -209,9 +208,9 @@ where
             n if n <= 8 => Data::byte_with(buffer_size),
             n if n <= 16 => Data::short_with(buffer_size),
             n => {
-                return Err(DecodeError::from(DecodeValueError::InvalidValue(
-                    vec![n as u32],
-                )))
+                return Err(DecodeError::from(DecodeValueError::InvalidValue(vec![
+                    n as u32,
+                ])))
             }
         };
 

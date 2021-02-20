@@ -1,10 +1,10 @@
-use std::{convert::From, num::TryFromIntError};
 use std::fmt;
 use std::io;
 use std::marker::PhantomData;
+use std::{convert::From, num::TryFromIntError};
 
 use crate::dir::DataType;
-use crate::tag::{Tag, AnyTag};
+use crate::tag::{AnyTag, Tag};
 
 pub type DecodeResult<T> = std::result::Result<T, DecodeError>;
 
@@ -13,10 +13,12 @@ pub struct DecodeError(#[from] DecodeErrorDetail);
 
 impl fmt::Display for DecodeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, 
+        write!(
+            f,
             "ERROR to decode tiff format\n\
             - {:?}",
-            self.0)
+            self.0
+        )
     }
 }
 
@@ -79,7 +81,8 @@ pub enum FileHeaderError {
     #[error(
         "No byte order\n\
         --- Tiff file header has 2 byte data at the beginning. \
-        This error occurs when there is no 2 byte data")]
+        This error occurs when there is no 2 byte data"
+    )]
     NoByteOrder,
 
     /// Tiff file header has 2 byte data at the beginning.
@@ -89,7 +92,8 @@ pub enum FileHeaderError {
         "Invalid byte order: {byte_order:?}\n\
         --- Tiff file header has 2 byte data at the beginning. \
         2 byte data should be b'II' or b'MM'. \
-        This error occurs when 2 byte data is incorrect data.", )]
+        This error occurs when 2 byte data is incorrect data."
+    )]
     InvalidByteOrder {
         #[allow(missing_docs)]
         byte_order: [u8; 2],
@@ -100,7 +104,8 @@ pub enum FileHeaderError {
     #[error(
         "No vision\n\
         --- There is `0x00 0x2A` data after data corresponding to byte order.\
-        This error occurs when there is no this 2 byte data.")]
+        This error occurs when there is no this 2 byte data."
+    )]
     NoVersion,
 
     /// There is `0x00 0x2A` data after data corresponding to byte order.
@@ -108,7 +113,8 @@ pub enum FileHeaderError {
     #[error(
         "Invalid version: {version:?}\n\
         --- There is `0x00 0x2A` data after data corresponding to byte order.\
-        This error occurs when 2 byte data is not equal 42.")]
+        This error occurs when 2 byte data is not equal 42."
+    )]
     InvalidVersion {
         #[allow(missing_docs)]
         version: u16,
@@ -119,7 +125,8 @@ pub enum FileHeaderError {
     #[error(
         "No IFD address\n\
         --- There is 4 byte data corresponding to an address of Image File Directory (IFD).\
-        This error occurs when there is no this 4 byte data.")]
+        This error occurs when there is no this 4 byte data."
+    )]
     NoIFDAddress,
 }
 

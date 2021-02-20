@@ -6,9 +6,7 @@ macro_rules! valid_count {
         if $conds.contains(&count) {
             Ok(())
         } else {
-            Err(DecodeError::from(DecodeValueError::InvalidCount(
-                count,
-            )))
+            Err(DecodeError::from(DecodeValueError::InvalidCount(count)))
         }
     }};
 }

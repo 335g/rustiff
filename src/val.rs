@@ -89,9 +89,7 @@ macro_rules! decodefrom_1 {
                         let val = $method(&mut field, endian)?;
                         Ok(val)
                     }
-                    x => Err(DecodeError::from(DecodeValueError::InvalidDataType(
-                        x,
-                    ))),
+                    x => Err(DecodeError::from(DecodeValueError::InvalidDataType(x))),
                 }
             }
         }
@@ -131,9 +129,7 @@ macro_rules! decodefrom_n {
 
                         Ok(data)
                     }
-                    x => Err(DecodeError::from(DecodeValueError::InvalidDataType(
-                        x,
-                    ))),
+                    x => Err(DecodeError::from(DecodeValueError::InvalidDataType(x))),
                 }
             }
         }
@@ -165,9 +161,7 @@ impl Decoded for Value {
                 let val: u32 = Decoded::decode(decoder, entry)?;
                 Ok(Value(Either::Right(val)))
             }
-            x => Err(DecodeError::from(DecodeValueError::InvalidDataType(
-                x,
-            ))),
+            x => Err(DecodeError::from(DecodeValueError::InvalidDataType(x))),
         }
     }
 }
@@ -183,9 +177,7 @@ impl Decoded for Values {
                 let val: Longs = Decoded::decode(decoder, entry)?;
                 Ok(Self(Either::Right(val)))
             }
-            x => Err(DecodeError::from(DecodeValueError::InvalidDataType(
-                x,
-            ))),
+            x => Err(DecodeError::from(DecodeValueError::InvalidDataType(x))),
         }
     }
 }
@@ -279,14 +271,12 @@ impl Decoded for PhotometricInterpretation {
                     5 => Ok(PhotometricInterpretation::CMYK),
                     6 => Ok(PhotometricInterpretation::YCbCr),
                     7 => Ok(PhotometricInterpretation::CIELab),
-                    n => Err(DecodeError::from(DecodeValueError::InvalidValue(
-                        vec![n as u32],
-                    ))),
+                    n => Err(DecodeError::from(DecodeValueError::InvalidValue(vec![
+                        n as u32,
+                    ]))),
                 }
             }
-            x => Err(DecodeError::from(DecodeValueError::InvalidDataType(
-                x,
-            ))),
+            x => Err(DecodeError::from(DecodeValueError::InvalidDataType(x))),
         }
     }
 }
@@ -308,9 +298,9 @@ impl Decoded for Option<Compression> {
         match val {
             1 => Ok(None),
             5 => Ok(Some(Compression::LZW)),
-            n => Err(DecodeError::from(DecodeValueError::InvalidValue(
-                vec![n as u32],
-            ))),
+            n => Err(DecodeError::from(DecodeValueError::InvalidValue(vec![
+                n as u32,
+            ]))),
         }
     }
 }

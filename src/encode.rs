@@ -1,6 +1,6 @@
 use crate::byte::Endian;
 use crate::dir::{Entry, FileDir};
-use crate::error::{EncodeError, EncodeErrorKind, EncodeResult};
+// use crate::error::{EncodeError, EncodeErrorKind, EncodeResult};
 use crate::tag::Tag;
 use std::io::Write;
 

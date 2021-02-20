@@ -1,8 +1,8 @@
 use crate::byte::{Endian, EndianRead};
 use crate::decode::{Decoded, Decoder};
 use crate::dir::{DataType, Entry};
-use crate::encode::{EncodeTo, Encoder};
-use crate::error::{DecodeError, DecodeResult, DecodeValueErrorDetail, EncodeError, EncodeResult};
+// use crate::encode::{EncodeTo, Encoder};
+use crate::error::{DecodeError, DecodeResult, DecodeValueError};
 use crate::{field_is_data_pointer, valid_count};
 use either::Either;
 use std::convert::From;
@@ -89,7 +89,7 @@ macro_rules! decodefrom_1 {
                         let val = $method(&mut field, endian)?;
                         Ok(val)
                     }
-                    x => Err(DecodeError::from(DecodeValueErrorDetail::InvalidDataType(
+                    x => Err(DecodeError::from(DecodeValueError::InvalidDataType(
                         x,
                     ))),
                 }
@@ -131,7 +131,7 @@ macro_rules! decodefrom_n {
 
                         Ok(data)
                     }
-                    x => Err(DecodeError::from(DecodeValueErrorDetail::InvalidDataType(
+                    x => Err(DecodeError::from(DecodeValueError::InvalidDataType(
                         x,
                     ))),
                 }
@@ -148,11 +148,11 @@ decodefrom_n!(Bytes, DataType::Byte, EndianRead::read_u8);
 decodefrom_n!(Shorts, DataType::Short, EndianRead::read_u16);
 decodefrom_n!(Longs, DataType::Long, EndianRead::read_u32);
 
-impl EncodeTo for Byte {
-    fn encode<W: Write>(encoder: &mut Encoder<W>) -> EncodeResult<()> {
-        unimplemented!()
-    }
-}
+// impl EncodeTo for Byte {
+//     fn encode<W: Write>(encoder: &mut Encoder<W>) -> EncodeResult<()> {
+//         unimplemented!()
+//     }
+// }
 
 impl Decoded for Value {
     fn decode<R: Read + Seek>(decoder: &mut Decoder<R>, entry: &Entry) -> DecodeResult<Self> {
@@ -165,7 +165,7 @@ impl Decoded for Value {
                 let val: u32 = Decoded::decode(decoder, entry)?;
                 Ok(Value(Either::Right(val)))
             }
-            x => Err(DecodeError::from(DecodeValueErrorDetail::InvalidDataType(
+            x => Err(DecodeError::from(DecodeValueError::InvalidDataType(
                 x,
             ))),
         }
@@ -183,7 +183,7 @@ impl Decoded for Values {
                 let val: Longs = Decoded::decode(decoder, entry)?;
                 Ok(Self(Either::Right(val)))
             }
-            x => Err(DecodeError::from(DecodeValueErrorDetail::InvalidDataType(
+            x => Err(DecodeError::from(DecodeValueError::InvalidDataType(
                 x,
             ))),
         }
@@ -279,12 +279,12 @@ impl Decoded for PhotometricInterpretation {
                     5 => Ok(PhotometricInterpretation::CMYK),
                     6 => Ok(PhotometricInterpretation::YCbCr),
                     7 => Ok(PhotometricInterpretation::CIELab),
-                    n => Err(DecodeError::from(DecodeValueErrorDetail::InvalidValue(
+                    n => Err(DecodeError::from(DecodeValueError::InvalidValue(
                         vec![n as u32],
                     ))),
                 }
             }
-            x => Err(DecodeError::from(DecodeValueErrorDetail::InvalidDataType(
+            x => Err(DecodeError::from(DecodeValueError::InvalidDataType(
                 x,
             ))),
         }
@@ -308,7 +308,7 @@ impl Decoded for Option<Compression> {
         match val {
             1 => Ok(None),
             5 => Ok(Some(Compression::LZW)),
-            n => Err(DecodeError::from(DecodeValueErrorDetail::InvalidValue(
+            n => Err(DecodeError::from(DecodeValueError::InvalidValue(
                 vec![n as u32],
             ))),
         }

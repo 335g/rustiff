@@ -1,4 +1,4 @@
-use crate::error::{DecodeError, DecodeResult, DecodeValueErrorDetail, IFDError};
+use crate::error::{DecodeError, DecodeResult, DecodeValueError};
 use crate::tag::{self, AnyTag, Tag};
 use crate::val::Value;
 use std::collections::HashMap;
@@ -42,7 +42,7 @@ impl TryFrom<u16> for DataType {
             11 => Float,
             12 => Double,
             n => {
-                return Err(DecodeError::from(DecodeValueErrorDetail::InvalidValue(
+                return Err(DecodeError::from(DecodeValueError::InvalidValue(
                     vec![n as u32],
                 )))
             }

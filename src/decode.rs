@@ -2,8 +2,8 @@ use crate::byte::{Endian, EndianRead, SeekExt};
 use crate::data::Data;
 use crate::dir::{DataType, Entry, FileDir};
 use crate::error::{
-    DecodeError, DecodeErrorKind, DecodeResult, DecodeValueErrorDetail, FileHeaderErrorDetail,
-    TagErrorKind,
+    DecodeError, DecodeErrorDetail, DecodeResult, DecodeValueError, FileHeaderError,
+    TagError,
 };
 use crate::tag::{self, AnyTag, Tag};
 use crate::val::{BitsPerSample, Compression, PhotometricInterpretation};
@@ -57,13 +57,13 @@ where
         let mut byte_order = [0u8; 2];
         reader
             .read_exact(&mut byte_order)
-            .map_err(|e| FileHeaderErrorDetail::NoByteOrder)?;
+            .map_err(|e| FileHeaderError::NoByteOrder)?;
 
         let endian = match &byte_order {
             b"II" => Endian::Little,
             b"MM" => Endian::Big,
             _ => {
-                return Err(DecodeError::from(FileHeaderErrorDetail::InvalidByteOrder {
+                return Err(DecodeError::from(FileHeaderError::InvalidByteOrder {
                     byte_order: byte_order,
                 }))
             }
@@ -71,18 +71,18 @@ where
 
         let _ = reader
             .read_u16(endian)
-            .map_err(|_| FileHeaderErrorDetail::NoVersion)
+            .map_err(|_| FileHeaderError::NoVersion)
             .and_then(|n| {
                 if n == 42 {
                     Ok(())
                 } else {
-                    Err(FileHeaderErrorDetail::InvalidVersion { version: n })
+                    Err(FileHeaderError::InvalidVersion { version: n })
                 }
             })?;
 
         let start: u64 = reader
             .read_u32(endian)
-            .map_err(|_| FileHeaderErrorDetail::NoIFDAddress)?
+            .map_err(|_| FileHeaderError::NoIFDAddress)?
             .into();
 
         Ok(Decoder {
@@ -175,7 +175,7 @@ where
     fn strip_count(&mut self, ifd: &FileDir) -> DecodeResult<u32> {
         let height = self
             .get_value::<tag::ImageLength>(ifd)?
-            .ok_or(DecodeValueErrorDetail::NoValueThatShouldBe)?;
+            .ok_or(DecodeValueError::NoValueThatShouldBe)?;
         let rows_per_strip = self
             .get_value::<tag::RowsPerStrip>(ifd)?
             .unwrap_or_else(|| height);
@@ -193,15 +193,15 @@ where
     pub fn image(&mut self, ifd: &FileDir) -> DecodeResult<Data> {
         let width = self
             .get_value::<tag::ImageWidth>(&ifd)?
-            .ok_or(DecodeValueErrorDetail::NoValueThatShouldBe)?
+            .ok_or(DecodeValueError::NoValueThatShouldBe)?
             .as_size();
         let height = self
             .get_value::<tag::ImageLength>(&ifd)?
-            .ok_or(DecodeValueErrorDetail::NoValueThatShouldBe)?
+            .ok_or(DecodeValueError::NoValueThatShouldBe)?
             .as_size();
         let bits_per_sample = self
             .get_value::<tag::BitsPerSample>(&ifd)?
-            .ok_or(DecodeValueErrorDetail::NoValueThatShouldBe)?;
+            .ok_or(DecodeValueError::NoValueThatShouldBe)?;
 
         let buffer_size = width * height * bits_per_sample.len();
 
@@ -209,7 +209,7 @@ where
             n if n <= 8 => Data::byte_with(buffer_size),
             n if n <= 16 => Data::short_with(buffer_size),
             n => {
-                return Err(DecodeError::from(DecodeValueErrorDetail::InvalidValue(
+                return Err(DecodeError::from(DecodeValueError::InvalidValue(
                     vec![n as u32],
                 )))
             }

@@ -1,5 +1,5 @@
 use crate::decode::Decoded;
-use crate::error::{DecodeError, DecodeErrorKind, DecodeResult, TagErrorKind};
+use crate::error::{DecodeError, DecodeErrorDetail, DecodeResult, TagError};
 use crate::val::{self, Long, Short, Value, Values};
 use either::Either;
 use std::any::TypeId;
@@ -68,8 +68,7 @@ macro_rules! define_tags {
                 if anytag.eq::<T>() {
                     Ok(anytag)
                 } else {
-                    let kind = TagErrorKind::cannot_find_tag::<T>();
-                    Err(DecodeError::new(DecodeErrorKind::Tag(kind)))
+                    Err(DecodeError::from(DecodeErrorDetail::from(TagError::CannotFindTag)))
                 }
             }
 

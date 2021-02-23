@@ -144,12 +144,6 @@ decodefrom_n!(Bytes, DataType::Byte, EndianRead::read_u8);
 decodefrom_n!(Shorts, DataType::Short, EndianRead::read_u16);
 decodefrom_n!(Longs, DataType::Long, EndianRead::read_u32);
 
-// impl EncodeTo for Byte {
-//     fn encode<W: Write>(encoder: &mut Encoder<W>) -> EncodeResult<()> {
-//         unimplemented!()
-//     }
-// }
-
 impl Decoded for Value {
     fn decode<R: Read + Seek>(decoder: &mut Decoder<R>, entry: &Entry) -> DecodeResult<Self> {
         match entry.ty() {

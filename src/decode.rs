@@ -1,8 +1,8 @@
 use crate::byte::{Endian, EndianRead, SeekExt};
 use crate::data::Data;
-use crate::dir::{DataType, Entry, FileDir};
+use crate::dir::{DataType, Entry, ImageFileDirectory};
 use crate::error::{
-    DecodeError, DecodeErrorDetail, DecodeResult, DecodeValueError, FileHeaderError, TagError,
+    DecodeError, DecodeErrorKind, DecodeResult, DecodeValueError, FileHeaderError, TagError,
 };
 use crate::tag::{self, AnyTag, Tag};
 use crate::val::{BitsPerSample, Compression, PhotometricInterpretation};
@@ -111,11 +111,11 @@ where
     /// ```
     ///
     /// [`ifd`]: decode.Decoder.ifd
-    pub fn ifd_and_next_addr(&mut self, from: u64) -> DecodeResult<(FileDir, u64)> {
+    pub fn ifd_and_next_addr(&mut self, from: u64) -> DecodeResult<(ImageFileDirectory, u64)> {
         self.reader.goto(from)?;
         let endian = self.endian;
 
-        let mut ifd = FileDir::new();
+        let mut ifd = ImageFileDirectory::new();
         for _ in 0..self.reader.read_u16(endian)? {
             let tag = AnyTag::from_u16(self.reader.read_u16(endian)?);
             let ty = DataType::try_from(self.reader.read_u16(endian)?)?;
@@ -136,7 +136,7 @@ where
     /// Tiff file may have more than one `IFD`, but in most cases it is one and
     /// you don't mind if you can access the first `IFD`. This function construct
     /// the first `IFD`
-    pub fn ifd(&mut self) -> DecodeResult<FileDir> {
+    pub fn ifd(&mut self) -> DecodeResult<ImageFileDirectory> {
         let (ifd, _) = self.ifd_and_next_addr(self.start)?;
 
         Ok(ifd)
@@ -144,7 +144,7 @@ where
 
     #[inline]
     #[allow(missing_docs)]
-    fn get_entry<'a, T: Tag>(&mut self, ifd: &'a FileDir) -> DecodeResult<Option<&'a Entry>> {
+    fn get_entry<'a, T: Tag>(&mut self, ifd: &'a ImageFileDirectory) -> DecodeResult<Option<&'a Entry>> {
         let anytag = AnyTag::try_from::<T>()?;
 
         let entry = ifd.get_tag(anytag);
@@ -154,7 +154,7 @@ where
 
     /// Get the `Tag::Value` in `IFD`.
     /// This function returns default value if T has default value and IFD doesn't have the value.
-    pub fn get_value<T: Tag>(&mut self, ifd: &FileDir) -> DecodeResult<Option<T::Value>> {
+    pub fn get_value<T: Tag>(&mut self, ifd: &ImageFileDirectory) -> DecodeResult<Option<T::Value>> {
         let entry = self.get_entry::<T>(ifd);
 
         match entry {
@@ -171,7 +171,7 @@ where
     }
 
     #[allow(missing_docs)]
-    fn strip_count(&mut self, ifd: &FileDir) -> DecodeResult<u32> {
+    fn strip_count(&mut self, ifd: &ImageFileDirectory) -> DecodeResult<u32> {
         let height = self
             .get_value::<tag::ImageLength>(ifd)?
             .ok_or(DecodeValueError::NoValueThatShouldBe)?;
@@ -189,7 +189,7 @@ where
         }
     }
 
-    pub fn image(&mut self, ifd: &FileDir) -> DecodeResult<Data> {
+    pub fn image(&mut self, ifd: &ImageFileDirectory) -> DecodeResult<Data> {
         let width = self
             .get_value::<tag::ImageWidth>(&ifd)?
             .ok_or(DecodeValueError::NoValueThatShouldBe)?

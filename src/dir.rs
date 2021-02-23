@@ -6,7 +6,7 @@ use std::convert::{From, TryFrom};
 use std::marker::PhantomData;
 
 /// Data type in IFD
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DataType {
     Byte,
     Ascii,
@@ -53,12 +53,6 @@ impl TryFrom<u16> for DataType {
 }
 
 #[derive(Debug, Clone)]
-pub enum Field {
-    Address([u8; 4]),
-    Data(Vec<u8>),
-}
-
-#[derive(Debug, Clone)]
 pub struct Entry {
     ty: DataType,
     count: u32,
@@ -96,12 +90,12 @@ impl Entry {
 
 /// IFD (Image File Directory)
 #[derive(Debug, Clone)]
-pub struct FileDir(HashMap<AnyTag, Entry>);
+pub struct ImageFileDirectory(HashMap<AnyTag, Entry>);
 
-impl FileDir {
+impl ImageFileDirectory {
     #[allow(missing_docs)]
     pub(crate) fn new() -> Self {
-        FileDir(HashMap::new())
+        ImageFileDirectory(HashMap::new())
     }
 
     /// Insert an `ifd::Entry` into the IFD
@@ -137,6 +131,3 @@ impl FileDir {
         self.0.get(&tag)
     }
 }
-
-#[derive(Debug)]
-pub struct StoredDir(HashMap<AnyTag, Vec<u8>>);

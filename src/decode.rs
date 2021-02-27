@@ -9,11 +9,14 @@ use crate::val::{BitsPerSample, Compression, PhotometricInterpretation};
 use byteorder::ByteOrder;
 use std::collections::HashSet;
 use std::convert::TryFrom;
-use std::io::{self, Read, Seek};
+use std::io;
 use std::marker::PhantomData;
 
 pub trait Decoded: Sized {
-    fn decode<R: Read + Seek>(decoder: &mut Decoder<R>, entry: &Entry) -> DecodeResult<Self>;
+    fn decode<R: io::Read + io::Seek>(
+        decoder: &mut Decoder<R>,
+        entry: &Entry,
+    ) -> DecodeResult<Self>;
 }
 
 #[derive(Debug)]
@@ -21,6 +24,8 @@ pub struct Decoder<R> {
     reader: R,
     endian: Endian,
     start: u64,
+    // ifds: Vec<ImageFileDirectory>,
+    // start_addresses: Vec<u64>,
 }
 
 impl<R> Decoder<R> {
@@ -31,7 +36,7 @@ impl<R> Decoder<R> {
 
 impl<R> Decoder<R>
 where
-    R: Read + Seek,
+    R: io::Read + io::Seek,
 {
     /// Constructor method
     ///
@@ -88,6 +93,8 @@ where
             reader,
             endian,
             start,
+            // ifds: vec![],
+            // start_addresses: vec![start],
         })
     }
 
@@ -111,12 +118,13 @@ where
     /// ```
     ///
     /// [`ifd`]: decode.Decoder.ifd
-    pub fn ifd_and_next_addr(&mut self, from: u64) -> DecodeResult<(ImageFileDirectory, u64)> {
+    fn ifd_and_next_addr(&mut self, from: u64) -> DecodeResult<(ImageFileDirectory, u64)> {
         self.reader.goto(from)?;
         let endian = self.endian;
 
+        let entry_count = self.reader.read_u16(endian)?;
         let mut ifd = ImageFileDirectory::new();
-        for _ in 0..self.reader.read_u16(endian)? {
+        for _ in 0..entry_count {
             let tag = AnyTag::from_u16(self.reader.read_u16(endian)?);
             let ty = DataType::try_from(self.reader.read_u16(endian)?)?;
             let count = self.reader.read_u32(endian)?;
@@ -126,7 +134,7 @@ where
             ifd.insert_tag(tag, entry);
         }
 
-        let next = self.read_u32(endian)?.into();
+        let next = self.reader.read_u32(endian)?.into();
 
         Ok((ifd, next))
     }
@@ -136,7 +144,7 @@ where
     /// Tiff file may have more than one `IFD`, but in most cases it is one and
     /// you don't mind if you can access the first `IFD`. This function construct
     /// the first `IFD`
-    pub fn ifd(&mut self) -> DecodeResult<ImageFileDirectory> {
+    fn ifd(&mut self) -> DecodeResult<ImageFileDirectory> {
         let (ifd, _) = self.ifd_and_next_addr(self.start)?;
 
         Ok(ifd)
@@ -144,7 +152,10 @@ where
 
     #[inline]
     #[allow(missing_docs)]
-    fn get_entry<'a, T: Tag>(&mut self, ifd: &'a ImageFileDirectory) -> DecodeResult<Option<&'a Entry>> {
+    fn get_entry<'a, T: Tag>(
+        &mut self,
+        ifd: &'a ImageFileDirectory,
+    ) -> DecodeResult<Option<&'a Entry>> {
         let anytag = AnyTag::try_from::<T>()?;
 
         let entry = ifd.get_tag(anytag);
@@ -154,7 +165,10 @@ where
 
     /// Get the `Tag::Value` in `IFD`.
     /// This function returns default value if T has default value and IFD doesn't have the value.
-    pub fn get_value<T: Tag>(&mut self, ifd: &ImageFileDirectory) -> DecodeResult<Option<T::Value>> {
+    pub fn get_value<T: Tag>(
+        &mut self,
+        ifd: &ImageFileDirectory,
+    ) -> DecodeResult<Option<T::Value>> {
         let entry = self.get_entry::<T>(ifd);
 
         match entry {
@@ -220,20 +234,58 @@ where
     }
 }
 
-impl<S> Seek for Decoder<S>
+impl<S> io::Seek for Decoder<S>
 where
-    S: Seek,
+    S: io::Seek,
 {
     fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
         self.reader.seek(pos)
     }
 }
 
-impl<R> Read for Decoder<R>
+impl<R> io::Read for Decoder<R>
 where
-    R: Read,
+    R: io::Read,
 {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         self.reader.read(buf)
+    }
+}
+
+enum IFD {
+    Dir(ImageFileDirectory),
+    Addr(u64),
+}
+
+impl IFD {
+    fn dir<R: io::Seek>(&mut self, reader: R) -> &ImageFileDirectory {
+        todo!()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::io::Write;
+    use std::{fs::File, io::stderr};
+
+    use crate::tag;
+
+    use super::Decoder;
+
+    #[test]
+    fn test() {
+        // let f = File::open("tests/images/006_cmyk_tone_interleave_ibm_uncompressed.tif").expect("");
+        let f = File::open("tests/images/010_cmyk_2layer.tif").expect("");
+        let mut decoder = Decoder::new(f).expect("");
+
+        // writeln!(&mut std::io::stderr(), "{}", decoder.start);
+        // let (ifd1, start1) = decoder.ifd_and_next_addr(decoder.start).unwrap();
+
+        // writeln!(&mut std::io::stderr(), "{}", start1);
+
+        let ifd = decoder.ifd().unwrap();
+        for tag in ifd.tags() {
+            let _ = writeln!(&mut std::io::stderr(), "{:?}", tag);
+        }
     }
 }

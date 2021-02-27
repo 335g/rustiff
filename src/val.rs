@@ -1,4 +1,4 @@
-use crate::byte::{Endian, EndianRead};
+use crate::byte::{Endian, EndianRead, SeekExt};
 use crate::decode::{Decoded, Decoder};
 use crate::dir::{DataType, Entry};
 // use crate::encode::{EncodeTo, Encoder};
@@ -6,7 +6,7 @@ use crate::error::{DecodeError, DecodeResult, DecodeValueError};
 use crate::{field_is_data_pointer, valid_count};
 use either::Either;
 use std::convert::From;
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{self, Seek};
 use std::ops::Deref;
 
 macro_rules! deref_inner {
@@ -76,7 +76,7 @@ pub type Longs = Vec<u32>;
 macro_rules! decodefrom_1 {
     ($name:ident, $datatype:pat, $method:path) => {
         impl Decoded for $name {
-            fn decode<R: Read + Seek>(
+            fn decode<R: io::Read + io::Seek>(
                 decoder: &mut Decoder<R>,
                 entry: &Entry,
             ) -> DecodeResult<$name> {
@@ -99,7 +99,7 @@ macro_rules! decodefrom_1 {
 macro_rules! decodefrom_n {
     ($name:ident, $datatype:pat, $method:path) => {
         impl Decoded for $name {
-            fn decode<R: Read + Seek>(
+            fn decode<R: io::Read + io::Seek>(
                 decoder: &mut Decoder<R>,
                 entry: &Entry,
             ) -> DecodeResult<$name> {
@@ -112,8 +112,7 @@ macro_rules! decodefrom_n {
                         let mut data = vec![];
                         if entry.overflow() {
                             let next = entry.field().read_u32(endian)?;
-                            let next = SeekFrom::Start(next as u64);
-                            decoder.seek(next)?;
+                            decoder.goto(next as u64)?;
 
                             for _ in 0..count {
                                 let val = $method(decoder, endian)?;
@@ -145,7 +144,10 @@ decodefrom_n!(Shorts, DataType::Short, EndianRead::read_u16);
 decodefrom_n!(Longs, DataType::Long, EndianRead::read_u32);
 
 impl Decoded for Value {
-    fn decode<R: Read + Seek>(decoder: &mut Decoder<R>, entry: &Entry) -> DecodeResult<Self> {
+    fn decode<R: io::Read + io::Seek>(
+        decoder: &mut Decoder<R>,
+        entry: &Entry,
+    ) -> DecodeResult<Self> {
         match entry.ty() {
             DataType::Short => {
                 let val: u16 = Decoded::decode(decoder, entry)?;
@@ -161,7 +163,10 @@ impl Decoded for Value {
 }
 
 impl Decoded for Values {
-    fn decode<R: Read + Seek>(decoder: &mut Decoder<R>, entry: &Entry) -> DecodeResult<Self> {
+    fn decode<R: io::Read + io::Seek>(
+        decoder: &mut Decoder<R>,
+        entry: &Entry,
+    ) -> DecodeResult<Self> {
         match entry.ty() {
             DataType::Short => {
                 let val: Shorts = Decoded::decode(decoder, entry)?;
@@ -250,7 +255,10 @@ pub enum PhotometricInterpretation {
 }
 
 impl Decoded for PhotometricInterpretation {
-    fn decode<R: Read + Seek>(decoder: &mut Decoder<R>, entry: &Entry) -> DecodeResult<Self> {
+    fn decode<R: io::Read + io::Seek>(
+        decoder: &mut Decoder<R>,
+        entry: &Entry,
+    ) -> DecodeResult<Self> {
         valid_count!(entry, 1..2)?;
         let endian = decoder.endian();
         match entry.ty() {
@@ -286,7 +294,10 @@ pub enum Compression {
 }
 
 impl Decoded for Option<Compression> {
-    fn decode<R: Read + Seek>(decoder: &mut Decoder<R>, entry: &Entry) -> DecodeResult<Self> {
+    fn decode<R: io::Read + io::Seek>(
+        decoder: &mut Decoder<R>,
+        entry: &Entry,
+    ) -> DecodeResult<Self> {
         valid_count!(entry, 1..2)?;
         let val = entry.field().read_u16(decoder.endian())?;
         match val {
@@ -330,7 +341,10 @@ impl BitsPerSample {
 }
 
 impl Decoded for BitsPerSample {
-    fn decode<R: Read + Seek>(decoder: &mut Decoder<R>, entry: &Entry) -> DecodeResult<Self> {
+    fn decode<R: io::Read + io::Seek>(
+        decoder: &mut Decoder<R>,
+        entry: &Entry,
+    ) -> DecodeResult<Self> {
         valid_count!(entry, vec![1, 3, 4])?;
         let endian = decoder.endian();
 

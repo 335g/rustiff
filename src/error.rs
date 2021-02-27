@@ -1,7 +1,7 @@
-use std::{fmt, fs::File};
 use std::io;
 use std::marker::PhantomData;
 use std::{convert::From, num::TryFromIntError};
+use std::{fmt, fs::File};
 
 use crate::dir::DataType;
 use crate::tag::{AnyTag, Tag};
@@ -38,7 +38,7 @@ impl std::error::Error for DecodeError {
             DecodeErrorKind::Io(ref err) => Some(err),
             DecodeErrorKind::FileHeader(ref err) => Some(err),
             DecodeErrorKind::Tag(ref err) => Some(err),
-            DecodeErrorKind::Value(ref err) => Some(err)
+            DecodeErrorKind::Value(ref err) => Some(err),
         }
     }
 }
@@ -128,10 +128,12 @@ impl fmt::Display for FileHeaderError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let desc = match self {
             FileHeaderError::NoByteOrder => "no byte order".to_string(),
-            FileHeaderError::InvalidByteOrder { byte_order: x } => format!("invalid byte order: {:?}", x),
+            FileHeaderError::InvalidByteOrder { byte_order: x } => {
+                format!("invalid byte order: {:?}", x)
+            }
             FileHeaderError::NoVersion => "no version".to_string(),
             FileHeaderError::InvalidVersion { version: x } => format!("invalid version: {}", x),
-            FileHeaderError::NoIFDAddress => "no ifd address".to_string()
+            FileHeaderError::NoIFDAddress => "no ifd address".to_string(),
         };
 
         write!(f, "{}", desc)
@@ -160,7 +162,7 @@ impl fmt::Display for DecodeValueError {
             DecodeValueError::InvalidCount(x) => format!("invalid count: {}", x),
             DecodeValueError::InvalidDataType(x) => format!("invalid data type: {:?}", x),
             DecodeValueError::Overflow(x) => format!("overflow: {:?}", x),
-            DecodeValueError::NoValueThatShouldBe => "no value that should be".to_string()
+            DecodeValueError::NoValueThatShouldBe => "no value that should be".to_string(),
         };
 
         write!(f, "{}", desc)
@@ -172,7 +174,7 @@ impl std::error::Error for DecodeValueError {}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TagError {
     tag: AnyTag,
-    kind: TagErrorKind
+    kind: TagErrorKind,
 }
 
 impl TagError {
@@ -185,7 +187,8 @@ impl fmt::Display for TagError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "error related to tag({}), reason: {}", self.tag, self.kind
+            "error related to tag({}), reason: {}",
+            self.tag, self.kind
         )
     }
 }
@@ -194,13 +197,13 @@ impl std::error::Error for TagError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TagErrorKind {
-    CannotFindTag
+    CannotFindTag,
 }
 
 impl fmt::Display for TagErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let desc = match self {
-            TagErrorKind::CannotFindTag => "cannot find the tag"
+            TagErrorKind::CannotFindTag => "cannot find the tag",
         };
 
         write!(f, "{}", desc)

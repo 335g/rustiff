@@ -1,6 +1,6 @@
 use crate::byte::{Endian, EndianRead, SeekExt};
-use crate::data::Data;
-use crate::dir::{DataType, Entry, ImageFileDirectory};
+use crate::data::{Data, DataType, Entry};
+use crate::dir::ImageFileDirectory;
 use crate::error::{
     DecodeError, DecodeErrorKind, DecodeResult, DecodeValueError, FileHeaderError, TagError,
 };

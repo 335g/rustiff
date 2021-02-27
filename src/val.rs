@@ -1,7 +1,6 @@
 use crate::byte::{Endian, EndianRead, SeekExt};
+use crate::data::{DataType, Entry};
 use crate::decode::{Decoded, Decoder};
-use crate::dir::{DataType, Entry};
-// use crate::encode::{EncodeTo, Encoder};
 use crate::error::{DecodeError, DecodeResult, DecodeValueError};
 use crate::{field_is_data_pointer, valid_count};
 use either::Either;

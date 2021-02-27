@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::{convert::From, num::TryFromIntError};
 use std::{fmt, fs::File};
 
-use crate::dir::DataType;
+use crate::data::DataType;
 use crate::tag::{AnyTag, Tag};
 
 pub type DecodeResult<T> = std::result::Result<T, DecodeError>;

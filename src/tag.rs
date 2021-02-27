@@ -1,7 +1,6 @@
 use crate::decode::Decoded;
 use crate::error::{DecodeError, DecodeErrorKind, DecodeResult, TagError, TagErrorKind};
 use crate::val::{self, Long, Short, Value, Values};
-use either::Either;
 use std::any::TypeId;
 use std::fmt;
 

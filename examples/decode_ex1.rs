@@ -1,3 +1,5 @@
 use rustiff::Decoder;
 
-fn main() {}
+fn main() {
+    
+}

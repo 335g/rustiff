@@ -3,67 +3,9 @@ use crate::data::{DataType, Entry};
 use crate::decode::{Decoded, Decoder};
 use crate::error::{DecodeError, DecodeResult, DecodeValueError};
 use crate::{field_is_data_pointer, valid_count};
-use either::Either;
 use std::convert::From;
 use std::io::{self, Seek};
 use std::ops::Deref;
-
-macro_rules! deref_inner {
-    ($name:ident, $inner:ty) => {
-        #[derive(Debug, Clone)]
-        pub struct $name($inner);
-
-        impl Deref for $name {
-            type Target = $inner;
-
-            fn deref(&self) -> &$inner {
-                &self.0
-            }
-        }
-
-        impl $name {
-            pub(crate) fn new(val: $inner) -> Self {
-                Self(val)
-            }
-
-            pub fn inner(&self) -> &$inner {
-                &self.0
-            }
-
-            pub fn into_inner(self) -> $inner {
-                self.0
-            }
-        }
-    };
-}
-
-deref_inner!(Rational, (u32, u32));
-deref_inner!(Value, Either<Short, Long>);
-deref_inner!(Values, Either<Shorts, Longs>);
-
-impl Value {
-    pub fn as_long(self) -> Long {
-        self.either(|x| x as Long, |x| x)
-    }
-
-    pub fn as_size(self) -> usize {
-        self.either(|x| x as usize, |x| x as usize)
-    }
-}
-
-impl From<Short> for Value {
-    fn from(x: Short) -> Value {
-        Value::new(Either::Left(x))
-    }
-}
-
-impl From<Long> for Value {
-    fn from(x: Long) -> Value {
-        Value::new(Either::Right(x))
-    }
-}
-
-impl Copy for Value {}
 
 pub type Byte = u8;
 pub type Bytes = Vec<u8>;
@@ -71,6 +13,68 @@ pub type Short = u16;
 pub type Shorts = Vec<u16>;
 pub type Long = u32;
 pub type Longs = Vec<u32>;
+
+#[derive(Debug, Clone)]
+pub enum Value {
+    Short(Short),
+    Long(Long),
+}
+
+impl Value {
+    pub fn as_long(&self) -> Long {
+        match *self {
+            Value::Short(x) => x as Long,
+            Value::Long(x) => x
+        }
+    }
+
+    pub fn as_size(&self) -> usize {
+        match *self {
+            Value::Short(x) => x as usize,
+            Value::Long(x) => x as usize,
+        }
+    }
+}
+
+impl From<Short> for Value {
+    fn from(x: Short) -> Self {
+        Value::Short(x)
+    }
+}
+
+impl From<Long> for Value {
+    fn from(x: Long) -> Self {
+        Value::Long(x)
+    }
+}
+
+pub enum Values {
+    Shorts(Shorts),
+    Longs(Longs),
+}
+
+impl From<Shorts> for Values {
+    fn from(x: Shorts) -> Self {
+        Values::Shorts(x)
+    }
+}
+
+impl From<Longs> for Values {
+    fn from(x: Longs) -> Self {
+        Values::Longs(x)
+    }
+}
+
+pub struct Rational {
+    numerator: u32,
+    denominator: u32,
+}
+
+impl Rational {
+    pub fn new(numerator: u32, denominator: u32) -> Self {
+        Rational { numerator, denominator }
+    }
+}
 
 macro_rules! decodefrom_1 {
     ($name:ident, $datatype:pat, $method:path) => {
@@ -151,11 +155,11 @@ impl Decoded for Value {
         match entry.ty() {
             DataType::Short => {
                 let val: u16 = Decoded::decode(decoder, entry)?;
-                Ok(Value(Either::Left(val)))
+                Ok(Value::Short(val))
             }
             DataType::Long => {
                 let val: u32 = Decoded::decode(decoder, entry)?;
-                Ok(Value(Either::Right(val)))
+                Ok(Value::Long(val))
             }
             x => Err(DecodeError::from(DecodeValueError::InvalidDataType(x))),
         }
@@ -170,11 +174,11 @@ impl Decoded for Values {
         match entry.ty() {
             DataType::Short => {
                 let val: Shorts = Decoded::decode(decoder, entry)?;
-                Ok(Self(Either::Left(val)))
+                Ok(Values::Shorts(val))
             }
             DataType::Long => {
                 let val: Longs = Decoded::decode(decoder, entry)?;
-                Ok(Self(Either::Right(val)))
+                Ok(Values::Longs(val))
             }
             x => Err(DecodeError::from(DecodeValueError::InvalidDataType(x))),
         }

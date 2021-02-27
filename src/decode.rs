@@ -196,7 +196,7 @@ where
             .ok_or(DecodeValueError::NoValueThatShouldBe)?;
         let rows_per_strip = self
             .get_value::<tag::RowsPerStrip>(ifd)?
-            .unwrap_or_else(|| height);
+            .unwrap_or_else(|| height.clone());
 
         if rows_per_strip.as_long() == 0 {
             Ok(0)

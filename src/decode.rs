@@ -29,8 +29,8 @@ pub struct Decoder<R> {
 }
 
 impl<R> Decoder<R> {
-    pub fn endian(&self) -> Endian {
-        self.endian
+    pub fn endian(&self) -> &Endian {
+        &self.endian
     }
 
     pub(crate) fn reader(&mut self) -> &mut R {
@@ -78,7 +78,7 @@ where
         };
 
         let _ = reader
-            .read_u16(endian)
+            .read_u16(&endian)
             .map_err(|_| FileHeaderError::NoVersion)
             .and_then(|n| {
                 if n == 42 {
@@ -89,7 +89,7 @@ where
             })?;
 
         let start: u64 = reader
-            .read_u32(endian)
+            .read_u32(&endian)
             .map_err(|_| FileHeaderError::NoIFDAddress)?
             .into();
 
@@ -123,22 +123,23 @@ where
     ///
     /// [`ifd`]: decode.Decoder.ifd
     fn ifd_and_next_addr(&mut self, from: u64) -> DecodeResult<(ImageFileDirectory, u64)> {
-        self.reader.goto(from)?;
-        let endian = self.endian;
-
-        let entry_count = self.reader.read_u16(endian)?;
+        let endian = self.endian().clone();
+        let reader = self.reader();
+        reader.goto(from)?;
+        
+        let entry_count = reader.read_u16(&endian)?;
         let mut ifd = ImageFileDirectory::new();
         for _ in 0..entry_count {
-            let tag = AnyTag::from_u16(self.reader.read_u16(endian)?);
-            let ty = DataType::try_from(self.reader.read_u16(endian)?)?;
-            let count = self.reader.read_u32(endian)?;
-            let field = self.reader.read_4byte()?;
+            let tag = AnyTag::from_u16(reader.read_u16(&endian)?);
+            let ty = DataType::try_from(reader.read_u16(&endian)?)?;
+            let count = reader.read_u32(&endian)?;
+            let field = reader.read_4byte()?;
 
             let entry = Entry::new(ty, count, field);
             ifd.insert_tag(tag, entry);
         }
 
-        let next = self.reader.read_u32(endian)?.into();
+        let next = self.reader.read_u32(&self.endian)?.into();
 
         Ok((ifd, next))
     }
@@ -222,7 +223,7 @@ where
 
         let buffer_size = width * height * bits_per_sample.len();
 
-        let mut data = match bits_per_sample.max() {
+        let data = match bits_per_sample.max() {
             n if n <= 8 => Data::byte_with(buffer_size),
             n if n <= 16 => Data::short_with(buffer_size),
             n => {

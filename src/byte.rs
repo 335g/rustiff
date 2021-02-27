@@ -5,7 +5,7 @@ use std::io;
 ///
 /// They should be treated as the same type, because `decoder::Decoder`
 /// determine endian according to file contents.
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Endian {
     Big,
     Little,
@@ -21,7 +21,7 @@ pub trait EndianRead: io::Read {
     /// [`Read::read_exact`]: https://doc.rust-lang.org/std/io/trait.Read.html#method.read_exact
     ///
     #[inline(always)]
-    fn read_u8(&mut self, _byte_order: Endian) -> io::Result<u8> {
+    fn read_u8(&mut self, _byte_order: &Endian) -> io::Result<u8> {
         <Self as ReadBytesExt>::read_u8(self)
     }
 
@@ -34,8 +34,8 @@ pub trait EndianRead: io::Read {
     /// [`Read::read_exact`]: https://doc.rust-lang.org/std/io/trait.Read.html#method.read_exact
     ///
     #[inline(always)]
-    fn read_u16(&mut self, byte_order: Endian) -> io::Result<u16> {
-        match byte_order {
+    fn read_u16(&mut self, byte_order: &Endian) -> io::Result<u16> {
+        match *byte_order {
             Endian::Big => <Self as ReadBytesExt>::read_u16::<BigEndian>(self),
             Endian::Little => <Self as ReadBytesExt>::read_u16::<LittleEndian>(self),
         }
@@ -50,8 +50,8 @@ pub trait EndianRead: io::Read {
     /// [`Read::read_exact`]: https://doc.rust-lang.org/std/io/trait.Read.html#method.read_exact
     ///
     #[inline(always)]
-    fn read_u32(&mut self, byte_order: Endian) -> io::Result<u32> {
-        match byte_order {
+    fn read_u32(&mut self, byte_order: &Endian) -> io::Result<u32> {
+        match *byte_order {
             Endian::Big => <Self as ReadBytesExt>::read_u32::<BigEndian>(self),
             Endian::Little => <Self as ReadBytesExt>::read_u32::<LittleEndian>(self),
         }
@@ -86,21 +86,21 @@ impl<S: io::Seek> SeekExt for S {}
 
 pub trait EndianWrite: io::Write {
     #[inline(always)]
-    fn write_u8(&mut self, _byte_order: Endian, n: u8) -> io::Result<()> {
+    fn write_u8(&mut self, _byte_order: &Endian, n: u8) -> io::Result<()> {
         <Self as WriteBytesExt>::write_u8(self, n)
     }
 
     #[inline(always)]
-    fn write_u16(&mut self, byte_order: Endian, n: u16) -> io::Result<()> {
-        match byte_order {
+    fn write_u16(&mut self, byte_order: &Endian, n: u16) -> io::Result<()> {
+        match *byte_order {
             Endian::Big => <Self as WriteBytesExt>::write_u16::<BigEndian>(self, n),
             Endian::Little => <Self as WriteBytesExt>::write_u16::<LittleEndian>(self, n),
         }
     }
 
     #[inline(always)]
-    fn write_u32(&mut self, byte_order: Endian, n: u32) -> io::Result<()> {
-        match byte_order {
+    fn write_u32(&mut self, byte_order: &Endian, n: u32) -> io::Result<()> {
+        match *byte_order {
             Endian::Big => <Self as WriteBytesExt>::write_u32::<BigEndian>(self, n),
             Endian::Little => <Self as WriteBytesExt>::write_u32::<LittleEndian>(self, n),
         }

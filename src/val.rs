@@ -85,7 +85,7 @@ macro_rules! decodefrom_1 {
                 match entry.ty() {
                     $datatype => {
                         let mut field = entry.field();
-                        let val = $method(&mut field, endian)?;
+                        let val = $method(&mut field, &endian)?;
                         Ok(val)
                     }
                     x => Err(DecodeError::from(DecodeValueError::InvalidDataType(x))),
@@ -103,7 +103,7 @@ macro_rules! decodefrom_n {
                 entry: &Entry,
             ) -> DecodeResult<$name> {
                 valid_count!(entry, 1..)?;
-                let endian = decoder.endian();
+                let endian = decoder.endian().clone();
 
                 match entry.ty() {
                     $datatype => {
@@ -111,17 +111,17 @@ macro_rules! decodefrom_n {
                         let mut data = vec![];
                         if entry.overflow() {
                             let reader = decoder.reader();
-                            let next = entry.field().read_u32(endian)?;
+                            let next = entry.field().read_u32(&endian)?;
                             reader.goto(next as u64)?;
 
                             for _ in 0..count {
-                                let val = $method(reader, endian)?;
+                                let val = $method(reader, &endian)?;
                                 data.push(val);
                             }
                         } else {
                             for _ in 0..count {
                                 let mut field = entry.field();
-                                let val = $method(&mut field, endian)?;
+                                let val = $method(&mut field, &endian)?;
                                 data.push(val);
                             }
                         }
@@ -346,24 +346,24 @@ impl Decoded for BitsPerSample {
         entry: &Entry,
     ) -> DecodeResult<Self> {
         valid_count!(entry, vec![1, 3, 4])?;
-        let endian = decoder.endian();
+        let endian = decoder.endian().clone();
         let reader = decoder.reader();
 
-        if field_is_data_pointer!(reader, endian, entry) {
+        if field_is_data_pointer!(reader, &endian, entry) {
             // count = 3 or 4
             match entry.count() {
                 3 => {
-                    let val1 = reader.read_u16(endian)?;
-                    let val2 = reader.read_u16(endian)?;
-                    let val3 = reader.read_u16(endian)?;
+                    let val1 = reader.read_u16(&endian)?;
+                    let val2 = reader.read_u16(&endian)?;
+                    let val3 = reader.read_u16(&endian)?;
 
                     Ok(BitsPerSample::C3(val1, val2, val3))
                 }
                 4 => {
-                    let val1 = reader.read_u16(endian)?;
-                    let val2 = reader.read_u16(endian)?;
-                    let val3 = reader.read_u16(endian)?;
-                    let val4 = reader.read_u16(endian)?;
+                    let val1 = reader.read_u16(&endian)?;
+                    let val2 = reader.read_u16(&endian)?;
+                    let val3 = reader.read_u16(&endian)?;
+                    let val4 = reader.read_u16(&endian)?;
 
                     Ok(BitsPerSample::C4(val1, val2, val3, val4))
                 }
@@ -371,7 +371,7 @@ impl Decoded for BitsPerSample {
             }
         } else {
             // count = 1
-            let val = entry.field().read_u16(endian)?;
+            let val = entry.field().read_u16(&endian)?;
             Ok(BitsPerSample::C1(val))
         }
     }

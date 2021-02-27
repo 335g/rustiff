@@ -32,6 +32,10 @@ impl<R> Decoder<R> {
     pub fn endian(&self) -> Endian {
         self.endian
     }
+
+    pub(crate) fn reader(&mut self) -> &mut R {
+        &mut self.reader
+    }
 }
 
 impl<R> Decoder<R>
@@ -231,24 +235,6 @@ where
         // TODO: load data
 
         return Ok(data);
-    }
-}
-
-impl<S> io::Seek for Decoder<S>
-where
-    S: io::Seek,
-{
-    fn seek(&mut self, pos: std::io::SeekFrom) -> std::io::Result<u64> {
-        self.reader.seek(pos)
-    }
-}
-
-impl<R> io::Read for Decoder<R>
-where
-    R: io::Read,
-{
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.reader.read(buf)
     }
 }
 

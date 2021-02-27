@@ -110,11 +110,12 @@ macro_rules! decodefrom_n {
                         let count = entry.count();
                         let mut data = vec![];
                         if entry.overflow() {
+                            let reader = decoder.reader();
                             let next = entry.field().read_u32(endian)?;
-                            decoder.goto(next as u64)?;
+                            reader.goto(next as u64)?;
 
                             for _ in 0..count {
-                                let val = $method(decoder, endian)?;
+                                let val = $method(reader, endian)?;
                                 data.push(val);
                             }
                         } else {
@@ -346,22 +347,23 @@ impl Decoded for BitsPerSample {
     ) -> DecodeResult<Self> {
         valid_count!(entry, vec![1, 3, 4])?;
         let endian = decoder.endian();
+        let reader = decoder.reader();
 
-        if field_is_data_pointer!(decoder, entry) {
+        if field_is_data_pointer!(reader, endian, entry) {
             // count = 3 or 4
             match entry.count() {
                 3 => {
-                    let val1 = decoder.read_u16(endian)?;
-                    let val2 = decoder.read_u16(endian)?;
-                    let val3 = decoder.read_u16(endian)?;
+                    let val1 = reader.read_u16(endian)?;
+                    let val2 = reader.read_u16(endian)?;
+                    let val3 = reader.read_u16(endian)?;
 
                     Ok(BitsPerSample::C3(val1, val2, val3))
                 }
                 4 => {
-                    let val1 = decoder.read_u16(endian)?;
-                    let val2 = decoder.read_u16(endian)?;
-                    let val3 = decoder.read_u16(endian)?;
-                    let val4 = decoder.read_u16(endian)?;
+                    let val1 = reader.read_u16(endian)?;
+                    let val2 = reader.read_u16(endian)?;
+                    let val3 = reader.read_u16(endian)?;
+                    let val4 = reader.read_u16(endian)?;
 
                     Ok(BitsPerSample::C4(val1, val2, val3, val4))
                 }

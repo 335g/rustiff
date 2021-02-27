@@ -14,13 +14,13 @@ macro_rules! valid_count {
 #[macro_export]
 #[allow(missing_docs)]
 macro_rules! field_is_data_pointer {
-    ($decoder:expr, $entry:expr) => {{
-        let endian = $decoder.endian();
-
+    ($reader:expr, $endian:expr, $entry:expr) => {{
         if $entry.overflow() {
-            let next = $entry.field().read_u32(endian)?;
+            let next = $entry.field().read_u32($endian)?;
             let next = std::io::SeekFrom::Start(next as u64);
-            $decoder.seek(next)?;
+
+            $reader.seek(next)?;
+
             true
         } else {
             false

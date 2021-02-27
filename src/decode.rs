@@ -122,7 +122,7 @@ where
     /// ```
     ///
     /// [`ifd`]: decode.Decoder.ifd
-    fn ifd_and_next_addr(&mut self, from: u64) -> DecodeResult<(ImageFileDirectory, u64)> {
+    pub fn ifd_and_next_addr(&mut self, from: u64) -> DecodeResult<(ImageFileDirectory, u64)> {
         let endian = self.endian().clone();
         let reader = self.reader();
         reader.goto(from)?;
@@ -149,7 +149,7 @@ where
     /// Tiff file may have more than one `IFD`, but in most cases it is one and
     /// you don't mind if you can access the first `IFD`. This function construct
     /// the first `IFD`
-    fn ifd(&mut self) -> DecodeResult<ImageFileDirectory> {
+    pub fn ifd(&mut self) -> DecodeResult<ImageFileDirectory> {
         let (ifd, _) = self.ifd_and_next_addr(self.start)?;
 
         Ok(ifd)
@@ -193,17 +193,16 @@ where
     fn strip_count(&mut self, ifd: &ImageFileDirectory) -> DecodeResult<u32> {
         let height = self
             .get_value::<tag::ImageLength>(ifd)?
-            .ok_or(DecodeValueError::NoValueThatShouldBe)?;
+            .ok_or(DecodeValueError::NoValueThatShouldBe)?
+            .as_long();
         let rows_per_strip = self
             .get_value::<tag::RowsPerStrip>(ifd)?
-            .unwrap_or_else(|| height.clone());
+            .map(|x| x.as_long())
+            .unwrap_or_else(|| height);
 
-        if rows_per_strip.as_long() == 0 {
+        if rows_per_strip == 0 {
             Ok(0)
         } else {
-            let height = height.as_long();
-            let rows_per_strip = rows_per_strip.as_long();
-
             Ok((height + rows_per_strip - 1) / rows_per_strip)
         }
     }

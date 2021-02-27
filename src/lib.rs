@@ -15,7 +15,7 @@ mod macros;
 pub mod tag;
 pub mod val;
 
-pub use data::{DataType, Entry};
+pub use data::{Data, DataType, Entry};
 pub use decode::{Decoded, Decoder};
 pub use error::{
     DecodeError, DecodeErrorKind, DecodeResult, DecodeValueError, FileHeaderError, TagError,

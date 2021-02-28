@@ -226,7 +226,7 @@ where
             n if n <= 8 => Data::byte_with(buffer_size),
             n if n <= 16 => Data::short_with(buffer_size),
             n => {
-                return Err(DecodeError::from(DecodeValueError::InvalidValue(vec![
+                return Err(DecodeError::from(DecodeValueError::UnsupportedValue(vec![
                     n as u32,
                 ])))
             }

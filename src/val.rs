@@ -277,7 +277,7 @@ impl Decoded for PhotometricInterpretation {
                     5 => Ok(PhotometricInterpretation::CMYK),
                     6 => Ok(PhotometricInterpretation::YCbCr),
                     7 => Ok(PhotometricInterpretation::CIELab),
-                    n => Err(DecodeError::from(DecodeValueError::InvalidValue(vec![
+                    n => Err(DecodeError::from(DecodeValueError::UnsupportedValue(vec![
                         n as u32,
                     ]))),
                 }
@@ -307,7 +307,7 @@ impl Decoded for Option<Compression> {
         match val {
             1 => Ok(None),
             5 => Ok(Some(Compression::LZW)),
-            n => Err(DecodeError::from(DecodeValueError::InvalidValue(vec![
+            n => Err(DecodeError::from(DecodeValueError::UnsupportedValue(vec![
                 n as u32,
             ]))),
         }

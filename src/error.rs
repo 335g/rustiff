@@ -144,8 +144,17 @@ impl std::error::Error for FileHeaderError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DecodeValueError {
-    InvalidValue(Vec<u32>),
+    /// A limit exists on the number of tags that can be supported.
+    /// For example, if the image is uncompressed, ther value decoded by
+    /// the `Compression` tag is 1, and if the image is compressed in LZW
+    /// format, it is 5.
+    /// This error occurs when the decoded value meets an unsupported value.
+    UnsupportedValue(Vec<u32>),
 
+    /// Values that implement `Decoded` have a limited number of data.
+    /// For example, The value decoded by the `PhotometricInterpretation` tag
+    /// is determined to be a single short(`u16`) value. 
+    /// This error occurs when the number of data is inconsistent.
     InvalidCount(u32),
 
     InvalidDataType(DataType),
@@ -158,7 +167,7 @@ pub enum DecodeValueError {
 impl fmt::Display for DecodeValueError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let desc = match self {
-            DecodeValueError::InvalidValue(x) => format!("invalid value: {:?}", x),
+            DecodeValueError::UnsupportedValue(x) => format!("invalid value: {:?}", x),
             DecodeValueError::InvalidCount(x) => format!("invalid count: {}", x),
             DecodeValueError::InvalidDataType(x) => format!("invalid data type: {:?}", x),
             DecodeValueError::Overflow(x) => format!("overflow: {:?}", x),

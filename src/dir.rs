@@ -1,5 +1,5 @@
 use crate::data::Entry;
-use crate::error::{DecodeError, DecodeResult, DecodeValueError};
+use crate::error::{DecodeError, DecodeResult, DecodingError};
 use crate::tag::{self, AnyTag, Tag};
 use crate::val::Value;
 use std::convert::{From, TryFrom};

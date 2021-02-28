@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use crate::{DecodeError, DecodeResult, DecodeValueError};
+use crate::error::{DecodeError, DecodeResult, DecodingError};
 
 pub enum Data {
     Byte(Vec<u8>),
@@ -54,9 +54,7 @@ impl TryFrom<u16> for DataType {
             11 => Float,
             12 => Double,
             n => {
-                return Err(DecodeError::from(DecodeValueError::UnsupportedValue(vec![
-                    n as u32,
-                ])))
+                return Err(DecodeError::from(DecodingError::UnsupportedValue(vec![n])))
             }
         };
 

@@ -68,15 +68,9 @@ impl From<FileHeaderError> for DecodeError {
     }
 }
 
-impl From<DecodeValueError> for DecodeError {
-    fn from(detail: DecodeValueError) -> Self {
+impl From<DecodingError> for DecodeError {
+    fn from(detail: DecodingError) -> Self {
         DecodeError::new(DecodeErrorKind::Value(detail))
-    }
-}
-
-impl From<std::num::TryFromIntError> for DecodeError {
-    fn from(err: std::num::TryFromIntError) -> DecodeError {
-        DecodeError::new(DecodeErrorKind::Value(DecodeValueError::Overflow(err)))
     }
 }
 
@@ -90,7 +84,7 @@ impl From<TagError> for DecodeError {
 pub enum DecodeErrorKind {
     Io(io::Error),
     FileHeader(FileHeaderError),
-    Value(DecodeValueError),
+    Value(DecodingError),
     Tag(TagError),
 }
 
@@ -143,13 +137,13 @@ impl fmt::Display for FileHeaderError {
 impl std::error::Error for FileHeaderError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DecodeValueError {
+pub enum DecodingError {
     /// A limit exists on the number of tags that can be supported.
     /// For example, if the image is uncompressed, ther value decoded by
     /// the `Compression` tag is 1, and if the image is compressed in LZW
     /// format, it is 5.
     /// This error occurs when the decoded value meets an unsupported value.
-    UnsupportedValue(Vec<u32>),
+    UnsupportedValue(Vec<u16>),
 
     /// Values that implement `Decoded` have a limited number of data.
     /// For example, The value decoded by the `PhotometricInterpretation` tag
@@ -157,28 +151,30 @@ pub enum DecodeValueError {
     /// This error occurs when the number of data is inconsistent.
     InvalidCount(u32),
 
+    /// Values that implement `Decoded` have its own corresponding value type.
+    /// For example, When decoding from `val::Byte`, which implements `Decoded`,
+    /// `data::Entry.ty` should be `data::DataType::Byte`.
+    /// This error occurs when the corresponding type is different.
     InvalidDataType(DataType),
 
-    Overflow(std::num::TryFromIntError),
-
+    /// 
     NoValueThatShouldBe,
 }
 
-impl fmt::Display for DecodeValueError {
+impl fmt::Display for DecodingError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let desc = match self {
-            DecodeValueError::UnsupportedValue(x) => format!("invalid value: {:?}", x),
-            DecodeValueError::InvalidCount(x) => format!("invalid count: {}", x),
-            DecodeValueError::InvalidDataType(x) => format!("invalid data type: {:?}", x),
-            DecodeValueError::Overflow(x) => format!("overflow: {:?}", x),
-            DecodeValueError::NoValueThatShouldBe => "no value that should be".to_string(),
+            DecodingError::UnsupportedValue(x) => format!("invalid value: {:?}", x),
+            DecodingError::InvalidCount(x) => format!("invalid count: {}", x),
+            DecodingError::InvalidDataType(x) => format!("invalid data type: {:?}", x),
+            DecodingError::NoValueThatShouldBe => "no value that should be".to_string(),
         };
 
         write!(f, "{}", desc)
     }
 }
 
-impl std::error::Error for DecodeValueError {}
+impl std::error::Error for DecodingError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TagError {

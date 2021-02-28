@@ -2,7 +2,7 @@ use crate::byte::{Endian, EndianRead, SeekExt};
 use crate::data::{Data, DataType, Entry};
 use crate::dir::ImageFileDirectory;
 use crate::error::{
-    DecodeError, DecodeErrorKind, DecodeResult, DecodeValueError, FileHeaderError, TagError,
+    DecodeError, DecodeErrorKind, DecodeResult, DecodingError, FileHeaderError, TagError,
 };
 use crate::tag::{self, AnyTag, Tag};
 use crate::val::{BitsPerSample, Compression, PhotometricInterpretation};
@@ -193,7 +193,7 @@ where
     fn strip_count(&mut self, ifd: &ImageFileDirectory) -> DecodeResult<u32> {
         let height = self
             .get_value::<tag::ImageLength>(ifd)?
-            .ok_or(DecodeValueError::NoValueThatShouldBe)?
+            .ok_or(DecodingError::NoValueThatShouldBe)?
             .as_long();
         let rows_per_strip = self
             .get_value::<tag::RowsPerStrip>(ifd)?
@@ -210,15 +210,15 @@ where
     pub fn image(&mut self, ifd: &ImageFileDirectory) -> DecodeResult<Data> {
         let width = self
             .get_value::<tag::ImageWidth>(&ifd)?
-            .ok_or(DecodeValueError::NoValueThatShouldBe)?
+            .ok_or(DecodingError::NoValueThatShouldBe)?
             .as_size();
         let height = self
             .get_value::<tag::ImageLength>(&ifd)?
-            .ok_or(DecodeValueError::NoValueThatShouldBe)?
+            .ok_or(DecodingError::NoValueThatShouldBe)?
             .as_size();
         let bits_per_sample = self
             .get_value::<tag::BitsPerSample>(&ifd)?
-            .ok_or(DecodeValueError::NoValueThatShouldBe)?;
+            .ok_or(DecodingError::NoValueThatShouldBe)?;
 
         let buffer_size = width * height * bits_per_sample.len();
 
@@ -226,9 +226,7 @@ where
             n if n <= 8 => Data::byte_with(buffer_size),
             n if n <= 16 => Data::short_with(buffer_size),
             n => {
-                return Err(DecodeError::from(DecodeValueError::UnsupportedValue(vec![
-                    n as u32,
-                ])))
+                return Err(DecodeError::from(DecodingError::UnsupportedValue(vec![n])))
             }
         };
 

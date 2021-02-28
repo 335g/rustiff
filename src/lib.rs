@@ -18,7 +18,7 @@ pub mod val;
 pub use data::{Data, DataType, Entry};
 pub use decode::{Decoded, Decoder};
 pub use error::{
-    DecodeError, DecodeErrorKind, DecodeResult, DecodeValueError, FileHeaderError, TagError,
+    DecodeError, DecodeErrorKind, DecodeResult, DecodingError, FileHeaderError, TagError,
 };
 pub use val::{
     BitsPerSample, Byte, Bytes, Compression, Long, Longs, PhotometricInterpretation, Rational,

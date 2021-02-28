@@ -147,7 +147,7 @@ pub enum DecodingError {
 
     /// Values that implement `Decoded` have a limited number of data.
     /// For example, The value decoded by the `PhotometricInterpretation` tag
-    /// is determined to be a single short(`u16`) value. 
+    /// is determined to be a single short(`u16`) value.
     /// This error occurs when the number of data is inconsistent.
     InvalidCount(u32),
 
@@ -157,7 +157,7 @@ pub enum DecodingError {
     /// This error occurs when the corresponding type is different.
     InvalidDataType(DataType),
 
-    /// 
+    ///
     NoValueThatShouldBe,
 }
 

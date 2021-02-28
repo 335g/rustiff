@@ -126,7 +126,7 @@ where
         let endian = self.endian().clone();
         let reader = self.reader();
         reader.goto(from)?;
-        
+
         let entry_count = reader.read_u16(&endian)?;
         let mut ifd = ImageFileDirectory::new();
         for _ in 0..entry_count {
@@ -168,7 +168,7 @@ where
         Ok(entry)
     }
 
-    /// Get the `Tag::Value` in `IFD`.
+    /// Get the `Tag::Value` in `ImageFileDirectory`.
     /// This function returns default value if T has default value and IFD doesn't have the value.
     pub fn get_value<T: Tag>(
         &mut self,
@@ -183,6 +183,23 @@ where
         }
     }
 
+    /// Get the `Tag::Value` in `ImageFileDirectory`.
+    /// This function is almost the same as `Decoder::get_value`,
+    /// but returns `DecodingError::NoValueThatShouldBe` if there is no value.
+    /// If you want to use `Option` to get whether there is a value or not,
+    /// you can use `Decoder::get_value`.
+    pub fn get_exist_value<T: Tag>(&mut self, ifd: &ImageFileDirectory) -> DecodeResult<T::Value> {
+        let entry = self.get_entry::<T>(ifd);
+
+        match entry {
+            Ok(Some(entry)) => self.decode::<T::Value>(entry),
+            Ok(None) => {
+                T::DEFAULT_VALUE.ok_or(DecodeError::from(DecodingError::NoValueThatShouldBe))
+            }
+            Err(e) => Err(e),
+        }
+    }
+
     #[inline]
     #[allow(missing_docs)]
     fn decode<D: Decoded>(&mut self, entry: &Entry) -> DecodeResult<D> {
@@ -191,10 +208,7 @@ where
 
     #[allow(missing_docs)]
     fn strip_count(&mut self, ifd: &ImageFileDirectory) -> DecodeResult<u32> {
-        let height = self
-            .get_value::<tag::ImageLength>(ifd)?
-            .ok_or(DecodingError::NoValueThatShouldBe)?
-            .as_long();
+        let height = self.get_exist_value::<tag::ImageLength>(ifd)?.as_long();
         let rows_per_strip = self
             .get_value::<tag::RowsPerStrip>(ifd)?
             .map(|x| x.as_long())
@@ -208,26 +222,16 @@ where
     }
 
     pub fn image(&mut self, ifd: &ImageFileDirectory) -> DecodeResult<Data> {
-        let width = self
-            .get_value::<tag::ImageWidth>(&ifd)?
-            .ok_or(DecodingError::NoValueThatShouldBe)?
-            .as_size();
-        let height = self
-            .get_value::<tag::ImageLength>(&ifd)?
-            .ok_or(DecodingError::NoValueThatShouldBe)?
-            .as_size();
-        let bits_per_sample = self
-            .get_value::<tag::BitsPerSample>(&ifd)?
-            .ok_or(DecodingError::NoValueThatShouldBe)?;
+        let width = self.get_exist_value::<tag::ImageWidth>(&ifd)?.as_size();
+        let height = self.get_exist_value::<tag::ImageLength>(&ifd)?.as_size();
+        let bits_per_sample = self.get_exist_value::<tag::BitsPerSample>(&ifd)?;
 
         let buffer_size = width * height * bits_per_sample.len();
 
         let data = match bits_per_sample.max() {
             n if n <= 8 => Data::byte_with(buffer_size),
             n if n <= 16 => Data::short_with(buffer_size),
-            n => {
-                return Err(DecodeError::from(DecodingError::UnsupportedValue(vec![n])))
-            }
+            n => return Err(DecodeError::from(DecodingError::UnsupportedValue(vec![n]))),
         };
 
         // TODO: load data

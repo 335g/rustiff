@@ -1,6 +1,6 @@
 use std::fs::File;
 
-use rustiff::{tag, Decoder, Data};
+use rustiff::{tag, Data, Decoder};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let f = File::open("tests/images/010_cmyk_2layer.tif").expect("");
@@ -12,7 +12,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Data::Short(x) => println!("{:?}", x),
         Data::Byte(x) => println!("{:?}", x),
     }
-
 
     Ok(())
 }

@@ -53,9 +53,7 @@ impl TryFrom<u16> for DataType {
             10 => SRational,
             11 => Float,
             12 => Double,
-            n => {
-                return Err(DecodeError::from(DecodingError::UnsupportedValue(vec![n])))
-            }
+            n => return Err(DecodeError::from(DecodingError::UnsupportedValue(vec![n]))),
         };
 
         Ok(ty)

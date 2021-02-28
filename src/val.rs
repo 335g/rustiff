@@ -24,7 +24,7 @@ impl Value {
     pub fn as_long(&self) -> Long {
         match *self {
             Value::Short(x) => x as Long,
-            Value::Long(x) => x
+            Value::Long(x) => x,
         }
     }
 
@@ -72,7 +72,10 @@ pub struct Rational {
 
 impl Rational {
     pub fn new(numerator: u32, denominator: u32) -> Self {
-        Rational { numerator, denominator }
+        Rational {
+            numerator,
+            denominator,
+        }
     }
 }
 

@@ -178,13 +178,12 @@ impl std::error::Error for DecodingError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TagError {
-    tag: AnyTag,
     kind: TagErrorKind,
 }
 
 impl TagError {
-    pub(crate) fn new(tag: AnyTag, kind: TagErrorKind) -> TagError {
-        TagError { tag, kind }
+    pub(crate) fn new(kind: TagErrorKind) -> TagError {
+        TagError { kind }
     }
 }
 
@@ -192,8 +191,8 @@ impl fmt::Display for TagError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "error related to tag({}), reason: {}",
-            self.tag, self.kind
+            "error related to tag, reason: {}",
+            self.kind
         )
     }
 }
@@ -202,13 +201,13 @@ impl std::error::Error for TagError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TagErrorKind {
-    CannotFindTag,
+    UnauthorizedTag(String),
 }
 
 impl fmt::Display for TagErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let desc = match self {
-            TagErrorKind::CannotFindTag => "cannot find the tag",
+            TagErrorKind::UnauthorizedTag(x) => format!("`{}` tag is not autorized", x),
         };
 
         write!(f, "{}", desc)

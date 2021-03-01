@@ -67,7 +67,9 @@ macro_rules! define_tags {
                 if anytag.eq::<T>() {
                     Ok(anytag)
                 } else {
-                    let err = TagError::new(anytag, TagErrorKind::CannotFindTag);
+                    // A tag with the same T::ID already exists.
+                    let typename = std::any::type_name::<T>().to_string();
+                    let err = TagError::new(TagErrorKind::UnauthorizedTag(typename));
                     Err(DecodeError::from(err))
                 }
             }

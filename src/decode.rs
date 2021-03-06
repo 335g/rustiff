@@ -1,4 +1,4 @@
-use crate::byte::{Endian, EndianRead, SeekExt};
+use crate::{byte::{Endian, EndianRead, SeekExt}, dir};
 use crate::data::{Data, DataType, Entry};
 use crate::dir::ImageFileDirectory;
 use crate::error::{
@@ -7,7 +7,7 @@ use crate::error::{
 use crate::tag::{self, AnyTag, Tag};
 use crate::val::{BitsPerSample, Compression, PhotometricInterpretation};
 use byteorder::ByteOrder;
-use std::collections::HashSet;
+use std::{collections::HashSet, thread::current};
 use std::convert::TryFrom;
 use std::io;
 use std::marker::PhantomData;
@@ -20,11 +20,26 @@ pub trait Decoded: Sized {
 }
 
 #[derive(Debug)]
+struct IFD {
+    dir: Option<ImageFileDirectory>,
+    at: u64,
+}
+
+impl IFD {
+    fn new(at: u64) -> Self {
+        IFD {
+            dir: None,
+            at
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct Decoder<R> {
     reader: R,
     endian: Endian,
-    start: u64,
-    // ifds: Vec<ImageFileDirectory>,
+    ifd_index: usize,
+    ifds: Vec<IFD>,
     // start_addresses: Vec<u64>,
 }
 
@@ -92,14 +107,60 @@ where
             .read_u32(&endian)
             .map_err(|_| FileHeaderError::NoIFDAddress)?
             .into();
+        let ifds = vec![IFD::new(start)];
 
-        Ok(Decoder {
+        let mut decoder = Decoder {
             reader,
             endian,
-            start,
-            // ifds: vec![],
-            // start_addresses: vec![start],
-        })
+            ifd_index: 0,
+            ifds
+        };
+
+        // load the first ifd
+        decoder.load_ifd()?;
+
+        Ok(decoder)
+    }
+
+    /// change the target ifd in decoder
+    pub fn change_ifd(&mut self, at: usize) -> DecodeResult<()> {
+        // If it already is, nothing will be done.
+        if self.ifd_index == at {
+            return Ok(())
+        }
+
+        let last_index = self.ifds.len() - 1;
+
+        if last_index < at {
+            for i in last_index..(at - 1) {
+                self.load_ifd()?;
+            }
+
+            self.load_ifd()?;
+        }
+        // No preblem, I'll update the index
+        self.ifd_index = at;
+
+        Ok(())
+    }
+
+    fn load_ifd(&mut self) -> DecodeResult<()> {
+        let last_index = self.ifds.len() - 1;
+        let last_ifd = self.ifds.last().unwrap();
+        let next_addr = last_ifd.at;
+        if next_addr == 0 || last_ifd.dir.is_some() {
+            // reached the end
+            return Err(DecodeError::from(DecodingError::CannotSelectImageFileDirectory))
+        }
+
+        let (current_ifd, next_addr) = self.ifd_and_next_addr(next_addr)?;
+        let next_ifd = IFD::new(next_addr);
+
+        let last_ifd = self.ifds.last_mut().unwrap();
+        last_ifd.dir.replace(current_ifd);
+        self.ifds.push(next_ifd);
+
+        Ok(())
     }
 
     /// IFD constructor
@@ -122,7 +183,7 @@ where
     /// ```
     ///
     /// [`ifd`]: decode.Decoder.ifd
-    pub fn ifd_and_next_addr(&mut self, from: u64) -> DecodeResult<(ImageFileDirectory, u64)> {
+    fn ifd_and_next_addr(&mut self, from: u64) -> DecodeResult<(ImageFileDirectory, u64)> {
         let endian = self.endian().clone();
         let reader = self.reader();
         reader.goto(from)?;
@@ -144,37 +205,43 @@ where
         Ok((ifd, next))
     }
 
-    /// `IFD` constructor
-    ///
-    /// Tiff file may have more than one `IFD`, but in most cases it is one and
-    /// you don't mind if you can access the first `IFD`. This function construct
-    /// the first `IFD`
-    pub fn ifd(&mut self) -> DecodeResult<ImageFileDirectory> {
-        let (ifd, _) = self.ifd_and_next_addr(self.start)?;
+    #[inline]
+    fn ifd(&self) -> DecodeResult<&ImageFileDirectory> {
+        let ifd = self.ifds
+            .get(self.ifd_index)
+            .unwrap() // managing `ifd_index` with `ifds`, so there's always element.
+            .dir
+            .as_ref()
+            .unwrap();
 
         Ok(ifd)
     }
 
+    // /// `IFD` constructor
+    // ///
+    // /// Tiff file may have more than one `IFD`, but in most cases it is one and
+    // /// you don't mind if you can access the first `IFD`. This function construct
+    // /// the first `IFD`
+    // fn ifd(&mut self) -> DecodeResult<ImageFileDirectory> {
+    //     let (ifd, _) = self.ifd_and_next_addr(self.start)?;
+
+    //     Ok(ifd)
+    // }
+
     #[inline]
     #[allow(missing_docs)]
-    fn get_entry<'a, T: Tag>(
-        &mut self,
-        ifd: &'a ImageFileDirectory,
-    ) -> DecodeResult<Option<&'a Entry>> {
+    fn get_entry<T: Tag>(&self) -> DecodeResult<Option<&Entry>> {
+        let ifd = self.ifd()?;
         let anytag = AnyTag::try_from::<T>()?;
 
         let entry = ifd.get_tag(anytag);
-        //.ok_or(TagErrorKind::cannot_find_tag::<T>())?;
         Ok(entry)
     }
 
     /// Get the `Tag::Value` in `ImageFileDirectory`.
     /// This function returns default value if T has default value and IFD doesn't have the value.
-    pub fn get_value<T: Tag>(
-        &mut self,
-        ifd: &ImageFileDirectory,
-    ) -> DecodeResult<Option<T::Value>> {
-        let entry = self.get_entry::<T>(ifd);
+    pub fn get_value<T: Tag>(&mut self) -> DecodeResult<Option<T::Value>> {
+        let entry = self.get_entry::<T>();
 
         match entry {
             Ok(Some(entry)) => self.decode::<T::Value>(entry).map(|x| Some(x)),
@@ -188,8 +255,8 @@ where
     /// but returns `DecodingError::NoValueThatShouldBe` if there is no value.
     /// If you want to use `Option` to get whether there is a value or not,
     /// you can use `Decoder::get_value`.
-    pub fn get_exist_value<T: Tag>(&mut self, ifd: &ImageFileDirectory) -> DecodeResult<T::Value> {
-        let entry = self.get_entry::<T>(ifd);
+    pub fn get_exist_value<T: Tag>(&mut self) -> DecodeResult<T::Value> {
+        let entry = self.get_entry::<T>();
 
         match entry {
             Ok(Some(entry)) => self.decode::<T::Value>(entry),
@@ -207,10 +274,10 @@ where
     }
 
     #[allow(missing_docs)]
-    fn strip_count(&mut self, ifd: &ImageFileDirectory) -> DecodeResult<u32> {
-        let height = self.get_exist_value::<tag::ImageLength>(ifd)?.as_long();
+    fn strip_count(&mut self) -> DecodeResult<u32> {
+        let height = self.get_exist_value::<tag::ImageLength>()?.as_long();
         let rows_per_strip = self
-            .get_value::<tag::RowsPerStrip>(ifd)?
+            .get_value::<tag::RowsPerStrip>()?
             .map(|x| x.as_long())
             .unwrap_or_else(|| height);
 
@@ -221,10 +288,10 @@ where
         }
     }
 
-    pub fn image(&mut self, ifd: &ImageFileDirectory) -> DecodeResult<Data> {
-        let width = self.get_exist_value::<tag::ImageWidth>(&ifd)?.as_size();
-        let height = self.get_exist_value::<tag::ImageLength>(&ifd)?.as_size();
-        let bits_per_sample = self.get_exist_value::<tag::BitsPerSample>(&ifd)?;
+    pub fn image(&mut self) -> DecodeResult<Data> {
+        let width = self.get_exist_value::<tag::ImageWidth>()?.as_size();
+        let height = self.get_exist_value::<tag::ImageLength>()?.as_size();
+        let bits_per_sample = self.get_exist_value::<tag::BitsPerSample>()?;
 
         let buffer_size = width * height * bits_per_sample.len();
 
@@ -237,17 +304,6 @@ where
         // TODO: load data
 
         return Ok(data);
-    }
-}
-
-enum IFD {
-    Dir(ImageFileDirectory),
-    Addr(u64),
-}
-
-impl IFD {
-    fn dir<R: io::Seek>(&mut self, reader: R) -> &ImageFileDirectory {
-        todo!()
     }
 }
 

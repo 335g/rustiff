@@ -1,4 +1,3 @@
-use crate::{byte::{Endian, EndianRead, SeekExt}, dir};
 use crate::data::{Data, DataType, Entry};
 use crate::dir::ImageFileDirectory;
 use crate::error::{
@@ -6,16 +5,21 @@ use crate::error::{
 };
 use crate::tag::{self, AnyTag, Tag};
 use crate::val::{BitsPerSample, Compression, PhotometricInterpretation};
+use crate::{
+    byte::{Endian, EndianRead, SeekExt},
+    dir,
+};
 use byteorder::ByteOrder;
-use std::{collections::HashSet, thread::current};
 use std::convert::TryFrom;
 use std::io;
 use std::marker::PhantomData;
+use std::{collections::HashSet, thread::current};
 
 pub trait Decoded: Sized {
-    fn decode<R: io::Read + io::Seek>(
-        decoder: &mut Decoder<R>,
-        entry: &Entry,
+    fn decode<'a, R: io::Read + io::Seek>(
+        reader: &'a mut R,
+        endian: &'a Endian,
+        entry: Entry,
     ) -> DecodeResult<Self>;
 }
 
@@ -27,10 +31,7 @@ struct IFD {
 
 impl IFD {
     fn new(at: u64) -> Self {
-        IFD {
-            dir: None,
-            at
-        }
+        IFD { dir: None, at }
     }
 }
 
@@ -113,7 +114,7 @@ where
             reader,
             endian,
             ifd_index: 0,
-            ifds
+            ifds,
         };
 
         // load the first ifd
@@ -126,7 +127,7 @@ where
     pub fn change_ifd(&mut self, at: usize) -> DecodeResult<()> {
         // If it already is, nothing will be done.
         if self.ifd_index == at {
-            return Ok(())
+            return Ok(());
         }
 
         let last_index = self.ifds.len() - 1;
@@ -150,7 +151,9 @@ where
         let next_addr = last_ifd.at;
         if next_addr == 0 || last_ifd.dir.is_some() {
             // reached the end
-            return Err(DecodeError::from(DecodingError::CannotSelectImageFileDirectory))
+            return Err(DecodeError::from(
+                DecodingError::CannotSelectImageFileDirectory,
+            ));
         }
 
         let (current_ifd, next_addr) = self.ifd_and_next_addr(next_addr)?;
@@ -207,7 +210,8 @@ where
 
     #[inline]
     fn ifd(&self) -> DecodeResult<&ImageFileDirectory> {
-        let ifd = self.ifds
+        let ifd = self
+            .ifds
             .get(self.ifd_index)
             .unwrap() // managing `ifd_index` with `ifds`, so there's always element.
             .dir
@@ -230,11 +234,11 @@ where
 
     #[inline]
     #[allow(missing_docs)]
-    fn get_entry<T: Tag>(&self) -> DecodeResult<Option<&Entry>> {
+    fn get_entry<T: Tag>(&self) -> DecodeResult<Option<Entry>> {
         let ifd = self.ifd()?;
         let anytag = AnyTag::try_from::<T>()?;
 
-        let entry = ifd.get_tag(anytag);
+        let entry = ifd.get_tag(anytag).cloned();
         Ok(entry)
     }
 
@@ -267,10 +271,10 @@ where
         }
     }
 
-    #[inline]
+    #[inline(always)]
     #[allow(missing_docs)]
-    fn decode<D: Decoded>(&mut self, entry: &Entry) -> DecodeResult<D> {
-        D::decode(self, entry)
+    fn decode<D: Decoded>(&mut self, entry: Entry) -> DecodeResult<D> {
+        D::decode(&mut self.reader, &self.endian, entry)
     }
 
     #[allow(missing_docs)]

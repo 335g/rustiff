@@ -171,7 +171,9 @@ impl fmt::Display for DecodingError {
             DecodingError::InvalidCount(x) => format!("invalid count: {}", x),
             DecodingError::InvalidDataType(x) => format!("invalid data type: {:?}", x),
             DecodingError::NoValueThatShouldBe => "no value that should be".to_string(),
-            DecodingError::CannotSelectImageFileDirectory => "cannot select the image file directory".to_string(),
+            DecodingError::CannotSelectImageFileDirectory => {
+                "cannot select the image file directory".to_string()
+            }
         };
 
         write!(f, "{}", desc)
@@ -193,11 +195,7 @@ impl TagError {
 
 impl fmt::Display for TagError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "error related to tag, reason: {}",
-            self.kind
-        )
+        write!(f, "error related to tag, reason: {}", self.kind)
     }
 }
 

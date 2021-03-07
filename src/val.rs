@@ -82,17 +82,17 @@ impl Rational {
 macro_rules! decodefrom_1 {
     ($name:ident, $datatype:pat, $method:path) => {
         impl Decoded for $name {
-            fn decode<R: io::Read + io::Seek>(
-                decoder: &mut Decoder<R>,
-                entry: &Entry,
+            fn decode<'a, R: io::Read + io::Seek>(
+                reader: &'a mut R,
+                endian: &'a Endian,
+                entry: Entry,
             ) -> DecodeResult<$name> {
                 valid_count!(entry, 1..2)?;
-                let endian = decoder.endian();
 
                 match entry.ty() {
                     $datatype => {
                         let mut field = entry.field();
-                        let val = $method(&mut field, &endian)?;
+                        let val = $method(&mut field, endian)?;
                         Ok(val)
                     }
                     x => Err(DecodeError::from(DecodingError::InvalidDataType(x))),
@@ -105,19 +105,18 @@ macro_rules! decodefrom_1 {
 macro_rules! decodefrom_n {
     ($name:ident, $datatype:pat, $method:path) => {
         impl Decoded for $name {
-            fn decode<R: io::Read + io::Seek>(
-                decoder: &mut Decoder<R>,
-                entry: &Entry,
+            fn decode<'a, R: io::Read + io::Seek>(
+                reader: &'a mut R,
+                endian: &'a Endian,
+                entry: Entry,
             ) -> DecodeResult<$name> {
                 valid_count!(entry, 1..)?;
-                let endian = decoder.endian().clone();
 
                 match entry.ty() {
                     $datatype => {
                         let count = entry.count();
                         let mut data = vec![];
                         if entry.overflow() {
-                            let reader = decoder.reader();
                             let next = entry.field().read_u32(&endian)?;
                             reader.goto(next as u64)?;
 
@@ -151,17 +150,18 @@ decodefrom_n!(Shorts, DataType::Short, EndianRead::read_u16);
 decodefrom_n!(Longs, DataType::Long, EndianRead::read_u32);
 
 impl Decoded for Value {
-    fn decode<R: io::Read + io::Seek>(
-        decoder: &mut Decoder<R>,
-        entry: &Entry,
+    fn decode<'a, R: io::Read + io::Seek>(
+        reader: &'a mut R,
+        endian: &'a Endian,
+        entry: Entry,
     ) -> DecodeResult<Self> {
         match entry.ty() {
             DataType::Short => {
-                let val: u16 = Decoded::decode(decoder, entry)?;
+                let val: u16 = Decoded::decode(reader, endian, entry)?;
                 Ok(Value::Short(val))
             }
             DataType::Long => {
-                let val: u32 = Decoded::decode(decoder, entry)?;
+                let val: u32 = Decoded::decode(reader, endian, entry)?;
                 Ok(Value::Long(val))
             }
             x => Err(DecodeError::from(DecodingError::InvalidDataType(x))),
@@ -170,17 +170,18 @@ impl Decoded for Value {
 }
 
 impl Decoded for Values {
-    fn decode<R: io::Read + io::Seek>(
-        decoder: &mut Decoder<R>,
-        entry: &Entry,
+    fn decode<'a, R: io::Read + io::Seek>(
+        reader: &'a mut R,
+        endian: &'a Endian,
+        entry: Entry,
     ) -> DecodeResult<Self> {
         match entry.ty() {
             DataType::Short => {
-                let val: Shorts = Decoded::decode(decoder, entry)?;
+                let val: Shorts = Decoded::decode(reader, endian, entry)?;
                 Ok(Values::Shorts(val))
             }
             DataType::Long => {
-                let val: Longs = Decoded::decode(decoder, entry)?;
+                let val: Longs = Decoded::decode(reader, endian, entry)?;
                 Ok(Values::Longs(val))
             }
             x => Err(DecodeError::from(DecodingError::InvalidDataType(x))),
@@ -262,12 +263,13 @@ pub enum PhotometricInterpretation {
 }
 
 impl Decoded for PhotometricInterpretation {
-    fn decode<R: io::Read + io::Seek>(
-        decoder: &mut Decoder<R>,
-        entry: &Entry,
+    fn decode<'a, R: io::Read + io::Seek>(
+        reader: &'a mut R,
+        endian: &'a Endian,
+        entry: Entry,
     ) -> DecodeResult<Self> {
         valid_count!(entry, 1..2)?;
-        let endian = decoder.endian();
+
         match entry.ty() {
             DataType::Short => {
                 let val = entry.field().read_u16(endian)?;
@@ -299,12 +301,13 @@ pub enum Compression {
 }
 
 impl Decoded for Option<Compression> {
-    fn decode<R: io::Read + io::Seek>(
-        decoder: &mut Decoder<R>,
-        entry: &Entry,
+    fn decode<'a, R: io::Read + io::Seek>(
+        reader: &'a mut R,
+        endian: &'a Endian,
+        entry: Entry,
     ) -> DecodeResult<Self> {
         valid_count!(entry, 1..2)?;
-        let val = entry.field().read_u16(decoder.endian())?;
+        let val = entry.field().read_u16(endian)?;
         match val {
             1 => Ok(None),
             5 => Ok(Some(Compression::LZW)),
@@ -344,15 +347,14 @@ impl BitsPerSample {
 }
 
 impl Decoded for BitsPerSample {
-    fn decode<R: io::Read + io::Seek>(
-        decoder: &mut Decoder<R>,
-        entry: &Entry,
+    fn decode<'a, R: io::Read + io::Seek>(
+        reader: &'a mut R,
+        endian: &'a Endian,
+        entry: Entry,
     ) -> DecodeResult<Self> {
         valid_count!(entry, vec![1, 3, 4])?;
-        let endian = decoder.endian().clone();
-        let reader = decoder.reader();
 
-        if field_is_data_pointer!(reader, &endian, entry) {
+        if field_is_data_pointer!(reader, endian, entry) {
             // count = 3 or 4
             match entry.count() {
                 3 => {

@@ -24,14 +24,41 @@ pub trait Decoded: Sized {
 }
 
 #[derive(Debug)]
-struct Header {
-    ifd: Option<ImageFileDirectory>,
-    at: u64,
+enum Header {
+    Unloaded { at: u64 },
+    Loaded { detail: HeaderDetail },
 }
 
 impl Header {
     fn new(at: u64) -> Self {
-        Header { ifd: None, at }
+        Header::Unloaded { at }
+    }
+
+    fn unchecked_detail(&self) -> &HeaderDetail {
+        match self {
+            Header::Loaded { detail: x } => x,
+            Header::Unloaded { at: _ } => unreachable!()
+        }
+    }
+
+    fn unchecked_detail_into(self) -> HeaderDetail {
+        match self {
+            Header::Loaded { detail: x } => x,
+            Header::Unloaded { at: _ } => unreachable!()
+        }
+    }
+}
+
+#[derive(Debug)]
+struct HeaderDetail {
+    ifd: ImageFileDirectory,
+    width: u32,
+    height: u32,
+}
+
+impl HeaderDetail {
+    fn ifd(&self) -> &ImageFileDirectory {
+        &self.ifd
     }
 }
 
@@ -147,19 +174,24 @@ where
     fn load_ifd(&mut self) -> DecodeResult<()> {
         let last_index = self.headers.len() - 1;
         let last_header = self.headers.last().unwrap();
-        let next_addr = last_header.at;
-        if next_addr == 0 || last_header.ifd.is_some() {
-            // reached the end
-            return Err(DecodeError::from(
-                DecodingError::CannotSelectImageFileDirectory,
-            ));
-        }
+        let next_addr = match last_header {
+            Header::Unloaded { at: next_addr } => *next_addr,
+            Header::Loaded { detail: _ } => {
+                // reached the end
+                return Err(DecodeError::from(DecodingError::CannotSelectImageFileDirectory))
+            }
+        };
+        let (ifd, next_addr) = self.ifd_and_next_addr(next_addr)?;
+        
+        let width = self.get_exist_value::<tag::ImageWidth>()?.as_long();
+        let height = self.get_exist_value::<tag::ImageLength>()?.as_long();
+        let header_detail = HeaderDetail { ifd, width, height };
+        
+        // update
+        self.headers[last_index] = Header::Loaded { detail: header_detail };
 
-        let (current_ifd, next_addr) = self.ifd_and_next_addr(next_addr)?;
+        // append
         let next_header = Header::new(next_addr);
-
-        let last_header = self.headers.last_mut().unwrap();
-        last_header.ifd.replace(current_ifd);
         self.headers.push(next_header);
 
         Ok(())
@@ -209,13 +241,11 @@ where
 
     #[inline]
     fn ifd(&self) -> DecodeResult<&ImageFileDirectory> {
-        let ifd = self
-            .headers
+        let ifd = self.headers
             .get(self.header_index)
             .unwrap() // managing `ifd_index` with `ifds`, so there's always element.
-            .ifd
-            .as_ref()
-            .unwrap();
+            .unchecked_detail()
+            .ifd();
 
         Ok(ifd)
     }

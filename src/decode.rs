@@ -24,14 +24,14 @@ pub trait Decoded: Sized {
 }
 
 #[derive(Debug)]
-struct IFD {
-    dir: Option<ImageFileDirectory>,
+struct Header {
+    ifd: Option<ImageFileDirectory>,
     at: u64,
 }
 
-impl IFD {
+impl Header {
     fn new(at: u64) -> Self {
-        IFD { dir: None, at }
+        Header { ifd: None, at }
     }
 }
 
@@ -39,9 +39,8 @@ impl IFD {
 pub struct Decoder<R> {
     reader: R,
     endian: Endian,
-    ifd_index: usize,
-    ifds: Vec<IFD>,
-    // start_addresses: Vec<u64>,
+    header_index: usize,
+    headers: Vec<Header>,
 }
 
 impl<R> Decoder<R> {
@@ -108,13 +107,13 @@ where
             .read_u32(&endian)
             .map_err(|_| FileHeaderError::NoIFDAddress)?
             .into();
-        let ifds = vec![IFD::new(start)];
+        let headers = vec![Header::new(start)];
 
         let mut decoder = Decoder {
             reader,
             endian,
-            ifd_index: 0,
-            ifds,
+            header_index: 0,
+            headers,
         };
 
         // load the first ifd
@@ -126,11 +125,11 @@ where
     /// change the target ifd in decoder
     pub fn change_ifd(&mut self, at: usize) -> DecodeResult<()> {
         // If it already is, nothing will be done.
-        if self.ifd_index == at {
+        if self.header_index == at {
             return Ok(());
         }
 
-        let last_index = self.ifds.len() - 1;
+        let last_index = self.headers.len() - 1;
 
         if last_index < at {
             for i in last_index..(at - 1) {
@@ -140,16 +139,16 @@ where
             self.load_ifd()?;
         }
         // No preblem, I'll update the index
-        self.ifd_index = at;
+        self.header_index = at;
 
         Ok(())
     }
 
     fn load_ifd(&mut self) -> DecodeResult<()> {
-        let last_index = self.ifds.len() - 1;
-        let last_ifd = self.ifds.last().unwrap();
-        let next_addr = last_ifd.at;
-        if next_addr == 0 || last_ifd.dir.is_some() {
+        let last_index = self.headers.len() - 1;
+        let last_header = self.headers.last().unwrap();
+        let next_addr = last_header.at;
+        if next_addr == 0 || last_header.ifd.is_some() {
             // reached the end
             return Err(DecodeError::from(
                 DecodingError::CannotSelectImageFileDirectory,
@@ -157,11 +156,11 @@ where
         }
 
         let (current_ifd, next_addr) = self.ifd_and_next_addr(next_addr)?;
-        let next_ifd = IFD::new(next_addr);
+        let next_header = Header::new(next_addr);
 
-        let last_ifd = self.ifds.last_mut().unwrap();
-        last_ifd.dir.replace(current_ifd);
-        self.ifds.push(next_ifd);
+        let last_header = self.headers.last_mut().unwrap();
+        last_header.ifd.replace(current_ifd);
+        self.headers.push(next_header);
 
         Ok(())
     }
@@ -211,10 +210,10 @@ where
     #[inline]
     fn ifd(&self) -> DecodeResult<&ImageFileDirectory> {
         let ifd = self
-            .ifds
-            .get(self.ifd_index)
+            .headers
+            .get(self.header_index)
             .unwrap() // managing `ifd_index` with `ifds`, so there's always element.
-            .dir
+            .ifd
             .as_ref()
             .unwrap();
 
@@ -326,14 +325,8 @@ mod test {
         let f = File::open("tests/images/010_cmyk_2layer.tif").expect("");
         let mut decoder = Decoder::new(f).expect("");
 
-        // writeln!(&mut std::io::stderr(), "{}", decoder.start);
-        // let (ifd1, start1) = decoder.ifd_and_next_addr(decoder.start).unwrap();
+        let width = decoder.get_value::<tag::ImageWidth>();
+        let height = decoder.get_value::<tag::ImageLength>();
 
-        // writeln!(&mut std::io::stderr(), "{}", start1);
-
-        let ifd = decoder.ifd().unwrap();
-        for tag in ifd.tags() {
-            let _ = writeln!(&mut std::io::stderr(), "{:?}", tag);
-        }
     }
 }

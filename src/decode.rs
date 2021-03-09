@@ -37,14 +37,14 @@ impl Header {
     fn unchecked_detail(&self) -> &HeaderDetail {
         match self {
             Header::Loaded { detail: x } => x,
-            Header::Unloaded { at: _ } => unreachable!()
+            Header::Unloaded { at: _ } => unreachable!(),
         }
     }
 
     fn unchecked_detail_into(self) -> HeaderDetail {
         match self {
             Header::Loaded { detail: x } => x,
-            Header::Unloaded { at: _ } => unreachable!()
+            Header::Unloaded { at: _ } => unreachable!(),
         }
     }
 }
@@ -178,21 +178,37 @@ where
             Header::Unloaded { at: next_addr } => *next_addr,
             Header::Loaded { detail: _ } => {
                 // reached the end
-                return Err(DecodeError::from(DecodingError::CannotSelectImageFileDirectory))
+                return Err(DecodeError::from(
+                    DecodingError::CannotSelectImageFileDirectory,
+                ));
             }
         };
         let (ifd, next_addr) = self.ifd_and_next_addr(next_addr)?;
-        
-        let width = self.get_exist_value::<tag::ImageWidth>()?.as_long();
-        let height = self.get_exist_value::<tag::ImageLength>()?.as_long();
-        let header_detail = HeaderDetail { ifd, width, height };
-        
-        // update
-        self.headers[last_index] = Header::Loaded { detail: header_detail };
+
+        // tmp update, because cannot load ifd.
+        let header_detail = HeaderDetail {
+            ifd,
+            width: 0,
+            height: 0,
+        };
+        self.headers[last_index] = Header::Loaded {
+            detail: header_detail,
+        };
 
         // append
         let next_header = Header::new(next_addr);
         self.headers.push(next_header);
+
+        // true update
+        let width = self.get_exist_value::<tag::ImageWidth>()?.as_long();
+        let height = self.get_exist_value::<tag::ImageLength>()?.as_long();
+        match self.headers.get_mut(last_index).unwrap() {
+            Header::Loaded { detail } => {
+                detail.width = width;
+                detail.height = height;
+            }
+            _ => unreachable!(),
+        }
 
         Ok(())
     }
@@ -241,7 +257,8 @@ where
 
     #[inline]
     fn ifd(&self) -> DecodeResult<&ImageFileDirectory> {
-        let ifd = self.headers
+        let ifd = self
+            .headers
             .get(self.header_index)
             .unwrap() // managing `ifd_index` with `ifds`, so there's always element.
             .unchecked_detail()
@@ -342,7 +359,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use std::io::Write;
+    use std::{fmt::write, io::Write};
     use std::{fs::File, io::stderr};
 
     use crate::tag;
@@ -355,8 +372,11 @@ mod test {
         let f = File::open("tests/images/010_cmyk_2layer.tif").expect("");
         let mut decoder = Decoder::new(f).expect("");
 
-        let width = decoder.get_value::<tag::ImageWidth>();
-        let height = decoder.get_value::<tag::ImageLength>();
+        // let width = decoder.get_exist_value::<tag::ImageWidth>().map(|x| x.as_long());
+        // let height = decoder.get_exist_value::<tag::ImageLength>().map(|x| x.as_long());
 
+        // let mut err = &mut std::io::stderr();
+        // writeln!(&mut err, "width: {:?}", width);
+        // writeln!(&mut err, "height: {:?}", height);
     }
 }

@@ -8,8 +8,8 @@ fn decoder<P: AsRef<Path>>(path: P) -> DecodeResult<Decoder<File>> {
 
 #[test]
 fn decode_header_byteorder_none() {
-    let err =
-        decoder("tests/images/001_not_enough_byteorder.tif").expect_err("It should be error.");
+    let f = File::open("tests/images/001_not_enough_byteorder.tif").expect("exist file");
+    let err = Decoder::new(f).expect_err("It should be error.");
     let kind = err.source().expect("DecodeError must have source");
 
     assert!(kind.is::<FileHeaderError>());
@@ -20,7 +20,8 @@ fn decode_header_byteorder_none() {
 
 #[test]
 fn decode_header_byteorder_incorrect() {
-    let err = decoder("tests/images/002_incorrect_byteoder.tif").expect_err("It should be error.");
+    let f = File::open("tests/images/002_incorrect_byteoder.tif").expect("exist file");
+    let err = Decoder::new(f).expect_err("It should be error.");
     let kind = err.source().expect("DecodeError must have source");
 
     assert!(kind.is::<FileHeaderError>());
@@ -34,8 +35,8 @@ fn decode_header_byteorder_incorrect() {
 
 #[test]
 fn decode_header_version_none() {
-    let err =
-        decoder("tests/images/003_not_enough_version_number.tif").expect_err("It should be error.");
+    let f = File::open("tests/images/003_not_enough_version_number.tif").expect("exist file");
+    let err = Decoder::new(f).expect_err("It should be error.");
     let kind = err.source().expect("DecodeError must have source");
 
     assert!(kind.is::<FileHeaderError>());
@@ -46,8 +47,8 @@ fn decode_header_version_none() {
 
 #[test]
 fn decode_header_version_incorrect() {
-    let err =
-        decoder("tests/images/004_incorrect_version_number.tif").expect_err("It should be error.");
+    let f = File::open("tests/images/004_incorrect_version_number.tif").expect("exist file");
+    let err = Decoder::new(f).expect_err("It should be error.");
     let kind = err.source().expect("DecodeError must have source");
 
     assert!(kind.is::<FileHeaderError>());
@@ -61,18 +62,16 @@ fn decode_header_version_incorrect() {
 
 #[test]
 fn decode_image_no_compression() {
-    let mut decoder = decoder("tests/images/006_cmyk_tone_interleave_ibm_uncompressed.tif")
-        .expect("No problem as tiff format");
-    // let ifd = decoder.ifd()
-    //     .expect("incorrect ifd");
+    let f = File::open("tests/images/006_cmyk_tone_interleave_ibm_uncompressed.tif")
+        .expect("exist file");
+    let mut decoder = Decoder::new(f).expect("No problem as tiff format");
 
-    // let width = decoder.get_value::<tag::ImageWidth>(&ifd)
-    //     .expect("must have image width")
-    //     .map(|x| x.as_long())
-    //     .unwrap_or_default();
-    // assert_eq!(width, 6);
+    let width = decoder
+        .get_exist_value::<tag::ImageWidth>()
+        .map(|x| x.as_long())
+        .unwrap_or_default();
 
-    // let first = decoder.ifd?
+    assert_eq!(width, 6);
 }
 
 // #[test]

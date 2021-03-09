@@ -78,6 +78,16 @@ impl<R> Decoder<R> {
     pub(crate) fn reader(&mut self) -> &mut R {
         &mut self.reader
     }
+
+    #[inline]
+    pub fn width(&self) -> u32 {
+        self.headers[self.header_index].unchecked_detail().width
+    }
+
+    #[inline]
+    pub fn height(&self) -> u32 {
+        self.headers[self.header_index].unchecked_detail().height
+    }
 }
 
 impl<R> Decoder<R>

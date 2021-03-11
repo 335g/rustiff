@@ -1,10 +1,5 @@
-use rustiff::{tag, DecodeResult, Decoder, FileHeaderError};
-use std::{error::Error, fs::File, path::Path};
-
-fn decoder<P: AsRef<Path>>(path: P) -> DecodeResult<Decoder<File>> {
-    let f = File::open(path).expect("Incorrect filepath");
-    Decoder::new(f)
-}
+use rustiff::{tag, Decoder, FileHeaderError};
+use std::{error::Error, fs::File};
 
 #[test]
 fn decode_header_byteorder_none() {
@@ -64,14 +59,13 @@ fn decode_header_version_incorrect() {
 fn decode_image_no_compression() {
     let f = File::open("tests/images/006_cmyk_tone_interleave_ibm_uncompressed.tif")
         .expect("exist file");
-    let mut decoder = Decoder::new(f).expect("No problem as tiff format");
+    let decoder = Decoder::new(f).expect("No problem as tiff format");
 
-    let width = decoder
-        .get_exist_value::<tag::ImageWidth>()
-        .map(|x| x.as_long())
-        .unwrap_or_default();
+    let width = decoder.width();
+    let height = decoder.height();
 
     assert_eq!(width, 6);
+    assert_eq!(height, 4);
 }
 
 // #[test]

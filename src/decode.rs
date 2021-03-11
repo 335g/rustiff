@@ -54,6 +54,7 @@ struct HeaderDetail {
     ifd: ImageFileDirectory,
     width: u32,
     height: u32,
+    rows_per_strip: u32,
 }
 
 impl HeaderDetail {
@@ -87,6 +88,45 @@ impl<R> Decoder<R> {
     #[inline]
     pub fn height(&self) -> u32 {
         self.headers[self.header_index].unchecked_detail().height
+    }
+
+    #[inline]
+    pub fn rows_per_strip(&self) -> u32 {
+        self.headers[self.header_index].unchecked_detail().rows_per_strip
+    }
+
+    #[inline]
+    fn ifd(&self) -> DecodeResult<&ImageFileDirectory> {
+        let ifd = self
+            .headers
+            .get(self.header_index)
+            .unwrap() // managing `ifd_index` with `ifds`, so there's always element.
+            .unchecked_detail()
+            .ifd();
+
+        Ok(ifd)
+    }
+
+    #[inline]
+    #[allow(missing_docs)]
+    fn get_entry<T: Tag>(&self) -> DecodeResult<Option<Entry>> {
+        let ifd = self.ifd()?;
+        let anytag = AnyTag::try_from::<T>()?;
+
+        let entry = ifd.get_tag(anytag).cloned();
+        Ok(entry)
+    }
+
+    #[allow(missing_docs)]
+    fn strip_count(&mut self) -> DecodeResult<usize> {
+        let height = self.height() as usize;
+        let rows_per_strip = self.rows_per_strip() as usize;
+
+        if rows_per_strip == 0 {
+            Ok(0)
+        } else {
+            Ok((height + rows_per_strip - 1) / rows_per_strip)
+        }
     }
 }
 
@@ -200,6 +240,7 @@ where
             ifd,
             width: 0,
             height: 0,
+            rows_per_strip: 0,
         };
         self.headers[last_index] = Header::Loaded {
             detail: header_detail,
@@ -212,10 +253,15 @@ where
         // true update
         let width = self.get_exist_value::<tag::ImageWidth>()?.as_long();
         let height = self.get_exist_value::<tag::ImageLength>()?.as_long();
+        let rows_per_strip = self.get_value::<tag::RowsPerStrip>()?
+            .map(|x| x.as_long())
+            .unwrap_or(height);
+        
         match self.headers.get_mut(last_index).unwrap() {
             Header::Loaded { detail } => {
                 detail.width = width;
                 detail.height = height;
+                detail.rows_per_strip = rows_per_strip;
             }
             _ => unreachable!(),
         }
@@ -265,18 +311,6 @@ where
         Ok((ifd, next))
     }
 
-    #[inline]
-    fn ifd(&self) -> DecodeResult<&ImageFileDirectory> {
-        let ifd = self
-            .headers
-            .get(self.header_index)
-            .unwrap() // managing `ifd_index` with `ifds`, so there's always element.
-            .unchecked_detail()
-            .ifd();
-
-        Ok(ifd)
-    }
-
     // /// `IFD` constructor
     // ///
     // /// Tiff file may have more than one `IFD`, but in most cases it is one and
@@ -287,16 +321,6 @@ where
 
     //     Ok(ifd)
     // }
-
-    #[inline]
-    #[allow(missing_docs)]
-    fn get_entry<T: Tag>(&self) -> DecodeResult<Option<Entry>> {
-        let ifd = self.ifd()?;
-        let anytag = AnyTag::try_from::<T>()?;
-
-        let entry = ifd.get_tag(anytag).cloned();
-        Ok(entry)
-    }
 
     /// Get the `Tag::Value` in `ImageFileDirectory`.
     /// This function returns default value if T has default value and IFD doesn't have the value.
@@ -333,27 +357,15 @@ where
         D::decode(&mut self.reader, &self.endian, entry)
     }
 
-    #[allow(missing_docs)]
-    fn strip_count(&mut self) -> DecodeResult<u32> {
-        let height = self.get_exist_value::<tag::ImageLength>()?.as_long();
-        let rows_per_strip = self
-            .get_value::<tag::RowsPerStrip>()?
-            .map(|x| x.as_long())
-            .unwrap_or_else(|| height);
-
-        if rows_per_strip == 0 {
-            Ok(0)
-        } else {
-            Ok((height + rows_per_strip - 1) / rows_per_strip)
-        }
-    }
-
     pub fn image(&mut self) -> DecodeResult<Data> {
-        let width = self.get_exist_value::<tag::ImageWidth>()?.as_size();
-        let height = self.get_exist_value::<tag::ImageLength>()?.as_size();
+        let width = self.width() as usize;
+        let height = self.height() as usize;
         let bits_per_sample = self.get_exist_value::<tag::BitsPerSample>()?;
+        let bits_len = bits_per_sample.len();
 
-        let buffer_size = width * height * bits_per_sample.len();
+        let buffer_size = width * height * bits_len;
+        let rows_per_strip = self.rows_per_strip() as usize;
+        let samples_per_strip = width * rows_per_strip * bits_len;
 
         let data = match bits_per_sample.max() {
             n if n <= 8 => Data::byte_with(buffer_size),
@@ -362,6 +374,10 @@ where
         };
 
         // TODO: load data
+        let strip_count = self.strip_count()?;
+        for i in 0..strip_count {
+
+        }
 
         return Ok(data);
     }

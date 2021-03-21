@@ -1,4 +1,4 @@
-use crate::data::{Data, DataType, Entry};
+use crate::{data::{Data, DataType, Entry}, num::DynamicTone};
 use crate::dir::ImageFileDirectory;
 use crate::error::{
     DecodeError, DecodeErrorKind, DecodeResult, DecodingError, FileHeaderError, TagError,
@@ -9,6 +9,7 @@ use crate::{
     byte::{Endian, EndianRead, SeekExt},
     dir,
 };
+use crate::num::{Tone};
 use byteorder::ByteOrder;
 use std::convert::TryFrom;
 use std::io;
@@ -118,7 +119,7 @@ struct HeaderDetail {
     ifd: ImageFileDirectory,
     width: Long,
     height: Long,
-    bits_per_sample: BitsPerSample,
+    bits_per_sample: BitsPerSample<DynamicTone>,
     compression: Option<Compression>,
     photometric_interpretation: PhotometricInterpretation,
     rows_per_strip: Long,
@@ -160,7 +161,7 @@ impl<R> Decoder<R> {
     }
 
     #[inline]
-    fn bits_per_sample(&self) -> &BitsPerSample {
+    fn bits_per_sample(&self) -> &BitsPerSample<DynamicTone> {
         &self.headers[self.header_index].unchecked_detail().bits_per_sample
     }
 
@@ -331,7 +332,7 @@ where
             ifd,
             width: 0,
             height: 0,
-            bits_per_sample: BitsPerSample::C1(0),
+            bits_per_sample: BitsPerSample::C1(DynamicTone::new(1)),
             compression: None,
             photometric_interpretation: PhotometricInterpretation::BlackIsZero,
             rows_per_strip: 0,
@@ -470,10 +471,10 @@ where
         let strip_count = self.strip_count()?;
 
         let buffer_size = width * height * bits_len;
-        let data = match bits_per_sample.max() {
-            n if n <= 8 => Data::byte_with(buffer_size),
-            n if n <= 16 => Data::short_with(buffer_size),
-            n => return Err(DecodeError::from(DecodingError::UnsupportedValue(vec![n]))),
+        let data = match bits_per_sample.tone().value() {
+            8 => Data::byte_with(buffer_size),
+            16 => Data::short_with(buffer_size),
+            n => unreachable!("BitsPerSample is only available in 8 or 16 tones."),
         };
 
         let rows_per_strip = self.rows_per_strip() as usize;

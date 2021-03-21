@@ -1,8 +1,9 @@
-use crate::byte::{Endian, EndianRead, SeekExt};
+use crate::{byte::{Endian, EndianRead, SeekExt}, num::{DynamicTone, T16, T8}};
 use crate::data::{DataType, Entry};
 use crate::decode::{Decoded, Decoder};
 use crate::error::{DecodeError, DecodeResult, DecodingError};
 use crate::{field_is_data_pointer, valid_count};
+use crate::num::{Tone};
 use std::convert::From;
 use std::io::{self, Seek};
 use std::ops::Deref;
@@ -336,33 +337,31 @@ impl Decoded for Option<Compression> {
 ///
 /// IFD constructs this with `tag::BitsPerSample`.
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub enum BitsPerSample {
-    C1(u16),
-    C3(u16, u16, u16),
-    C4(u16, u16, u16, u16),
+pub enum BitsPerSample<T: Tone> {
+    C1(T),
+    C3(T),
+    C4(T),
 }
 
-impl BitsPerSample {
+impl<T: Tone> BitsPerSample<T> {
     pub fn len(&self) -> usize {
-        match *self {
+        match self {
             BitsPerSample::C1(_) => 1,
-            BitsPerSample::C3(_, _, _) => 3,
-            BitsPerSample::C4(_, _, _, _) => 4,
+            BitsPerSample::C3(_) => 3,
+            BitsPerSample::C4(_) => 4,
         }
     }
 
-    pub fn max(&self) -> u16 {
-        use std::cmp::max;
-
-        match *self {
-            BitsPerSample::C1(v1) => v1,
-            BitsPerSample::C3(v1, v2, v3) => max(max(v1, v2), v3),
-            BitsPerSample::C4(v1, v2, v3, v4) => max(max(max(v1, v2), v3), v4),
+    pub fn tone(&self) -> &T {
+        match self {
+            BitsPerSample::C1(x) => x,
+            BitsPerSample::C3(x) => x,
+            BitsPerSample::C4(x) => x,
         }
     }
 }
 
-impl Decoded for BitsPerSample {
+impl Decoded for BitsPerSample<DynamicTone> {
     fn decode<'a, R: io::Read + io::Seek>(
         reader: &'a mut R,
         endian: &'a Endian,
@@ -378,7 +377,16 @@ impl Decoded for BitsPerSample {
                     let val2 = reader.read_u16(&endian)?;
                     let val3 = reader.read_u16(&endian)?;
 
-                    Ok(BitsPerSample::C3(val1, val2, val3))
+                    if val1 != val2 || val1 != val3 {
+                        return Err(DecodeError::from(DecodingError::UnsupportedValue(vec![val1, val2, val3])))
+                    }
+
+                    let tone = match val1 {
+                        n if n == 8 || n == 16 => DynamicTone::new(n as usize),
+                        n => return Err(DecodeError::from(DecodingError::UnsupportedValue(vec![n])))
+                    };
+
+                    Ok(BitsPerSample::C3(tone))
                 }
                 4 => {
                     let val1 = reader.read_u16(&endian)?;
@@ -386,14 +394,29 @@ impl Decoded for BitsPerSample {
                     let val3 = reader.read_u16(&endian)?;
                     let val4 = reader.read_u16(&endian)?;
 
-                    Ok(BitsPerSample::C4(val1, val2, val3, val4))
+                    if val1 != val2 || val1 != val3 || val1 != val4 {
+                        return Err(DecodeError::from(DecodingError::UnsupportedValue(vec![val1, val2, val3, val4])))
+                    }
+
+                    let tone = match val1 {
+                        n if n == 8 || n == 16 => DynamicTone::new(n as usize),
+                        n => return Err(DecodeError::from(DecodingError::UnsupportedValue(vec![n])))
+                    };
+
+                    Ok(BitsPerSample::C4(tone))
                 }
-                n => unreachable!("Unreachable by invalid data count: {}", n),
+                n => Err(DecodeError::from(DecodingError::InvalidCount(n))),
             }
         } else {
             // count = 1
-            let val = entry.field().read_u16(&endian)?;
-            Ok(BitsPerSample::C1(val))
+            let val1 = entry.field().read_u16(&endian)?;
+
+            let tone = match val1 {
+                n if n == 8 || n == 16 => DynamicTone::new(n as usize),
+                n => return Err(DecodeError::from(DecodingError::UnsupportedValue(vec![n])))
+            };
+
+            Ok(BitsPerSample::C1(tone))
         }
     }
 }

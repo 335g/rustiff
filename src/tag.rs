@@ -1,7 +1,8 @@
-use crate::decode::Decoded;
+use crate::{decode::Decoded};
 use crate::error::{DecodeError, DecodeErrorKind, DecodeResult, TagError, TagErrorKind};
 use crate::val::{self, Long, Short, Value, Values};
-use std::any::TypeId;
+use crate::num::{Tone, DynamicTone, T1};
+use std::{any::TypeId, marker::PhantomData};
 use std::fmt;
 
 pub trait Tag: 'static {
@@ -182,10 +183,10 @@ impl Tag for ImageLength {
 pub enum BitsPerSample {}
 
 impl Tag for BitsPerSample {
-    type Value = val::BitsPerSample;
-
+    type Value = val::BitsPerSample<DynamicTone>;
+    
     const ID: u16 = 258;
-    const DEFAULT_VALUE: Option<val::BitsPerSample> = Some(val::BitsPerSample::C1(1));
+    const DEFAULT_VALUE: Option<val::BitsPerSample<DynamicTone>> = Some(val::BitsPerSample::C1(DynamicTone::new(1)));
 }
 
 /// The tag for compression scheme used in the image.

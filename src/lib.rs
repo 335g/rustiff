@@ -8,6 +8,7 @@ mod decode;
 mod dir;
 // mod encode;
 mod error;
+mod num;
 
 #[macro_use]
 mod macros;

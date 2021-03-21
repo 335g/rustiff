@@ -311,9 +311,9 @@ impl Tag for PhotometricInterpretation {
 /// [`PlanarConfiguration`]: tag.PlanarConfiguration.html
 /// [`SamplesPerPixel`]: tag.SamplesPerPixel.html
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub enum StripOffset {}
+pub enum StripOffsets {}
 
-impl Tag for StripOffset {
+impl Tag for StripOffsets {
     type Value = Values;
 
     const ID: u16 = 273;
@@ -429,9 +429,10 @@ impl Tag for StripByteCounts {
 define_tags! {
     ImageWidth,
     ImageLength,
+    BitsPerSample,
     Compression,
     PhotometricInterpretation,
-    StripOffset,
+    StripOffsets,
     SamplesPerPixel,
     RowsPerStrip,
     StripByteCounts,

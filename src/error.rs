@@ -162,6 +162,15 @@ pub enum DecodingError {
 
     ///
     CannotSelectImageFileDirectory,
+
+    ///
+    NoMatchCountForStrip,
+
+    /// The data contained in one strip is too large.
+    /// This error occurs when the capacity of a single strip
+    /// exceeds u32::max byte (= 4,294,967,295 Byte),
+    /// but data this large is not common.
+    Oversized
 }
 
 impl fmt::Display for DecodingError {
@@ -174,6 +183,8 @@ impl fmt::Display for DecodingError {
             DecodingError::CannotSelectImageFileDirectory => {
                 "cannot select the image file directory".to_string()
             }
+            DecodingError::NoMatchCountForStrip => "no match count for strip".to_string(),
+            DecodingError::Oversized => "oversized in single strip".to_string(),
         };
 
         write!(f, "{}", desc)

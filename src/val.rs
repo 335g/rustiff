@@ -21,15 +21,15 @@ pub enum Value {
 }
 
 impl Value {
-    pub fn as_long(&self) -> Long {
-        match *self {
+    pub fn as_long(self) -> Long {
+        match self {
             Value::Short(x) => x as Long,
             Value::Long(x) => x,
         }
     }
 
-    pub fn as_size(&self) -> usize {
-        match *self {
+    pub fn as_size(self) -> usize {
+        match self {
             Value::Short(x) => x as usize,
             Value::Long(x) => x as usize,
         }
@@ -51,6 +51,22 @@ impl From<Long> for Value {
 pub enum Values {
     Shorts(Shorts),
     Longs(Longs),
+}
+
+impl Values {
+    pub fn as_long(self) -> Longs {
+        match self {
+            Values::Shorts(x) => x.into_iter().map(|x| x as Long).collect(),
+            Values::Longs(x) => x,
+        }
+    }
+
+    pub fn as_size(self) -> Vec<usize> {
+        match self {
+            Values::Shorts(x) => x.into_iter().map(|x| x as usize).collect(),
+            Values::Longs(x) => x.into_iter().map(|x| x as usize).collect()
+        }
+    }
 }
 
 impl From<Shorts> for Values {

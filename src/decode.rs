@@ -1,35 +1,42 @@
-use crate::{data::{Data, DataType, Entry}, num::DynamicTone};
+use crate::{data::{Data, DataType, Entry}, num::DynamicTone, val::Predictor};
 use crate::dir::ImageFileDirectory;
 use crate::error::{
     DecodeError, DecodeErrorKind, DecodeResult, DecodingError, FileHeaderError, TagError,
 };
 use crate::tag::{self, AnyTag, Tag};
-use crate::val::{BitsPerSample, Compression, PhotometricInterpretation, Long, Longs};
+use crate::val::{BitsPerSample, Compression, PhotometricInterpretation};
 use crate::{
     byte::{Endian, EndianRead, SeekExt},
     dir,
 };
 use crate::num::{Tone};
 use byteorder::ByteOrder;
-use std::convert::TryFrom;
-use std::io;
+use tag::StripByteCounts;
+use std::{any::type_name, convert::TryFrom};
+use std::io::{self, Read};
 use std::marker::PhantomData;
 use std::{collections::HashSet, thread::current};
 
 trait DecodeBytes {
-    fn decode_bytes<R: io::Read, W: io::Write>(&mut self, reader: R, writer: W) -> DecodeResult<usize>;
+    fn decode_bytes<R, W>(&mut self, reader: R, writer: W, compressed_length: usize, max_uncompressed_length: usize, predictor: Predictor) -> DecodeResult<usize>
+    where
+        R: io::Read,
+        W: io::Write;
 }
 
 struct SimpleDecoder;
 
 impl DecodeBytes for SimpleDecoder {
-    fn decode_bytes<R: io::Read, W: io::Write>(&mut self, mut reader: R, mut writer: W) -> DecodeResult<usize> {
-        std::io::copy(&mut reader, &mut writer)
-            .map_err(|e| DecodeError::from(e))
-            .and_then(|x| {
-                usize::try_from(x)
-                    .map_err(|_| DecodeError::from(DecodingError::Oversized))
-            })
+    fn decode_bytes<R, W>(&mut self, mut reader: R, mut writer: W, _compressed_length: usize, _max_uncompressed_length: usize, _predictor: Predictor) -> DecodeResult<usize>
+    where
+        R: io::Read,
+        W: io::Write,
+    {
+        let copied_size = std::io::copy(&mut reader, &mut writer)?;
+        let copied_size = usize::try_from(copied_size)
+            .map_err(|_| DecodingError::UncompressedStripDataIsOverCapacity)?;
+
+        Ok(copied_size)
     }
 }
 
@@ -37,43 +44,55 @@ struct LZWDecoder(weezl::decode::Decoder);
 
 impl LZWDecoder {
     pub(crate) fn new() -> Self {
-        let inner = weezl::decode::Decoder::new(weezl::BitOrder::Msb, 8);
+        let inner = weezl::decode::Decoder::with_tiff_size_switch(weezl::BitOrder::Msb, 8);
 
         return LZWDecoder(inner)
     }
 }
 
 impl DecodeBytes for LZWDecoder {
-    fn decode_bytes<R: io::Read, W: io::Write>(&mut self, mut reader: R, mut writer: W) -> DecodeResult<usize> {
-        let mut compressed_data = vec![];
-        reader.read_to_end(&mut compressed_data)?;
+    fn decode_bytes<R, W>(&mut self, mut reader: R, mut writer: W, compressed_length: usize, max_uncompressed_length: usize, predictor: Predictor) -> DecodeResult<usize>
+    where
+        R: io::Read,
+        W: io::Write,
+    {
+        let mut compressed_data = vec![0; compressed_length];
+        reader.read_exact(&mut compressed_data[..])?;
+        let mut uncompressed_data = Vec::with_capacity(max_uncompressed_length);
 
-        let compressed_data_size = compressed_data.len();
-        let mut bytes_read = 0;
-        let mut uncompressed_data = vec![];
-
-        loop {
-            let bytes_writen = uncompressed_data.len();
-            let res = self.0.decode_bytes(
-                &compressed_data[bytes_read..], 
-                &mut uncompressed_data[bytes_writen..]);
-            writer.write_all(uncompressed_data.as_ref())?;
-
-            bytes_read += res.consumed_in;
-
-            match res.status {
+        let mut read = 0;
+        while uncompressed_data.len() < max_uncompressed_length {
+            let written = uncompressed_data.len();
+            uncompressed_data.reserve(1 << 12);
+            let buffer_space = uncompressed_data.capacity().min(max_uncompressed_length);
+            uncompressed_data.resize(buffer_space, 0u8);
+            
+            let result = self.0.decode_bytes(
+                &compressed_data[read..],
+                &mut uncompressed_data[written..],
+            );
+            read += result.consumed_in;
+            uncompressed_data.truncate(written + result.consumed_out);
+            
+            match result.status {
                 Ok(weezl::LzwStatus::Ok) => {}
                 Ok(weezl::LzwStatus::Done) => break,
                 Ok(weezl::LzwStatus::NoProgress) => {
-                    let io_err = io::Error::new(io::ErrorKind::UnexpectedEof, "LZW enc code is not found");
-                    return Err(DecodeError::from(io_err))
+                    let err = io::Error::new(
+                        io::ErrorKind::UnexpectedEof,
+                        "no lzw end code found",
+                    );
+                    return Err(DecodeError::from(err))
                 }
-                Err(e) => {
-                    let io_err = io::Error::new(io::ErrorKind::InvalidData, e);
-                    return Err(DecodeError::from(io_err))
-                }
+                Err(err) => return Err(DecodeError::from(io::Error::new(io::ErrorKind::InvalidData, err))),
             }
         }
+
+        uncompressed_data.shrink_to_fit();
+
+        // 
+
+        writer.write_all(&uncompressed_data[..])?;
 
         let bytes = uncompressed_data.len();
         Ok(bytes)
@@ -117,14 +136,15 @@ impl Header {
 #[derive(Debug)]
 struct HeaderDetail {
     ifd: ImageFileDirectory,
-    width: Long,
-    height: Long,
+    width: usize,
+    height: usize,
     bits_per_sample: BitsPerSample<DynamicTone>,
     compression: Option<Compression>,
     photometric_interpretation: PhotometricInterpretation,
-    rows_per_strip: Long,
-    strip_offsets: Longs,
-    strip_byte_counts: Longs,
+    rows_per_strip: usize,
+    strip_offsets: Vec<u64>,
+    strip_byte_counts: Vec<usize>,
+    predictor: Predictor,
 }
 
 impl HeaderDetail {
@@ -151,47 +171,52 @@ impl<R> Decoder<R> {
     }
 
     #[inline]
-    pub fn width(&self) -> Long {
+    pub fn width(&self) -> usize {
         self.headers[self.header_index].unchecked_detail().width
     }
 
     #[inline]
-    pub fn height(&self) -> Long {
+    pub fn height(&self) -> usize {
         self.headers[self.header_index].unchecked_detail().height
     }
 
     #[inline]
-    fn bits_per_sample(&self) -> &BitsPerSample<DynamicTone> {
+    pub fn bits_per_sample(&self) -> &BitsPerSample<DynamicTone> {
         &self.headers[self.header_index].unchecked_detail().bits_per_sample
     }
 
     #[inline]
-    fn compression(&self) -> Option<&Compression> {
+    pub fn compression(&self) -> Option<&Compression> {
         self.headers[self.header_index].unchecked_detail().compression.as_ref()
     }
 
     #[inline]
-    fn photometric_interpretation(&self) -> &PhotometricInterpretation {
+    pub fn photometric_interpretation(&self) -> &PhotometricInterpretation {
         &self.headers[self.header_index].unchecked_detail().photometric_interpretation
     }
 
     #[inline]
-    pub fn rows_per_strip(&self) -> Long {
+    pub fn rows_per_strip(&self) -> usize {
         self.headers[self.header_index].unchecked_detail().rows_per_strip
     }
 
     #[inline]
-    fn strip_byte_counts(&self) -> &[Long] {
+    pub fn strip_byte_counts(&self) -> &[usize] {
         self.headers[self.header_index].unchecked_detail().strip_byte_counts.as_slice()
     }
 
     #[inline]
-    fn strip_offsets(&self) -> &[Long] {
+    pub fn strip_offsets(&self) -> &[u64] {
         self.headers[self.header_index].unchecked_detail().strip_offsets.as_slice()
     }
 
     #[inline]
-    fn ifd(&self) -> &ImageFileDirectory {
+    pub fn predictor(&self) -> Predictor {
+        self.headers[self.header_index].unchecked_detail().predictor
+    }
+
+    #[inline]
+    pub fn ifd(&self) -> &ImageFileDirectory {
         self.headers
             .get(self.header_index)
             .unwrap() // managing `ifd_index` with `ifds`, so there's always element.
@@ -201,25 +226,31 @@ impl<R> Decoder<R> {
 
     #[inline]
     #[allow(missing_docs)]
-    fn get_entry<T: Tag>(&self) -> DecodeResult<Option<Entry>> {
+    pub fn get_entry<T: Tag>(&self) -> DecodeResult<Option<Entry>> {
         let ifd = self.ifd();
+        
+        self.get_entry_with::<T>(ifd)
+    }
+
+    #[inline]
+    fn get_entry_with<T: Tag>(&self, ifd: &ImageFileDirectory) -> DecodeResult<Option<Entry>> {
         let anytag = AnyTag::try_from::<T>()?;
 
         let entry = ifd.get_tag(anytag).cloned();
         Ok(entry)
     }
 
-    #[allow(missing_docs)]
-    fn strip_count(&self) -> DecodeResult<usize> {
-        let height = self.height() as usize;
-        let rows_per_strip = self.rows_per_strip() as usize;
+    // #[allow(missing_docs)]
+    // fn strip_count(&self) -> DecodeResult<usize> {
+    //     let height = self.height() as usize;
+    //     let rows_per_strip = self.rows_per_strip();
 
-        if rows_per_strip == 0 {
-            Ok(0)
-        } else {
-            Ok((height + rows_per_strip - 1) / rows_per_strip)
-        }
-    }
+    //     if rows_per_strip == 0 {
+    //         Ok(0)
+    //     } else {
+    //         Ok((height + rows_per_strip - 1) / rows_per_strip)
+    //     }
+    // }
 }
 
 impl<R> Decoder<R>
@@ -326,19 +357,35 @@ where
             }
         };
         let (ifd, next_addr) = self.ifd_and_next_addr(next_addr)?;
+        
+        let width = self.get_exist_value_with::<tag::ImageWidth>(&ifd)?.as_size();
+        let height = self.get_exist_value_with::<tag::ImageLength>(&ifd)?.as_size();
+        let rows_per_strip = self.get_value_with::<tag::RowsPerStrip>(&ifd)?
+            .map(|x| x.as_size())
+            .unwrap_or(height);
+        let strip_offsets = self.get_exist_value_with::<tag::StripOffsets>(&ifd)?
+            .map(|x| u64::from(x), |x| u64::from(x));
+        let strip_byte_counts = self.get_exist_value_with::<tag::StripByteCounts>(&ifd)?.as_size();
+        let bits_per_sample = self.get_exist_value_with::<tag::BitsPerSample>(&ifd)?;
+        let compression = self.get_exist_value_with::<tag::Compression>(&ifd)?;
+        let photometric_interpretation = self.get_exist_value_with::<tag::PhotometricInterpretation>(&ifd)?;
+        let predictor = self.get_exist_value_with::<tag::Predictor>(&ifd)?;
 
-        // tmp update, because cannot load ifd.
+        // Each count must be equal.
+        if strip_offsets.len() != strip_byte_counts.len() {
+            let infos = vec![
+                (strip_offsets.len(), tag::StripOffsets::typename()),
+                (strip_byte_counts.len(), tag::StripByteCounts::typename()),
+            ];
+            let err = DecodingError::InvalidCount(infos);
+            
+            return Err(DecodeError::from(err))
+        }
+
         let header_detail = HeaderDetail {
-            ifd,
-            width: 0,
-            height: 0,
-            bits_per_sample: BitsPerSample::C1(DynamicTone::new(1)),
-            compression: None,
-            photometric_interpretation: PhotometricInterpretation::BlackIsZero,
-            rows_per_strip: 0,
-            strip_offsets: vec![],
-            strip_byte_counts: vec![],
+            ifd, width, height, bits_per_sample, compression, photometric_interpretation, rows_per_strip, strip_offsets, strip_byte_counts, predictor
         };
+        
         self.headers[last_index] = Header::Loaded {
             detail: header_detail,
         };
@@ -346,29 +393,6 @@ where
         // append
         let next_header = Header::new(next_addr);
         self.headers.push(next_header);
-
-        // true update
-        let width = self.get_exist_value::<tag::ImageWidth>()?.as_long();
-        let height = self.get_exist_value::<tag::ImageLength>()?.as_long();
-        let rows_per_strip = self.get_value::<tag::RowsPerStrip>()?
-            .map(|x| x.as_long())
-            .unwrap_or(height);
-        let strip_offsets = self.get_exist_value::<tag::StripOffsets>()?.as_long();
-        let strip_byte_counts = self.get_exist_value::<tag::StripByteCounts>()?.as_long();
-        let bits_per_sample = self.get_exist_value::<tag::BitsPerSample>()?;
-        let compression = self.get_exist_value::<tag::Compression>()?;
-        let photometric_interpretation = self.get_exist_value::<tag::PhotometricInterpretation>()?;
-        
-        if let Header::Loaded { detail } = self.headers.get_mut(last_index).unwrap() {
-            detail.width = width;
-            detail.height = height;
-            detail.rows_per_strip = rows_per_strip;
-            detail.strip_offsets = strip_offsets;
-            detail.strip_byte_counts = strip_byte_counts;
-            detail.bits_per_sample = bits_per_sample;
-            detail.compression = compression;
-            detail.photometric_interpretation = photometric_interpretation;
-        }
 
         Ok(())
     }
@@ -403,7 +427,7 @@ where
         for _ in 0..entry_count {
             let tag = AnyTag::from_u16(reader.read_u16(&endian)?);
             let ty = DataType::try_from(reader.read_u16(&endian)?)?;
-            let count = reader.read_u32(&endian)?;
+            let count = reader.read_u32(&endian)? as usize;
             let field = reader.read_4byte()?;
 
             let entry = Entry::new(ty, count, field);
@@ -438,6 +462,17 @@ where
         }
     }
 
+    #[allow(missing_docs)]
+    fn get_value_with<T: Tag>(&mut self, ifd: &ImageFileDirectory) -> DecodeResult<Option<T::Value>> {
+        let entry = self.get_entry_with::<T>(ifd);
+
+        match entry {
+            Ok(Some(entry)) => self.decode::<T::Value>(entry).map(|x| Some(x)),
+            Ok(None) => Ok(T::DEFAULT_VALUE),
+            Err(e) => Err(e),
+        }
+    }
+
     /// Get the `Tag::Value` in `ImageFileDirectory`.
     /// This function is almost the same as `Decoder::get_value`,
     /// but returns `DecodingError::NoValueThatShouldBe` if there is no value.
@@ -455,42 +490,104 @@ where
         }
     }
 
+    #[allow(missing_docs)]
+    fn get_exist_value_with<T: Tag>(&mut self, ifd: &ImageFileDirectory) -> DecodeResult<T::Value> {
+        let entry = self.get_entry_with::<T>(ifd);
+
+        match entry {
+            Ok(Some(entry)) => self.decode::<T::Value>(entry),
+            Ok(None) => {
+                T::DEFAULT_VALUE.ok_or(DecodeError::from(DecodingError::NoValueThatShouldBe))
+            }
+            Err(e) => Err(e),
+        }
+    }
+
     #[inline(always)]
     #[allow(missing_docs)]
     fn decode<D: Decoded>(&mut self, entry: Entry) -> DecodeResult<D> {
         D::decode(&mut self.reader, &self.endian, entry)
     }
 
-    
-
     pub fn image(&mut self) -> DecodeResult<Data> {
-        let width = self.width() as usize;
-        let height = self.height() as usize;
+        let width = self.width();
+        let height = self.height();
         let bits_per_sample = self.bits_per_sample();
         let bits_len = bits_per_sample.len();
-        let strip_count = self.strip_count()?;
-
+        let tone = bits_per_sample.tone().value();
+        let endian = self.endian().clone();
+        
         let buffer_size = width * height * bits_len;
-        let data = match bits_per_sample.tone().value() {
-            8 => Data::byte_with(buffer_size),
-            16 => Data::short_with(buffer_size),
+
+        let rows_per_strip = self.rows_per_strip();
+        let mut buffer = vec![];
+
+        let loaded = match self.compression() {
+            None => self.decode_bytes(SimpleDecoder, &mut buffer),
+            Some(Compression::LZW) => self.decode_bytes(LZWDecoder::new(), &mut buffer)
+        }?;
+
+        // uncompression data length is not eq buffer size.
+        if loaded * tone / 8 != buffer_size {
+            let err = DecodingError::UnexpectedUncompressedSize {
+                actual: loaded * tone / 8,
+                required: buffer_size
+            };
+
+            return Err(DecodeError::from(err))
+        }
+
+        let data = match tone {
+            8 => Data::U8(buffer),
+            16 => {
+                let buf = [0u8; 2];
+                let (x1, x2): (Vec<_>, Vec<_>) = buffer.into_iter()
+                    .enumerate()
+                    .partition(|(i, _)| i % 2 == 0);
+                
+                let data = x1.into_iter()
+                    .zip(x2)
+                    .map(|((_, x1), (_, x2))| [x1, x2].as_ref().read_u16(&endian))
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                Data::U16(data)
+            }
             n => unreachable!("BitsPerSample is only available in 8 or 16 tones."),
         };
 
-        let rows_per_strip = self.rows_per_strip() as usize;
-        let strip_offsets = self.strip_offsets();
-        let strip_byte_counts = self.strip_byte_counts();
-        
-        for i in 0..strip_count {
+        return Ok(data);
+    }
+
+    fn decode_bytes<D, W>(&mut self, mut decoder: D, mut writer: W) -> DecodeResult<usize>
+    where
+        D: DecodeBytes,
+        W: io::Write,
+    {
+        let width = self.width();
+        let height = self.height();
+        let rows_per_strip = self.rows_per_strip();
+        let bits_len = self.bits_per_sample().len();
+        let predictor = self.predictor();
+
+        let values = self.strip_offsets()
+            .iter()
+            .zip(self.strip_byte_counts())
+            .map(|(x, y)| (*x, *y))
+            .enumerate()
+            .collect::<Vec<_>>();
+
+        let mut loaded = 0;
+        for (i, (offset, byte_count)) in values {
             let strip_height = std::cmp::min(rows_per_strip, height - i * rows_per_strip);
             let buffer_size = width * strip_height * bits_len;
-            let strip_offset = strip_offsets.get(i).ok_or(DecodingError::NoMatchCountForStrip)?;
-            let strip_byte_count = strip_byte_counts.get(i).ok_or(DecodingError::NoMatchCountForStrip)?;
-
-
+            
+            self.reader().goto(offset)?;
+            let mut buffer = vec![0u8; byte_count];
+            self.reader().read_exact(&mut buffer[..])?;
+            loaded += decoder.decode_bytes(buffer.as_slice(), &mut writer, byte_count, buffer_size, predictor)?;
         }
 
-        return Ok(data);
+        Ok(loaded)
     }
 }
 
@@ -508,7 +605,7 @@ mod test {
         // let f = File::open("tests/images/006_cmyk_tone_interleave_ibm_uncompressed.tif").expect("");
         let f = File::open("tests/images/010_cmyk_2layer.tif").expect("");
         let mut decoder = Decoder::new(f).expect("");
-
+        
         // let width = decoder.get_exist_value::<tag::ImageWidth>().map(|x| x.as_long());
         // let height = decoder.get_exist_value::<tag::ImageLength>().map(|x| x.as_long());
 

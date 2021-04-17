@@ -4,27 +4,24 @@ use crate::decode::{Decoded, Decoder};
 use crate::error::{DecodeError, DecodeResult, DecodingError};
 use crate::{field_is_data_pointer, valid_count};
 use crate::num::{Tone};
-use std::convert::From;
+use std::{any::type_name, convert::From};
 use std::io::{self, Seek};
 use std::ops::Deref;
 
-pub type Byte = u8;
 pub type Bytes = Vec<u8>;
-pub type Short = u16;
 pub type Shorts = Vec<u16>;
-pub type Long = u32;
 pub type Longs = Vec<u32>;
 
 #[derive(Debug, Clone)]
 pub enum Value {
-    Short(Short),
-    Long(Long),
+    Short(u16),
+    Long(u32),
 }
 
 impl Value {
-    pub fn as_long(self) -> Long {
+    pub fn as_long(self) -> u32 {
         match self {
-            Value::Short(x) => x as Long,
+            Value::Short(x) => x as u32,
             Value::Long(x) => x,
         }
     }
@@ -37,47 +34,54 @@ impl Value {
     }
 }
 
-impl From<Short> for Value {
-    fn from(x: Short) -> Self {
+impl From<u16> for Value {
+    fn from(x: u16) -> Self {
         Value::Short(x)
     }
 }
 
-impl From<Long> for Value {
-    fn from(x: Long) -> Self {
+impl From<u32> for Value {
+    fn from(x: u32) -> Self {
         Value::Long(x)
     }
 }
 
 pub enum Values {
-    Shorts(Shorts),
-    Longs(Longs),
+    Shorts(Vec<u16>),
+    Longs(Vec<u32>),
 }
 
 impl Values {
-    pub fn as_long(self) -> Longs {
-        match self {
-            Values::Shorts(x) => x.into_iter().map(|x| x as Long).collect(),
-            Values::Longs(x) => x,
-        }
+    #[inline]
+    pub fn as_long(self) -> Vec<u32> {
+        self.map(|x| x as u32, |x| x)
     }
 
+    #[inline]
     pub fn as_size(self) -> Vec<usize> {
+        self.map(|x| x as usize, |x| x as usize)
+    }
+
+    pub fn map<F1, F2, T>(self, shorts_fn: F1, longs_fn: F2) -> Vec<T>
+    where
+        F1: Fn(u16) -> T,
+        F2: Fn(u32) -> T,
+    {
         match self {
-            Values::Shorts(x) => x.into_iter().map(|x| x as usize).collect(),
-            Values::Longs(x) => x.into_iter().map(|x| x as usize).collect()
+            Values::Shorts(x) => x.into_iter().map(shorts_fn).collect(),
+            Values::Longs(x) => x.into_iter().map(longs_fn).collect()
         }
     }
 }
 
-impl From<Shorts> for Values {
-    fn from(x: Shorts) -> Self {
+impl From<Vec<u16>> for Values {
+    fn from(x: Vec<u16>) -> Self {
         Values::Shorts(x)
     }
 }
 
-impl From<Longs> for Values {
-    fn from(x: Longs) -> Self {
+impl From<Vec<u32>> for Values {
+    fn from(x: Vec<u32>) -> Self {
         Values::Longs(x)
     }
 }
@@ -104,7 +108,7 @@ macro_rules! decodefrom_1 {
                 endian: &'a Endian,
                 entry: Entry,
             ) -> DecodeResult<$name> {
-                valid_count!(entry, 1..2)?;
+                valid_count!(entry, 1..2, std::any::type_name::<Self>())?;
 
                 match entry.ty() {
                     $datatype => {
@@ -127,7 +131,7 @@ macro_rules! decodefrom_n {
                 endian: &'a Endian,
                 entry: Entry,
             ) -> DecodeResult<$name> {
-                valid_count!(entry, 1..)?;
+                valid_count!(entry, 1.., std::any::type_name::<Self>())?;
 
                 match entry.ty() {
                     $datatype => {
@@ -158,9 +162,9 @@ macro_rules! decodefrom_n {
     };
 }
 
-decodefrom_1!(Byte, DataType::Byte, EndianRead::read_u8);
-decodefrom_1!(Short, DataType::Short, EndianRead::read_u16);
-decodefrom_1!(Long, DataType::Long, EndianRead::read_u32);
+decodefrom_1!(u8, DataType::Byte, EndianRead::read_u8);
+decodefrom_1!(u16, DataType::Short, EndianRead::read_u16);
+decodefrom_1!(u32, DataType::Long, EndianRead::read_u32);
 
 decodefrom_n!(Bytes, DataType::Byte, EndianRead::read_u8);
 decodefrom_n!(Shorts, DataType::Short, EndianRead::read_u16);
@@ -194,11 +198,11 @@ impl Decoded for Values {
     ) -> DecodeResult<Self> {
         match entry.ty() {
             DataType::Short => {
-                let val: Shorts = Decoded::decode(reader, endian, entry)?;
+                let val: Vec<u16> = Decoded::decode(reader, endian, entry)?;
                 Ok(Values::Shorts(val))
             }
             DataType::Long => {
-                let val: Longs = Decoded::decode(reader, endian, entry)?;
+                let val: Vec<u32> = Decoded::decode(reader, endian, entry)?;
                 Ok(Values::Longs(val))
             }
             x => Err(DecodeError::from(DecodingError::InvalidDataType(x))),
@@ -285,7 +289,7 @@ impl Decoded for PhotometricInterpretation {
         endian: &'a Endian,
         entry: Entry,
     ) -> DecodeResult<Self> {
-        valid_count!(entry, 1..2)?;
+        valid_count!(entry, 1..2, std::any::type_name::<Self>())?;
 
         match entry.ty() {
             DataType::Short => {
@@ -323,7 +327,7 @@ impl Decoded for Option<Compression> {
         endian: &'a Endian,
         entry: Entry,
     ) -> DecodeResult<Self> {
-        valid_count!(entry, 1..2)?;
+        valid_count!(entry, 1..2, std::any::type_name::<Self>())?;
         let val = entry.field().read_u16(endian)?;
         match val {
             1 => Ok(None),
@@ -367,7 +371,7 @@ impl Decoded for BitsPerSample<DynamicTone> {
         endian: &'a Endian,
         entry: Entry,
     ) -> DecodeResult<Self> {
-        valid_count!(entry, vec![1, 3, 4])?;
+        valid_count!(entry, vec![1, 3, 4], std::any::type_name::<Self>())?;
 
         if field_is_data_pointer!(reader, endian, entry) {
             // count = 3 or 4
@@ -405,7 +409,12 @@ impl Decoded for BitsPerSample<DynamicTone> {
 
                     Ok(BitsPerSample::C4(tone))
                 }
-                n => Err(DecodeError::from(DecodingError::InvalidCount(n))),
+                n => {
+                    let type_name = std::any::type_name::<Self>();
+                    let err = DecodingError::InvalidCount(vec![(n, type_name)]);
+                    
+                    Err(DecodeError::from(err))
+                }
             }
         } else {
             // count = 1
@@ -417,6 +426,31 @@ impl Decoded for BitsPerSample<DynamicTone> {
             };
 
             Ok(BitsPerSample::C1(tone))
+        }
+    }
+}
+
+/// Difference from the previous pixel
+///
+/// IFD constructs this with `tag::Predictor`.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum Predictor {
+    None,
+    Horizontal,
+}
+
+impl Decoded for Predictor {
+    fn decode<'a, R: io::Read + Seek>(
+        reader: &'a mut R,
+        endian: &'a Endian,
+        entry: Entry,
+    ) -> DecodeResult<Self> {
+        valid_count!(entry, 1..2, std::any::type_name::<Self>())?;
+        let val = entry.field().read_u16(endian)?;
+        match val {
+            1 => Ok(Predictor::None),
+            2 => Ok(Predictor::Horizontal),
+            n => Err(DecodeError::from(DecodingError::UnsupportedValue(vec![n]))),
         }
     }
 }

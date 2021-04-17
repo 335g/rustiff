@@ -1,17 +1,15 @@
-use std::{fs::File, path::Path};
 
-use rustiff::{tag, Data, DecodeResult, Decoder};
+use std::fs::File;
 
-fn decoder<P: AsRef<Path>>(path: P) -> DecodeResult<Decoder<File>> {
-    let f = File::open(path).expect("Incorrect filepath");
-    Decoder::new(f)
-}
+use rustiff::{Decoder};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let f = File::open("tests/images/006_cmyk_tone_interleave_ibm_uncompressed.tif")?;
-    let mut decoder = Decoder::new(f)?;
-    let width = decoder.get_exist_value::<tag::ImageWidth>()?;
-    println!("width: {:?}", width);
-
-    Ok(())
+fn main() {
+    // let f = File::open("tests/images/007_cmyk_tone_interleave_ibm_lzw.tif")
+        // .expect("exist file");
+    let f = File::open("a.tif").unwrap();
+    let mut decoder = Decoder::new(f).expect("No probrem as tiff format");
+    println!("{:?}", decoder.predictor());
+        
+    // let img = decoder.image();
+    // println!("img: {:?}", img);
 }

@@ -149,7 +149,7 @@ pub enum DecodingError {
     /// For example, The value decoded by the `PhotometricInterpretation` tag
     /// is determined to be a single short(`u16`) value.
     /// This error occurs when the number of data is inconsistent.
-    InvalidCount(u32),
+    InvalidCount(Vec<(usize, &'static str)>),
 
     /// Values that implement `Decoded` have its own corresponding value type.
     /// For example, When decoding from `val::Byte`, which implements `Decoded`,
@@ -170,21 +170,41 @@ pub enum DecodingError {
     /// This error occurs when the capacity of a single strip
     /// exceeds u32::max byte (= 4,294,967,295 Byte),
     /// but data this large is not common.
-    Oversized
+    UncompressedStripDataIsOverCapacity,
+
+    /// Uncompressed data capacity is determined by the width and 
+    /// height of the image and the number of bits per sample.
+    /// This error occurs when the decompressed size is not the 
+    /// desired size.
+    UnexpectedUncompressedSize {
+        /// Data size after unzipping
+        actual: usize,
+
+        /// Value determined from image conditions
+        required: usize,
+    },
 }
 
 impl fmt::Display for DecodingError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let desc = match self {
             DecodingError::UnsupportedValue(x) => format!("invalid value: {:?}", x),
-            DecodingError::InvalidCount(x) => format!("invalid count: {}", x),
+            DecodingError::InvalidCount(x) => {
+                let message = x.into_iter()
+                    .fold("".to_string(), |acc, (count, ty)| {
+                        format!("{}, {}({})", acc, ty, count)
+                    });
+                
+                format!("invalid count: {}", message)
+            },
             DecodingError::InvalidDataType(x) => format!("invalid data type: {:?}", x),
             DecodingError::NoValueThatShouldBe => "no value that should be".to_string(),
             DecodingError::CannotSelectImageFileDirectory => {
                 "cannot select the image file directory".to_string()
             }
             DecodingError::NoMatchCountForStrip => "no match count for strip".to_string(),
-            DecodingError::Oversized => "oversized in single strip".to_string(),
+            DecodingError::UncompressedStripDataIsOverCapacity => "oversized in single strip".to_string(),
+            DecodingError::UnexpectedUncompressedSize { actual, required } => format!("Unexpeced uncompressed data size, actual: {}, required: {}", actual, required),
         };
 
         write!(f, "{}", desc)

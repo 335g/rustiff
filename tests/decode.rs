@@ -1,5 +1,5 @@
-use rustiff::{tag, Decoder, FileHeaderError};
-use std::{error::Error, fs::File};
+use rustiff::{BitsPerSample, Compression, Decoder, DynamicTone, FileHeaderError, PhotometricInterpretation, Tone, tag};
+use std::{error::Error, fs::File, io::Write};
 
 #[test]
 fn decode_header_byteorder_none() {
@@ -59,50 +59,47 @@ fn decode_header_version_incorrect() {
 fn decode_image_no_compression() {
     let f = File::open("tests/images/006_cmyk_tone_interleave_ibm_uncompressed.tif")
         .expect("exist file");
-    let decoder = Decoder::new(f).expect("No problem as tiff format");
+    let mut decoder = Decoder::new(f).expect("No problem as tiff format");
 
     let width = decoder.width();
     let height = decoder.height();
+    let bits_per_sample = decoder.bits_per_sample();
+    let compression = decoder.compression();
+    let photometric_interpretation = decoder.photometric_interpretation();
+    
+    assert_eq!(width, 6);
+    assert_eq!(height, 4);
+    assert_eq!(bits_per_sample.tone().value(), 8);
+    assert_eq!(bits_per_sample.len(), 4);
+    assert_eq!(compression, None);
+    assert_eq!(photometric_interpretation, &PhotometricInterpretation::CMYK);
+
+    let data = decoder.image();
+    
+}
+
+#[test]
+fn decode_image_interleave_ibm_lzw_compression() {
+    let f = File::open("tests/images/007_cmyk_tone_interleave_ibm_lzw.tif")
+        .expect("exist file");
+    let mut decoder = Decoder::new(f).expect("No probrem as tiff format");
+
+    let width = decoder.width();
+    let height = decoder.height();
+    let bits_per_sample = decoder.bits_per_sample();
+    let compression = decoder.compression();
+    let photometric_interpretation = decoder.photometric_interpretation();
 
     assert_eq!(width, 6);
     assert_eq!(height, 4);
+    assert_eq!(bits_per_sample.tone().value(), 8);
+    assert_eq!(bits_per_sample.len(), 4);
+    assert_eq!(compression, Some(&Compression::LZW));
+    assert_eq!(photometric_interpretation, &PhotometricInterpretation::CMYK);
+
+    // let data = decoder.image();
+    // writeln!(&mut std::io::stderr(), "{:?}", data).unwrap();
 }
-
-// #[test]
-// fn test_decode_image_no_compression() -> Result<(), failure::Error> {
-//     let file = File::open("tests/images/006_cmyk_tone_interleave_ibm_uncompressed.tif")?;
-//     let mut decoder = Decoder::new(file)?;
-
-//     let header = decoder.header();
-//     match header {
-//         Ok(header) => {
-//             assert_eq!(header.width(), 6);
-//             assert_eq!(header.height(), 4);
-//             assert_eq!(header.bits_per_sample().bits(), &vec![8, 8, 8, 8]);
-//             assert_eq!(header.compression(), None);
-//             assert_eq!(
-//                 header.photometric_interpretation(),
-//                 PhotometricInterpretation::CMYK
-//             );
-//         }
-//         Err(_) => panic!("ImageHeader should be made"),
-//     }
-
-//     //let data: Vec<Vec<u8>> = vec![
-//     //    vec![0,0,0,0], vec![], vec![], vec![], vec![], vec![],
-//     //    vec![], vec![], vec![], vec![], vec![], vec![],
-//     //    vec![], vec![], vec![], vec![], vec![], vec![],
-//     //    vec![], vec![], vec![], vec![], vec![], vec![],
-//     //];
-
-//     //let image = decoder.image()?;
-//     //match image.data() {
-//     //    &ImageData::U8(ref x) => assert_eq!(x, &data),
-//     //    &ImageData::U16(_) => panic!("ImageData should be u8 data"),
-//     //}
-
-//     Ok(())
-// }
 
 // #[test]
 // fn test_decode_image_lzw() -> Result<(), failure::Error> {

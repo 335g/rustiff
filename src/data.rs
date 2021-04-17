@@ -2,19 +2,10 @@ use std::convert::TryFrom;
 
 use crate::error::{DecodeError, DecodeResult, DecodingError};
 
+#[derive(Debug)]
 pub enum Data {
-    Bytes(Vec<u8>),
-    Shorts(Vec<u16>),
-}
-
-impl Data {
-    pub fn byte_with(size: usize) -> Data {
-        Data::Bytes(vec![0; size])
-    }
-
-    pub fn short_with(size: usize) -> Data {
-        Data::Shorts(vec![0; size])
-    }
+    U8(Vec<u8>),
+    U16(Vec<u16>),
 }
 
 /// Data type in IFD
@@ -63,12 +54,12 @@ impl TryFrom<u16> for DataType {
 #[derive(Debug, Clone)]
 pub struct Entry {
     ty: DataType,
-    count: u32,
+    count: usize,
     field: [u8; 4],
 }
 
 impl Entry {
-    pub(crate) fn new(ty: DataType, count: u32, field: [u8; 4]) -> Entry {
+    pub(crate) fn new(ty: DataType, count: usize, field: [u8; 4]) -> Entry {
         Entry { ty, count, field }
     }
 
@@ -76,7 +67,7 @@ impl Entry {
         self.ty
     }
 
-    pub fn count(&self) -> u32 {
+    pub fn count(&self) -> usize {
         self.count
     }
 

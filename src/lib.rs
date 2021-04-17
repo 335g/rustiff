@@ -22,6 +22,9 @@ pub use error::{
     DecodeError, DecodeErrorKind, DecodeResult, DecodingError, FileHeaderError, TagError,
 };
 pub use val::{
-    BitsPerSample, Byte, Bytes, Compression, Long, Longs, PhotometricInterpretation, Rational,
-    Short, Shorts, Value, Values,
+    BitsPerSample, Compression, PhotometricInterpretation, Rational,
+    Value, Values,
+};
+pub use num::{
+    Tone, DynamicTone,
 };

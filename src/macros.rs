@@ -1,12 +1,15 @@
 #[macro_export]
 #[allow(missing_docs)]
 macro_rules! valid_count {
-    ($entry:expr, $conds:expr) => {{
+    ($entry:expr, $conds:expr, $type_name:expr) => {{
         let count = $entry.count();
         if $conds.contains(&count) {
             Ok(())
+
         } else {
-            Err(DecodeError::from(DecodingError::InvalidCount(count)))
+            let err = DecodingError::InvalidCount(vec![(count, $type_name)]);
+            
+            Err(DecodeError::from(err))
         }
     }};
 }

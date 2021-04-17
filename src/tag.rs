@@ -1,6 +1,6 @@
 use crate::{decode::Decoded};
 use crate::error::{DecodeError, DecodeErrorKind, DecodeResult, TagError, TagErrorKind};
-use crate::val::{self, Long, Short, Value, Values};
+use crate::val::{self, Value, Values};
 use crate::num::{Tone, DynamicTone, T1};
 use std::{any::TypeId, marker::PhantomData};
 use std::fmt;
@@ -350,7 +350,7 @@ impl Tag for StripOffsets {
 pub enum SamplesPerPixel {}
 
 impl Tag for SamplesPerPixel {
-    type Value = Short;
+    type Value = u16;
 
     const ID: u16 = 277;
 }
@@ -390,6 +390,7 @@ impl Tag for RowsPerStrip {
     type Value = Value;
 
     const ID: u16 = 278;
+    const DEFAULT_VALUE: Option<Self::Value> = Some(Value::Long(u32::MAX));
 }
 
 /// The tag for the number of bytes in the strip after compression per strip.
@@ -425,6 +426,37 @@ impl Tag for StripByteCounts {
     type Value = Values;
 
     const ID: u16 = 279;
+}
+
+/// The tag that shows how to increase the compression efficiency
+/// by taking the difference from the previous pixel.
+///
+/// ### code_id
+///
+/// 317
+///
+/// ### datatype
+///
+/// - [`Short`]
+///
+/// ### count
+///
+/// 1
+///
+/// ### default_value
+///
+/// 1
+/// 
+/// [`Short`]: ifd.Datatype.html
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum Predictor {}
+
+impl Tag for Predictor {
+    type Value = val::Predictor;
+
+    const ID: u16 = 317;
+
+    const DEFAULT_VALUE: Option<Self::Value> = Some(val::Predictor::None);
 }
 
 define_tags! {

@@ -239,6 +239,20 @@ impl<R> Decoder<R> {
         let entry = ifd.get_tag(anytag).cloned();
         Ok(entry)
     }
+    
+    fn get_entry_ref<T: Tag>(&self) -> DecodeResult<Option<&Entry>> {
+        let ifd = self.ifd();
+
+        self.get_entry_ref_with::<T>(ifd)
+    }
+
+    #[inline]
+    fn get_entry_ref_with<'a, T: Tag>(&'a self, ifd: &'a ImageFileDirectory) -> DecodeResult<Option<&'a Entry>> {
+        let anytag = AnyTag::try_from::<T>()?;
+
+        let entry = ifd.get_tag(anytag);
+        Ok(entry)
+    }
 
     // #[allow(missing_docs)]
     // fn strip_count(&self) -> DecodeResult<usize> {
@@ -338,6 +352,7 @@ where
 
             self.load_ifd()?;
         }
+
         // No preblem, I'll update the index
         self.header_index = at;
 
@@ -438,17 +453,6 @@ where
 
         Ok((ifd, next))
     }
-
-    // /// `IFD` constructor
-    // ///
-    // /// Tiff file may have more than one `IFD`, but in most cases it is one and
-    // /// you don't mind if you can access the first `IFD`. This function construct
-    // /// the first `IFD`
-    // fn ifd(&mut self) -> DecodeResult<ImageFileDirectory> {
-    //     let (ifd, _) = self.ifd_and_next_addr(self.start)?;
-
-    //     Ok(ifd)
-    // }
 
     /// Get the `Tag::Value` in `ImageFileDirectory`.
     /// This function returns default value if T has default value and IFD doesn't have the value.

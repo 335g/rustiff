@@ -226,28 +226,22 @@ impl<R> Decoder<R> {
 
     #[inline]
     #[allow(missing_docs)]
-    pub fn get_entry<T: Tag>(&self) -> DecodeResult<Option<Entry>> {
+    pub fn get_entry<'a, 'b, T>(&'a self) -> DecodeResult<Option<&'b Entry>> 
+        where
+            T: Tag,
+            'a: 'b
+    {
         let ifd = self.ifd();
         
         self.get_entry_with::<T>(ifd)
     }
 
     #[inline]
-    fn get_entry_with<T: Tag>(&self, ifd: &ImageFileDirectory) -> DecodeResult<Option<Entry>> {
-        let anytag = AnyTag::try_from::<T>()?;
-
-        let entry = ifd.get_tag(anytag).cloned();
-        Ok(entry)
-    }
-
-    fn get_entry_ref<T: Tag>(&self) -> DecodeResult<Option<&Entry>> {
-        let ifd = self.ifd();
-
-        self.get_entry_ref_with::<T>(ifd)
-    }
-
-    #[inline]
-    fn get_entry_ref_with<'a, T: Tag>(&'a self, ifd: &'a ImageFileDirectory) -> DecodeResult<Option<&'a Entry>> {
+    fn get_entry_with<'a, 'b, T>(&'a self, ifd: &'b ImageFileDirectory) -> DecodeResult<Option<&'b Entry>> 
+        where
+            T: Tag,
+            'a: 'b
+    {
         let anytag = AnyTag::try_from::<T>()?;
 
         let entry = ifd.get_tag(anytag);
@@ -460,7 +454,10 @@ where
         let entry = self.get_entry::<T>();
 
         match entry {
-            Ok(Some(entry)) => self.decode::<T::Value>(&entry).map(|x| Some(x)),
+            Ok(Some(entry)) => {
+                let entry = entry.clone();
+                self.decode::<T::Value>(&entry).map(|x| Some(x))
+            }
             Ok(None) => Ok(T::DEFAULT_VALUE),
             Err(e) => Err(e),
         }
@@ -471,7 +468,10 @@ where
         let entry = self.get_entry_with::<T>(ifd);
 
         match entry {
-            Ok(Some(entry)) => self.decode::<T::Value>(&entry).map(|x| Some(x)),
+            Ok(Some(entry)) => {
+                let entry = entry.clone();
+                self.decode::<T::Value>(&entry).map(|x| Some(x))
+            }
             Ok(None) => Ok(T::DEFAULT_VALUE),
             Err(e) => Err(e),
         }
@@ -486,7 +486,10 @@ where
         let entry = self.get_entry::<T>();
 
         match entry {
-            Ok(Some(entry)) => self.decode::<T::Value>(&entry),
+            Ok(Some(entry)) => {
+                let entry = entry.clone();
+                self.decode::<T::Value>(&entry)
+            }
             Ok(None) => {
                 T::DEFAULT_VALUE.ok_or(DecodeError::from(DecodingError::NoValueThatShouldBe))
             }
@@ -499,7 +502,10 @@ where
         let entry = self.get_entry_with::<T>(ifd);
 
         match entry {
-            Ok(Some(entry)) => self.decode::<T::Value>(&entry),
+            Ok(Some(entry)) => {
+                let entry = entry.clone();
+                self.decode::<T::Value>(&entry)
+            }
             Ok(None) => {
                 T::DEFAULT_VALUE.ok_or(DecodeError::from(DecodingError::NoValueThatShouldBe))
             }
@@ -509,7 +515,11 @@ where
 
     #[inline(always)]
     #[allow(missing_docs)]
-    fn decode<D: Decoded>(&mut self, entry: &Entry) -> DecodeResult<D> {
+    fn decode<'a, 'b, D>(&'a mut self, entry: &'b Entry) -> DecodeResult<D>
+        where
+            D: Decoded,
+            'a: 'b,
+    {
         D::decode(&mut self.reader, &self.endian, entry)
     }
 

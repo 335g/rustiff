@@ -103,11 +103,12 @@ impl Rational {
 macro_rules! decodefrom_1 {
     ($name:ident, $datatype:pat, $method:path) => {
         impl Decoded for $name {
-            fn decode<'a, R: io::Read + io::Seek>(
-                reader: &'a mut R,
-                endian: &'a Endian,
-                entry: Entry,
-            ) -> DecodeResult<$name> {
+            fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<$name> 
+                where 
+                    R: io::Read + io::Seek,
+                    'a: 'b,
+                    'a: 'c
+            {
                 valid_count!(entry, 1..2, std::any::type_name::<Self>())?;
 
                 match entry.ty() {
@@ -126,11 +127,12 @@ macro_rules! decodefrom_1 {
 macro_rules! decodefrom_n {
     ($name:ident, $datatype:pat, $method:path) => {
         impl Decoded for $name {
-            fn decode<'a, R: io::Read + io::Seek>(
-                reader: &'a mut R,
-                endian: &'a Endian,
-                entry: Entry,
-            ) -> DecodeResult<$name> {
+            fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<$name> 
+                where 
+                    R: io::Read + io::Seek,
+                    'a: 'b,
+                    'a: 'c
+            {
                 valid_count!(entry, 1.., std::any::type_name::<Self>())?;
 
                 match entry.ty() {
@@ -171,11 +173,12 @@ decodefrom_n!(Shorts, DataType::Short, EndianRead::read_u16);
 decodefrom_n!(Longs, DataType::Long, EndianRead::read_u32);
 
 impl Decoded for Value {
-    fn decode<'a, R: io::Read + io::Seek>(
-        reader: &'a mut R,
-        endian: &'a Endian,
-        entry: Entry,
-    ) -> DecodeResult<Self> {
+    fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
+        where
+            R: io::Read + io::Seek,
+            'a: 'b,
+            'a: 'c
+    {
         match entry.ty() {
             DataType::Short => {
                 let val: u16 = Decoded::decode(reader, endian, entry)?;
@@ -191,11 +194,12 @@ impl Decoded for Value {
 }
 
 impl Decoded for Values {
-    fn decode<'a, R: io::Read + io::Seek>(
-        reader: &'a mut R,
-        endian: &'a Endian,
-        entry: Entry,
-    ) -> DecodeResult<Self> {
+    fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
+        where
+            R: io::Read + io::Seek,
+            'a: 'b,
+            'a: 'c
+    {
         match entry.ty() {
             DataType::Short => {
                 let val: Vec<u16> = Decoded::decode(reader, endian, entry)?;
@@ -284,11 +288,12 @@ pub enum PhotometricInterpretation {
 }
 
 impl Decoded for PhotometricInterpretation {
-    fn decode<'a, R: io::Read + io::Seek>(
-        reader: &'a mut R,
-        endian: &'a Endian,
-        entry: Entry,
-    ) -> DecodeResult<Self> {
+    fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
+        where
+            R: io::Read + io::Seek,
+            'a: 'b,
+            'a: 'c
+    {
         valid_count!(entry, 1..2, std::any::type_name::<Self>())?;
 
         match entry.ty() {
@@ -322,11 +327,12 @@ pub enum Compression {
 }
 
 impl Decoded for Option<Compression> {
-    fn decode<'a, R: io::Read + io::Seek>(
-        reader: &'a mut R,
-        endian: &'a Endian,
-        entry: Entry,
-    ) -> DecodeResult<Self> {
+    fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
+        where
+            R: io::Read + io::Seek,
+            'a: 'b,
+            'a: 'c
+    {
         valid_count!(entry, 1..2, std::any::type_name::<Self>())?;
         let val = entry.field().read_u16(endian)?;
         match val {
@@ -366,11 +372,12 @@ impl<T: Tone> BitsPerSample<T> {
 }
 
 impl Decoded for BitsPerSample<DynamicTone> {
-    fn decode<'a, R: io::Read + io::Seek>(
-        reader: &'a mut R,
-        endian: &'a Endian,
-        entry: Entry,
-    ) -> DecodeResult<Self> {
+    fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
+        where
+            R: io::Read + io::Seek,
+            'a: 'b,
+            'a: 'c
+    {
         valid_count!(entry, vec![1, 3, 4], std::any::type_name::<Self>())?;
 
         if field_is_data_pointer!(reader, endian, entry) {
@@ -440,11 +447,12 @@ pub enum Predictor {
 }
 
 impl Decoded for Predictor {
-    fn decode<'a, R: io::Read + Seek>(
-        reader: &'a mut R,
-        endian: &'a Endian,
-        entry: Entry,
-    ) -> DecodeResult<Self> {
+    fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
+        where
+            R: io::Read + io::Seek,
+            'a: 'b,
+            'a: 'c
+    {
         valid_count!(entry, 1..2, std::any::type_name::<Self>())?;
         let val = entry.field().read_u16(endian)?;
         match val {

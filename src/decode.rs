@@ -100,11 +100,11 @@ impl DecodeBytes for LZWDecoder {
 }
 
 pub trait Decoded: Sized {
-    fn decode<'a, R: io::Read + io::Seek>(
-        reader: &'a mut R,
-        endian: &'a Endian,
-        entry: Entry,
-    ) -> DecodeResult<Self>;
+    fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self>
+        where
+            R: io::Read + io::Seek,
+            'a: 'b, 
+            'a: 'c;
 }
 
 #[derive(Debug)]
@@ -239,7 +239,7 @@ impl<R> Decoder<R> {
         let entry = ifd.get_tag(anytag).cloned();
         Ok(entry)
     }
-    
+
     fn get_entry_ref<T: Tag>(&self) -> DecodeResult<Option<&Entry>> {
         let ifd = self.ifd();
 
@@ -460,7 +460,7 @@ where
         let entry = self.get_entry::<T>();
 
         match entry {
-            Ok(Some(entry)) => self.decode::<T::Value>(entry).map(|x| Some(x)),
+            Ok(Some(entry)) => self.decode::<T::Value>(&entry).map(|x| Some(x)),
             Ok(None) => Ok(T::DEFAULT_VALUE),
             Err(e) => Err(e),
         }
@@ -471,7 +471,7 @@ where
         let entry = self.get_entry_with::<T>(ifd);
 
         match entry {
-            Ok(Some(entry)) => self.decode::<T::Value>(entry).map(|x| Some(x)),
+            Ok(Some(entry)) => self.decode::<T::Value>(&entry).map(|x| Some(x)),
             Ok(None) => Ok(T::DEFAULT_VALUE),
             Err(e) => Err(e),
         }
@@ -486,7 +486,7 @@ where
         let entry = self.get_entry::<T>();
 
         match entry {
-            Ok(Some(entry)) => self.decode::<T::Value>(entry),
+            Ok(Some(entry)) => self.decode::<T::Value>(&entry),
             Ok(None) => {
                 T::DEFAULT_VALUE.ok_or(DecodeError::from(DecodingError::NoValueThatShouldBe))
             }
@@ -499,7 +499,7 @@ where
         let entry = self.get_entry_with::<T>(ifd);
 
         match entry {
-            Ok(Some(entry)) => self.decode::<T::Value>(entry),
+            Ok(Some(entry)) => self.decode::<T::Value>(&entry),
             Ok(None) => {
                 T::DEFAULT_VALUE.ok_or(DecodeError::from(DecodingError::NoValueThatShouldBe))
             }
@@ -509,7 +509,7 @@ where
 
     #[inline(always)]
     #[allow(missing_docs)]
-    fn decode<D: Decoded>(&mut self, entry: Entry) -> DecodeResult<D> {
+    fn decode<D: Decoded>(&mut self, entry: &Entry) -> DecodeResult<D> {
         D::decode(&mut self.reader, &self.endian, entry)
     }
 

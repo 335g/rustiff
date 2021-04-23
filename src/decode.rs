@@ -99,6 +99,14 @@ impl DecodeBytes for LZWDecoder {
     }
 }
 
+pub trait Codable: Sized {
+    type Element;
+}
+
+pub trait Decodable: Codable {
+    fn decode(val: <Self as Codable>::Element) -> Result<Self, DecodingError>;
+}
+
 pub trait Decoded: Sized {
     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self>
         where

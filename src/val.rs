@@ -1,6 +1,6 @@
 use crate::{byte::{Endian, EndianRead, SeekExt}, num::{DynamicTone, T16, T8}};
 use crate::data::{DataType, Entry};
-use crate::decode::{Decoded, Decoder};
+use crate::decode::{Decoded, Decoder, Codable, Decodable};
 use crate::error::{DecodeError, DecodeResult, DecodingError};
 use crate::{field_is_data_pointer, valid_count};
 use crate::num::{Tone};
@@ -121,6 +121,15 @@ macro_rules! decodefrom_1 {
                 }
             }
         }
+        impl Codable for $name {
+            type Element = $name;
+        }
+
+        impl Decodable for $name {
+            fn decode(element: $name) -> Result<$name, DecodingError> {
+                Ok(element)
+            }
+        }
     };
 }
 
@@ -161,6 +170,16 @@ macro_rules! decodefrom_n {
                 }
             }
         }
+
+        impl Codable for $name {
+            type Element = $name;
+        }
+
+        impl Decodable for $name {
+            fn decode(element: $name) -> Result<$name, DecodingError> {
+                Ok(element)
+            }
+        }
     };
 }
 
@@ -193,6 +212,16 @@ impl Decoded for Value {
     }
 }
 
+impl Codable for Value {
+    type Element = Value;
+}
+
+impl Decodable for Value {
+    fn decode(val: Value) -> Result<Self, DecodingError> {
+        Ok(val)
+    }
+}
+
 impl Decoded for Values {
     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
         where
@@ -211,6 +240,16 @@ impl Decoded for Values {
             }
             x => Err(DecodeError::from(DecodingError::InvalidDataType(x))),
         }
+    }
+}
+
+impl Codable for Values {
+    type Element = Values;
+}
+
+impl Decodable for Values {
+    fn decode(val: Values) -> Result<Self, DecodingError> {
+        Ok(val)
     }
 }
 
@@ -287,6 +326,26 @@ pub enum PhotometricInterpretation {
     CIELab,
 }
 
+impl Codable for PhotometricInterpretation {
+    type Element = u16;
+}
+
+impl Decodable for PhotometricInterpretation {
+    fn decode(val: u16) -> Result<Self, DecodingError> {
+        match val {
+            0 => Ok(PhotometricInterpretation::WhiteIsZero),
+            1 => Ok(PhotometricInterpretation::BlackIsZero),
+            2 => Ok(PhotometricInterpretation::RGB),
+            3 => Ok(PhotometricInterpretation::Palette),
+            4 => Ok(PhotometricInterpretation::TransparencyMask),
+            5 => Ok(PhotometricInterpretation::CMYK),
+            6 => Ok(PhotometricInterpretation::YCbCr),
+            7 => Ok(PhotometricInterpretation::CIELab),
+            n => Err(DecodingError::UnsupportedValue(vec![n])),
+        }
+    }
+}
+
 impl Decoded for PhotometricInterpretation {
     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
         where
@@ -324,6 +383,20 @@ impl Decoded for PhotometricInterpretation {
 pub enum Compression {
     /// LZW compression
     LZW,
+}
+
+impl Codable for Option<Compression> {
+    type Element = u16;
+}
+
+impl Decodable for Option<Compression> {
+    fn decode(val: u16) -> Result<Self, DecodingError> {
+        match val {
+            1 => Ok(None),
+            5 => Ok(Some(Compression::LZW)),
+            n => Err(DecodingError::UnsupportedValue(vec![n])),
+        }
+    }
 }
 
 impl Decoded for Option<Compression> {
@@ -367,6 +440,63 @@ impl<T: Tone> BitsPerSample<T> {
             BitsPerSample::C1(x) => x,
             BitsPerSample::C3(x) => x,
             BitsPerSample::C4(x) => x,
+        }
+    }
+}
+
+impl<T: Tone> Codable for BitsPerSample<T> {
+    type Element = Vec<u16>;
+}
+
+impl Decodable for BitsPerSample<DynamicTone> {
+    fn decode(val: Vec<u16>) -> Result<Self, DecodingError> {
+        match val.len() {
+            1 => {
+                let val1 = val[0];
+                let tone = match val1 {
+                    n if n == 8 || n == 16 => DynamicTone::new(n as usize),
+                    n => return Err(DecodingError::UnsupportedValue(vec![n]))
+                };
+    
+                Ok(BitsPerSample::C1(tone))
+            }
+            3 => {
+                let val1 = val[0];
+                let val2 = val[1];
+                let val3 = val[2];
+
+                if val1 != val2 || val1 != val3 {
+                    return Err(DecodingError::UnsupportedValue(vec![val1, val2, val3]))
+                }
+
+                let tone = match val1 {
+                    n if n == 8 || n == 16 => DynamicTone::new(n as usize),
+                    n => return Err(DecodingError::UnsupportedValue(vec![n]))
+                };
+
+                Ok(BitsPerSample::C3(tone))
+            }
+            4 => {
+                let val1 = val[0];
+                let val2 = val[1];
+                let val3 = val[2];
+                let val4 = val[3];
+
+                if val1 != val2 || val1 != val3 || val1 != val4 {
+                    return Err(DecodingError::UnsupportedValue(vec![val1, val2, val3, val4]))
+                }
+
+                let tone = match val1 {
+                    n if n == 8 || n == 16 => DynamicTone::new(n as usize),
+                    n => return Err(DecodingError::UnsupportedValue(vec![n]))
+                };
+
+                Ok(BitsPerSample::C4(tone))
+            }
+            n => {
+                let type_name = std::any::type_name::<Self>();
+                Err(DecodingError::InvalidCount(vec![(n, type_name)]))
+            }
         }
     }
 }
@@ -444,6 +574,20 @@ impl Decoded for BitsPerSample<DynamicTone> {
 pub enum Predictor {
     None,
     Horizontal,
+}
+
+impl Codable for Predictor {
+    type Element = u16;
+}
+
+impl Decodable for Predictor {
+    fn decode(val: u16) -> Result<Self, DecodingError> {
+        match val {
+            1 => Ok(Predictor::None),
+            2 => Ok(Predictor::Horizontal),
+            n => Err(DecodingError::UnsupportedValue(vec![n])),
+        }
+    }
 }
 
 impl Decoded for Predictor {

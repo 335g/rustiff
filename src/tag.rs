@@ -62,7 +62,7 @@ macro_rules! define_tags {
                 }
             }
 
-            pub(crate) fn try_from<T: Tag>() -> DecodeResult<AnyTag> {
+            pub(crate) fn try_from<T: Tag>() -> Result<AnyTag, TagError> {
                 let anytag = AnyTag::from_u16(T::ID);
 
                 if anytag.eq::<T>() {
@@ -71,7 +71,7 @@ macro_rules! define_tags {
                     // A tag with the same T::ID already exists.
                     let typename = std::any::type_name::<T>().to_string();
                     let err = TagError::new(TagErrorKind::UnauthorizedTag(typename));
-                    Err(DecodeError::from(err))
+                    Err(err)
                 }
             }
 

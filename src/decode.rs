@@ -9,8 +9,8 @@ use crate::{
     byte::{Endian, EndianRead, SeekExt},
     dir,
 };
-use crate::num::{Tone};
-use byteorder::ByteOrder;
+use crate::num::Tone;
+use io::SeekFrom;
 use tag::StripByteCounts;
 use std::{any::type_name, convert::TryFrom};
 use std::io::{self, Read};
@@ -99,21 +99,25 @@ impl DecodeBytes for LZWDecoder {
     }
 }
 
+pub trait Element: Sized {
+    fn decode<R: io::Read + io::Seek>(reader: R, entry: Entry, endian: &Endian) -> Result<Self, DecodingError>;
+}
+
 pub trait Codable: Sized {
-    type Element;
+    type Element: Element;
 }
 
 pub trait Decodable: Codable {
     fn decode(val: <Self as Codable>::Element) -> Result<Self, DecodingError>;
 }
 
-pub trait Decoded: Sized {
-    fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self>
-        where
-            R: io::Read + io::Seek,
-            'a: 'b, 
-            'a: 'c;
-}
+// pub trait Decoded: Sized {
+//     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self>
+//         where
+//             R: io::Read + io::Seek,
+//             'a: 'b, 
+//             'a: 'c;
+// }
 
 #[derive(Debug)]
 enum Header {
@@ -234,11 +238,7 @@ impl<R> Decoder<R> {
 
     #[inline]
     #[allow(missing_docs)]
-    pub fn get_entry<'a, 'b, T>(&'a self) -> DecodeResult<Option<&'b Entry>> 
-        where
-            T: Tag,
-            'a: 'b
-    {
+    pub fn get_entry<T: Tag>(&self) -> DecodeResult<Option<&Entry>> {
         let ifd = self.ifd();
         
         self.get_entry_with::<T>(ifd)
@@ -456,6 +456,20 @@ where
         Ok((ifd, next))
     }
 
+    #[inline(always)]
+    #[allow(missing_docs)]
+    fn get_element<T: Tag>(&mut self, entry: Entry) -> DecodeResult<<T::Value as Codable>::Element> {
+        let endian = self.endian();
+        let count = entry.count();
+        let ty = entry.ty();
+
+        if entry.overflow() {
+
+        }
+
+        todo!()
+    }
+
     /// Get the `Tag::Value` in `ImageFileDirectory`.
     /// This function returns default value if T has default value and IFD doesn't have the value.
     pub fn get_value<T: Tag>(&mut self) -> DecodeResult<Option<T::Value>> {
@@ -464,7 +478,35 @@ where
         match entry {
             Ok(Some(entry)) => {
                 let entry = entry.clone();
-                self.decode::<T::Value>(&entry).map(|x| Some(x))
+                let element = self.get_element::<T>(entry)?;
+                
+                let val = <<T as Tag>::Value as Decodable>::decode(element)?;
+                Ok(Some(val))
+
+                // let endian = self.endian().clone();
+                // let count = entry.count();
+                // let datatype = entry.ty();
+
+                // if entry.overflow() {
+                //     let next = entry.field().read_u32(&endian)?;
+                //     let next = std::io::SeekFrom::Start(next as u64);
+                    
+                //     let reader = self.reader();
+                //     reader.seek(next)?;
+                    
+                //     let mut values = vec![];
+                //     for _ in 0..count {
+                //         let val = reader.read_u32(&endian)?;
+                //         values.push(val);
+                //     }
+                    
+                //     todo!()
+                // } else {
+                //     todo!()
+                // }
+
+                // // let entry = entry.clone();
+                // // self.decode::<T::Value>(&entry).map(|x| Some(x))
             }
             Ok(None) => Ok(T::DEFAULT_VALUE),
             Err(e) => Err(e),
@@ -478,7 +520,10 @@ where
         match entry {
             Ok(Some(entry)) => {
                 let entry = entry.clone();
-                self.decode::<T::Value>(&entry).map(|x| Some(x))
+                let element = self.get_element::<T>(entry)?;
+                
+                let val = <<T as Tag>::Value as Decodable>::decode(element)?;
+                Ok(Some(val))
             }
             Ok(None) => Ok(T::DEFAULT_VALUE),
             Err(e) => Err(e),
@@ -496,7 +541,10 @@ where
         match entry {
             Ok(Some(entry)) => {
                 let entry = entry.clone();
-                self.decode::<T::Value>(&entry)
+                let element = self.get_element::<T>(entry)?;
+                
+                let val = <<T as Tag>::Value as Decodable>::decode(element)?;
+                Ok(val)
             }
             Ok(None) => {
                 T::DEFAULT_VALUE.ok_or(DecodeError::from(DecodingError::NoValueThatShouldBe))
@@ -505,14 +553,17 @@ where
         }
     }
 
-    #[allow(missing_docs)]
+    // #[allow(missing_docs)]
     fn get_exist_value_with<T: Tag>(&mut self, ifd: &ImageFileDirectory) -> DecodeResult<T::Value> {
         let entry = self.get_entry_with::<T>(ifd);
 
         match entry {
             Ok(Some(entry)) => {
                 let entry = entry.clone();
-                self.decode::<T::Value>(&entry)
+                let element = self.get_element::<T>(entry)?;
+                
+                let val = <<T as Tag>::Value as Decodable>::decode(element)?;
+                Ok(val)
             }
             Ok(None) => {
                 T::DEFAULT_VALUE.ok_or(DecodeError::from(DecodingError::NoValueThatShouldBe))
@@ -521,96 +572,96 @@ where
         }
     }
 
-    #[inline(always)]
-    #[allow(missing_docs)]
-    fn decode<'a, 'b, D>(&'a mut self, entry: &'b Entry) -> DecodeResult<D>
-        where
-            D: Decoded,
-            'a: 'b,
-    {
-        D::decode(&mut self.reader, &self.endian, entry)
-    }
+    // #[inline(always)]
+    // #[allow(missing_docs)]
+    // fn decode<'a, 'b, D>(&'a mut self, entry: &'b Entry) -> DecodeResult<D>
+    //     where
+    //         D: Decodable,
+    //         'a: 'b,
+    // {
+    //     D::decode(&mut self.reader, &self.endian, entry)
+    // }
 
-    pub fn image(&mut self) -> DecodeResult<Data> {
-        let width = self.width();
-        let height = self.height();
-        let bits_per_sample = self.bits_per_sample();
-        let bits_len = bits_per_sample.len();
-        let tone = bits_per_sample.tone().value();
-        let endian = self.endian().clone();
+    // pub fn image(&mut self) -> DecodeResult<Data> {
+    //     let width = self.width();
+    //     let height = self.height();
+    //     let bits_per_sample = self.bits_per_sample();
+    //     let bits_len = bits_per_sample.len();
+    //     let tone = bits_per_sample.tone().value();
+    //     let endian = self.endian().clone();
         
-        let buffer_size = width * height * bits_len;
+    //     let buffer_size = width * height * bits_len;
 
-        let rows_per_strip = self.rows_per_strip();
-        let mut buffer = vec![];
+    //     let rows_per_strip = self.rows_per_strip();
+    //     let mut buffer = vec![];
 
-        let loaded = match self.compression() {
-            None => self.decode_bytes(SimpleDecoder, &mut buffer),
-            Some(Compression::LZW) => self.decode_bytes(LZWDecoder::new(), &mut buffer)
-        }?;
+    //     let loaded = match self.compression() {
+    //         None => self.decode_bytes(SimpleDecoder, &mut buffer),
+    //         Some(Compression::LZW) => self.decode_bytes(LZWDecoder::new(), &mut buffer)
+    //     }?;
 
-        // uncompression data length is not eq buffer size.
-        if loaded * tone / 8 != buffer_size {
-            let err = DecodingError::UnexpectedUncompressedSize {
-                actual: loaded * tone / 8,
-                required: buffer_size
-            };
+    //     // uncompression data length is not eq buffer size.
+    //     if loaded * tone / 8 != buffer_size {
+    //         let err = DecodingError::UnexpectedUncompressedSize {
+    //             actual: loaded * tone / 8,
+    //             required: buffer_size
+    //         };
 
-            return Err(DecodeError::from(err))
-        }
+    //         return Err(DecodeError::from(err))
+    //     }
 
-        let data = match tone {
-            8 => Data::U8(buffer),
-            16 => {
-                let buf = [0u8; 2];
-                let (x1, x2): (Vec<_>, Vec<_>) = buffer.into_iter()
-                    .enumerate()
-                    .partition(|(i, _)| i % 2 == 0);
+    //     let data = match tone {
+    //         8 => Data::U8(buffer),
+    //         16 => {
+    //             let buf = [0u8; 2];
+    //             let (x1, x2): (Vec<_>, Vec<_>) = buffer.into_iter()
+    //                 .enumerate()
+    //                 .partition(|(i, _)| i % 2 == 0);
                 
-                let data = x1.into_iter()
-                    .zip(x2)
-                    .map(|((_, x1), (_, x2))| [x1, x2].as_ref().read_u16(&endian))
-                    .collect::<Result<Vec<_>, _>>()?;
+    //             let data = x1.into_iter()
+    //                 .zip(x2)
+    //                 .map(|((_, x1), (_, x2))| [x1, x2].as_ref().read_u16(&endian))
+    //                 .collect::<Result<Vec<_>, _>>()?;
 
-                Data::U16(data)
-            }
-            n => unreachable!("BitsPerSample is only available in 8 or 16 tones."),
-        };
+    //             Data::U16(data)
+    //         }
+    //         n => unreachable!("BitsPerSample is only available in 8 or 16 tones."),
+    //     };
 
-        return Ok(data);
-    }
+    //     return Ok(data);
+    // }
 
-    fn decode_bytes<D, W>(&mut self, mut decoder: D, mut writer: W) -> DecodeResult<usize>
-    where
-        D: DecodeBytes,
-        W: io::Write,
-    {
-        let width = self.width();
-        let height = self.height();
-        let rows_per_strip = self.rows_per_strip();
-        let bits_len = self.bits_per_sample().len();
-        let predictor = self.predictor();
+    // fn decode_bytes<D, W>(&mut self, mut decoder: D, mut writer: W) -> DecodeResult<usize>
+    // where
+    //     D: DecodeBytes,
+    //     W: io::Write,
+    // {
+    //     let width = self.width();
+    //     let height = self.height();
+    //     let rows_per_strip = self.rows_per_strip();
+    //     let bits_len = self.bits_per_sample().len();
+    //     let predictor = self.predictor();
 
-        let values = self.strip_offsets()
-            .iter()
-            .zip(self.strip_byte_counts())
-            .map(|(x, y)| (*x, *y))
-            .enumerate()
-            .collect::<Vec<_>>();
+    //     let values = self.strip_offsets()
+    //         .iter()
+    //         .zip(self.strip_byte_counts())
+    //         .map(|(x, y)| (*x, *y))
+    //         .enumerate()
+    //         .collect::<Vec<_>>();
 
-        let mut loaded = 0;
-        for (i, (offset, byte_count)) in values {
-            let strip_height = std::cmp::min(rows_per_strip, height - i * rows_per_strip);
-            let buffer_size = width * strip_height * bits_len;
+    //     let mut loaded = 0;
+    //     for (i, (offset, byte_count)) in values {
+    //         let strip_height = std::cmp::min(rows_per_strip, height - i * rows_per_strip);
+    //         let buffer_size = width * strip_height * bits_len;
             
-            self.reader().goto(offset)?;
-            let mut buffer = vec![0u8; byte_count];
-            self.reader().read_exact(&mut buffer[..])?;
-            loaded += decoder.decode_bytes(buffer.as_slice(), &mut writer, byte_count, buffer_size, predictor)?;
-        }
+    //         self.reader().goto(offset)?;
+    //         let mut buffer = vec![0u8; byte_count];
+    //         self.reader().read_exact(&mut buffer[..])?;
+    //         loaded += decoder.decode_bytes(buffer.as_slice(), &mut writer, byte_count, buffer_size, predictor)?;
+    //     }
 
-        Ok(loaded)
-    }
+    //     Ok(loaded)
+    // }
 }
 
 #[cfg(test)]

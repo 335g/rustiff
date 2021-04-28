@@ -155,7 +155,7 @@ pub enum DecodingError {
     /// For example, When decoding from `val::Byte`, which implements `Decoded`,
     /// `data::Entry.ty` should be `data::DataType::Byte`.
     /// This error occurs when the corresponding type is different.
-    InvalidDataType(DataType),
+    InvalidDataType(Vec<(DataType, &'static str)>),
 
     ///
     NoValueThatShouldBe,
@@ -197,7 +197,14 @@ impl fmt::Display for DecodingError {
                 
                 format!("invalid count: {}", message)
             },
-            DecodingError::InvalidDataType(x) => format!("invalid data type: {:?}", x),
+            DecodingError::InvalidDataType(x) => {
+                let message = x.into_iter()
+                    .fold("".to_string(), |acc, (ty, ty_str)| {
+                        format!("{}, {}({:?})", acc, ty_str, ty)
+                    });
+                    
+                format!("invalid data type: {:?}", message)
+            }
             DecodingError::NoValueThatShouldBe => "no value that should be".to_string(),
             DecodingError::CannotSelectImageFileDirectory => {
                 "cannot select the image file directory".to_string()

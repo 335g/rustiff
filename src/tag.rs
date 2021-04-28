@@ -1,4 +1,4 @@
-use crate::{decode::Decoded};
+use crate::decode::Decodable;
 use crate::error::{DecodeError, DecodeErrorKind, DecodeResult, TagError, TagErrorKind};
 use crate::val::{self, Value, Values};
 use crate::num::{Tone, DynamicTone, T1};
@@ -7,7 +7,7 @@ use std::fmt;
 
 pub trait Tag: 'static {
     /// The value associated with this tag.
-    type Value: Decoded;
+    type Value: Decodable;
 
     /// Identifer.
     ///

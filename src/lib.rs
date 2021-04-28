@@ -17,7 +17,7 @@ pub mod tag;
 pub mod val;
 
 pub use data::{Data, DataType, Entry};
-pub use decode::{Decoded, Decoder};
+pub use decode::{Decodable, Decoder};
 pub use error::{
     DecodeError, DecodeErrorKind, DecodeResult, DecodingError, FileHeaderError, TagError,
 };

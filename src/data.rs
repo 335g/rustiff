@@ -1,4 +1,5 @@
-use std::convert::TryFrom;
+use std::{convert::TryFrom, ops::{Range, RangeFrom, RangeFull, RangeInclusive, RangeTo, RangeToInclusive}};
+use std::ops::RangeBounds;
 
 use crate::error::{DecodeError, DecodeResult, DecodingError};
 
@@ -67,7 +68,7 @@ impl Entry {
         self.ty
     }
 
-    pub fn count(&self) -> usize {
+    pub const fn count(&self) -> usize {
         self.count
     }
 

@@ -1,12 +1,13 @@
-use crate::{byte::{Endian, EndianRead, SeekExt}, num::{DynamicTone, T16, T8}};
+use crate::{Data, byte::{Endian, EndianRead, SeekExt}, num::{DynamicTone, T16, T8}};
 use crate::data::{DataType, Entry};
-use crate::decode::{Decoded, Decoder, Codable, Decodable};
+use crate::decode::{Element, Decoder, Codable, Decodable};
 use crate::error::{DecodeError, DecodeResult, DecodingError};
 use crate::{field_is_data_pointer, valid_count};
 use crate::num::{Tone};
 use std::{any::type_name, convert::From};
 use std::io::{self, Seek};
 use std::ops::Deref;
+use std::ops::RangeFrom;
 
 pub type Bytes = Vec<u8>;
 pub type Shorts = Vec<u16>;
@@ -100,117 +101,207 @@ impl Rational {
     }
 }
 
-macro_rules! decodefrom_1 {
-    ($name:ident, $datatype:pat, $method:path) => {
-        impl Decoded for $name {
-            fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<$name> 
-                where 
-                    R: io::Read + io::Seek,
-                    'a: 'b,
-                    'a: 'c
-            {
-                valid_count!(entry, 1..2, std::any::type_name::<Self>())?;
+// macro_rules! decodefrom_1 {
+//     ($name:ident, $datatype:ident, $method:path) => {
+//         impl Decoded for $name {
+//             fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<$name> 
+//                 where 
+//                     R: io::Read + io::Seek,
+//                     'a: 'b,
+//                     'a: 'c
+//             {
+//                 valid_count!(entry, 1..2, std::any::type_name::<Self>())?;
 
-                match entry.ty() {
-                    $datatype => {
-                        let mut field = entry.field();
-                        let val = $method(&mut field, endian)?;
-                        Ok(val)
-                    }
-                    x => Err(DecodeError::from(DecodingError::InvalidDataType(x))),
-                }
-            }
+//                 match entry.ty() {
+//                     $datatype => {
+//                         let mut field = entry.field();
+//                         let val = $method(&mut field, endian)?;
+//                         Ok(val)
+//                     }
+//                     x => Err(DecodeError::from(DecodingError::InvalidDataType(x))),
+//                 }
+//             }
+//         }
+//         impl Codable for $name {
+//             type Element = $name;
+//         }
+
+//         impl Decodable for $name {
+//             type PossibleDataType = DataType;
+//             type PossibleCount = usize;
+
+//             const POSSIBLE_ELEMENT: PossibleElement<DataType, usize> = PossibleElement::new($datatype, 1);
+
+//             fn decode(element: $name) -> Result<$name, DecodingError> {
+//                 Ok(element)
+//             }
+//         }
+//     };
+// }
+
+// macro_rules! decodefrom_n {
+//     ($name:ident, $datatype:pat, $method:path) => {
+//         impl Decoded for $name {
+//             fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<$name> 
+//                 where 
+//                     R: io::Read + io::Seek,
+//                     'a: 'b,
+//                     'a: 'c
+//             {
+//                 valid_count!(entry, 1.., std::any::type_name::<Self>())?;
+
+//                 match entry.ty() {
+//                     $datatype => {
+//                         let count = entry.count();
+//                         let mut data = vec![];
+//                         if entry.overflow() {
+//                             let next = entry.field().read_u32(&endian)?;
+//                             reader.goto(next as u64)?;
+
+//                             for _ in 0..count {
+//                                 let val = $method(reader, &endian)?;
+//                                 data.push(val);
+//                             }
+//                         } else {
+//                             for _ in 0..count {
+//                                 let mut field = entry.field();
+//                                 let val = $method(&mut field, &endian)?;
+//                                 data.push(val);
+//                             }
+//                         }
+
+//                         Ok(data)
+//                     }
+//                     x => Err(DecodeError::from(DecodingError::InvalidDataType(x))),
+//                 }
+//             }
+//         }
+
+//         impl Codable for $name {
+//             type Element = $name;
+//         }
+
+//         impl Decodable for $name {
+//             type PossibleDataType = DataType;
+//             type PossibleCount = RangeFrom<usize>;
+
+//             const POSSIBLE_ELEMENT: PossibleElement<DataType, RangeFrom<usize>> = PossibleElement::new($datatype, 1..);
+
+//             fn decode(element: $name) -> Result<$name, DecodingError> {
+//                 Ok(element)
+//             }
+//         }
+//     };
+// }
+
+impl Element for u8 {
+    fn decode<R: io::Read + Seek>(reader: R, entry: Entry, endian: &Endian) -> Result<Self, DecodingError> {
+        let count = entry.count();
+
+        if count != 1 {
+            return Err(DecodingError::InvalidCount(vec![(count, std::any::type_name::<u8>())]))
         }
-        impl Codable for $name {
-            type Element = $name;
+
+        let ty = entry.ty();
+
+        if ty != DataType::Byte {
+            return Err(DecodingError::InvalidDataType(vec![(ty, std::any::type_name::<u8>())]))
         }
 
-        impl Decodable for $name {
-            fn decode(element: $name) -> Result<$name, DecodingError> {
-                Ok(element)
-            }
-        }
-    };
-}
+        let val = reader.read_u8(endian);
 
-macro_rules! decodefrom_n {
-    ($name:ident, $datatype:pat, $method:path) => {
-        impl Decoded for $name {
-            fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<$name> 
-                where 
-                    R: io::Read + io::Seek,
-                    'a: 'b,
-                    'a: 'c
-            {
-                valid_count!(entry, 1.., std::any::type_name::<Self>())?;
-
-                match entry.ty() {
-                    $datatype => {
-                        let count = entry.count();
-                        let mut data = vec![];
-                        if entry.overflow() {
-                            let next = entry.field().read_u32(&endian)?;
-                            reader.goto(next as u64)?;
-
-                            for _ in 0..count {
-                                let val = $method(reader, &endian)?;
-                                data.push(val);
-                            }
-                        } else {
-                            for _ in 0..count {
-                                let mut field = entry.field();
-                                let val = $method(&mut field, &endian)?;
-                                data.push(val);
-                            }
-                        }
-
-                        Ok(data)
-                    }
-                    x => Err(DecodeError::from(DecodingError::InvalidDataType(x))),
-                }
-            }
-        }
-
-        impl Codable for $name {
-            type Element = $name;
-        }
-
-        impl Decodable for $name {
-            fn decode(element: $name) -> Result<$name, DecodingError> {
-                Ok(element)
-            }
-        }
-    };
-}
-
-decodefrom_1!(u8, DataType::Byte, EndianRead::read_u8);
-decodefrom_1!(u16, DataType::Short, EndianRead::read_u16);
-decodefrom_1!(u32, DataType::Long, EndianRead::read_u32);
-
-decodefrom_n!(Bytes, DataType::Byte, EndianRead::read_u8);
-decodefrom_n!(Shorts, DataType::Short, EndianRead::read_u16);
-decodefrom_n!(Longs, DataType::Long, EndianRead::read_u32);
-
-impl Decoded for Value {
-    fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
-        where
-            R: io::Read + io::Seek,
-            'a: 'b,
-            'a: 'c
-    {
-        match entry.ty() {
-            DataType::Short => {
-                let val: u16 = Decoded::decode(reader, endian, entry)?;
-                Ok(Value::Short(val))
-            }
-            DataType::Long => {
-                let val: u32 = Decoded::decode(reader, endian, entry)?;
-                Ok(Value::Long(val))
-            }
-            x => Err(DecodeError::from(DecodingError::InvalidDataType(x))),
-        }
+        todo!()
     }
 }
+
+impl Codable for u8 {
+    type Element = u8;
+}
+
+impl Decodable for u8 {
+    fn decode(val: u8) -> Result<Self, DecodingError> {
+        Ok(val)
+    }
+}
+
+impl Codable for u16 {
+    type Element = u16;
+}
+
+impl Decodable for u16 {
+    fn decode(val: u16) -> Result<Self, DecodingError> {
+        Ok(val)
+    }
+}
+
+impl Codable for u32 {
+    type Element = u32;
+}
+
+impl Decodable for u32 {
+    fn decode(val: u32) -> Result<Self, DecodingError> {
+        Ok(val)
+    }
+}
+
+// decodefrom_1!(u8, DataType::Byte, EndianRead::read_u8);
+// decodefrom_1!(u16, DataType::Short, EndianRead::read_u16);
+// decodefrom_1!(u32, DataType::Long, EndianRead::read_u32);
+
+impl Codable for Vec<u8> {
+    type Element = Vec<u8>;
+}
+
+impl Decodable for Vec<u8> {
+    fn decode(val: Vec<u8>) -> Result<Self, DecodingError> {
+        Ok(val)
+    }
+}
+
+impl Codable for Vec<u16> {
+    type Element = Vec<u16>;
+}
+
+impl Decodable for Vec<u16> {
+    fn decode(val: Vec<u16>) -> Result<Self, DecodingError> {
+        Ok(val)
+    }
+}
+
+impl Codable for Vec<u32> {
+    type Element = Vec<u32>;
+}
+
+impl Decodable for Vec<u32> {
+    fn decode(val: Vec<u32>) -> Result<Self, DecodingError> {
+        Ok(val)
+    }
+}
+
+// decodefrom_n!(Bytes, DataType::Byte, EndianRead::read_u8);
+// decodefrom_n!(Shorts, DataType::Short, EndianRead::read_u16);
+// decodefrom_n!(Longs, DataType::Long, EndianRead::read_u32);
+
+// impl Decoded for Value {
+//     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
+//         where
+//             R: io::Read + io::Seek,
+//             'a: 'b,
+//             'a: 'c
+//     {
+//         match entry.ty() {
+//             DataType::Short => {
+//                 let val: u16 = Decoded::decode(reader, endian, entry)?;
+//                 Ok(Value::Short(val))
+//             }
+//             DataType::Long => {
+//                 let val: u32 = Decoded::decode(reader, endian, entry)?;
+//                 Ok(Value::Long(val))
+//             }
+//             x => Err(DecodeError::from(DecodingError::InvalidDataType(x))),
+//         }
+//     }
+// }
 
 impl Codable for Value {
     type Element = Value;
@@ -222,26 +313,26 @@ impl Decodable for Value {
     }
 }
 
-impl Decoded for Values {
-    fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
-        where
-            R: io::Read + io::Seek,
-            'a: 'b,
-            'a: 'c
-    {
-        match entry.ty() {
-            DataType::Short => {
-                let val: Vec<u16> = Decoded::decode(reader, endian, entry)?;
-                Ok(Values::Shorts(val))
-            }
-            DataType::Long => {
-                let val: Vec<u32> = Decoded::decode(reader, endian, entry)?;
-                Ok(Values::Longs(val))
-            }
-            x => Err(DecodeError::from(DecodingError::InvalidDataType(x))),
-        }
-    }
-}
+// impl Decoded for Values {
+//     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
+//         where
+//             R: io::Read + io::Seek,
+//             'a: 'b,
+//             'a: 'c
+//     {
+//         match entry.ty() {
+//             DataType::Short => {
+//                 let val: Vec<u16> = Decoded::decode(reader, endian, entry)?;
+//                 Ok(Values::Shorts(val))
+//             }
+//             DataType::Long => {
+//                 let val: Vec<u32> = Decoded::decode(reader, endian, entry)?;
+//                 Ok(Values::Longs(val))
+//             }
+//             x => Err(DecodeError::from(DecodingError::InvalidDataType(x))),
+//         }
+//     }
+// }
 
 impl Codable for Values {
     type Element = Values;
@@ -346,34 +437,34 @@ impl Decodable for PhotometricInterpretation {
     }
 }
 
-impl Decoded for PhotometricInterpretation {
-    fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
-        where
-            R: io::Read + io::Seek,
-            'a: 'b,
-            'a: 'c
-    {
-        valid_count!(entry, 1..2, std::any::type_name::<Self>())?;
+// impl Decoded for PhotometricInterpretation {
+//     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
+//         where
+//             R: io::Read + io::Seek,
+//             'a: 'b,
+//             'a: 'c
+//     {
+//         valid_count!(entry, 1..2, std::any::type_name::<Self>())?;
 
-        match entry.ty() {
-            DataType::Short => {
-                let val = entry.field().read_u16(endian)?;
-                match val {
-                    0 => Ok(PhotometricInterpretation::WhiteIsZero),
-                    1 => Ok(PhotometricInterpretation::BlackIsZero),
-                    2 => Ok(PhotometricInterpretation::RGB),
-                    3 => Ok(PhotometricInterpretation::Palette),
-                    4 => Ok(PhotometricInterpretation::TransparencyMask),
-                    5 => Ok(PhotometricInterpretation::CMYK),
-                    6 => Ok(PhotometricInterpretation::YCbCr),
-                    7 => Ok(PhotometricInterpretation::CIELab),
-                    n => Err(DecodeError::from(DecodingError::UnsupportedValue(vec![n]))),
-                }
-            }
-            x => Err(DecodeError::from(DecodingError::InvalidDataType(x))),
-        }
-    }
-}
+//         match entry.ty() {
+//             DataType::Short => {
+//                 let val = entry.field().read_u16(endian)?;
+//                 match val {
+//                     0 => Ok(PhotometricInterpretation::WhiteIsZero),
+//                     1 => Ok(PhotometricInterpretation::BlackIsZero),
+//                     2 => Ok(PhotometricInterpretation::RGB),
+//                     3 => Ok(PhotometricInterpretation::Palette),
+//                     4 => Ok(PhotometricInterpretation::TransparencyMask),
+//                     5 => Ok(PhotometricInterpretation::CMYK),
+//                     6 => Ok(PhotometricInterpretation::YCbCr),
+//                     7 => Ok(PhotometricInterpretation::CIELab),
+//                     n => Err(DecodeError::from(DecodingError::UnsupportedValue(vec![n]))),
+//                 }
+//             }
+//             x => Err(DecodeError::from(DecodingError::InvalidDataType(x))),
+//         }
+//     }
+// }
 
 /// Compression scheme used on the image data.
 ///
@@ -399,22 +490,22 @@ impl Decodable for Option<Compression> {
     }
 }
 
-impl Decoded for Option<Compression> {
-    fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
-        where
-            R: io::Read + io::Seek,
-            'a: 'b,
-            'a: 'c
-    {
-        valid_count!(entry, 1..2, std::any::type_name::<Self>())?;
-        let val = entry.field().read_u16(endian)?;
-        match val {
-            1 => Ok(None),
-            5 => Ok(Some(Compression::LZW)),
-            n => Err(DecodeError::from(DecodingError::UnsupportedValue(vec![n]))),
-        }
-    }
-}
+// impl Decoded for Option<Compression> {
+//     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
+//         where
+//             R: io::Read + io::Seek,
+//             'a: 'b,
+//             'a: 'c
+//     {
+//         valid_count!(entry, 1..2, std::any::type_name::<Self>())?;
+//         let val = entry.field().read_u16(endian)?;
+//         match val {
+//             1 => Ok(None),
+//             5 => Ok(Some(Compression::LZW)),
+//             n => Err(DecodeError::from(DecodingError::UnsupportedValue(vec![n]))),
+//         }
+//     }
+// }
 
 /// Bits/Sample
 ///
@@ -493,79 +584,76 @@ impl Decodable for BitsPerSample<DynamicTone> {
 
                 Ok(BitsPerSample::C4(tone))
             }
-            n => {
-                let type_name = std::any::type_name::<Self>();
-                Err(DecodingError::InvalidCount(vec![(n, type_name)]))
-            }
+            n => unreachable!() // `Possible` limits the number to 1, 3, 4.
         }
     }
 }
 
-impl Decoded for BitsPerSample<DynamicTone> {
-    fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
-        where
-            R: io::Read + io::Seek,
-            'a: 'b,
-            'a: 'c
-    {
-        valid_count!(entry, vec![1, 3, 4], std::any::type_name::<Self>())?;
+// impl Decoded for BitsPerSample<DynamicTone> {
+//     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
+//         where
+//             R: io::Read + io::Seek,
+//             'a: 'b,
+//             'a: 'c
+//     {
+//         valid_count!(entry, vec![1, 3, 4], std::any::type_name::<Self>())?;
 
-        if field_is_data_pointer!(reader, endian, entry) {
-            // count = 3 or 4
-            match entry.count() {
-                3 => {
-                    let val1 = reader.read_u16(&endian)?;
-                    let val2 = reader.read_u16(&endian)?;
-                    let val3 = reader.read_u16(&endian)?;
+//         if field_is_data_pointer!(reader, endian, entry) {
+//             // count = 3 or 4
+//             match entry.count() {
+//                 3 => {
+//                     let val1 = reader.read_u16(&endian)?;
+//                     let val2 = reader.read_u16(&endian)?;
+//                     let val3 = reader.read_u16(&endian)?;
 
-                    if val1 != val2 || val1 != val3 {
-                        return Err(DecodeError::from(DecodingError::UnsupportedValue(vec![val1, val2, val3])))
-                    }
+//                     if val1 != val2 || val1 != val3 {
+//                         return Err(DecodeError::from(DecodingError::UnsupportedValue(vec![val1, val2, val3])))
+//                     }
 
-                    let tone = match val1 {
-                        n if n == 8 || n == 16 => DynamicTone::new(n as usize),
-                        n => return Err(DecodeError::from(DecodingError::UnsupportedValue(vec![n])))
-                    };
+//                     let tone = match val1 {
+//                         n if n == 8 || n == 16 => DynamicTone::new(n as usize),
+//                         n => return Err(DecodeError::from(DecodingError::UnsupportedValue(vec![n])))
+//                     };
 
-                    Ok(BitsPerSample::C3(tone))
-                }
-                4 => {
-                    let val1 = reader.read_u16(&endian)?;
-                    let val2 = reader.read_u16(&endian)?;
-                    let val3 = reader.read_u16(&endian)?;
-                    let val4 = reader.read_u16(&endian)?;
+//                     Ok(BitsPerSample::C3(tone))
+//                 }
+//                 4 => {
+//                     let val1 = reader.read_u16(&endian)?;
+//                     let val2 = reader.read_u16(&endian)?;
+//                     let val3 = reader.read_u16(&endian)?;
+//                     let val4 = reader.read_u16(&endian)?;
 
-                    if val1 != val2 || val1 != val3 || val1 != val4 {
-                        return Err(DecodeError::from(DecodingError::UnsupportedValue(vec![val1, val2, val3, val4])))
-                    }
+//                     if val1 != val2 || val1 != val3 || val1 != val4 {
+//                         return Err(DecodeError::from(DecodingError::UnsupportedValue(vec![val1, val2, val3, val4])))
+//                     }
 
-                    let tone = match val1 {
-                        n if n == 8 || n == 16 => DynamicTone::new(n as usize),
-                        n => return Err(DecodeError::from(DecodingError::UnsupportedValue(vec![n])))
-                    };
+//                     let tone = match val1 {
+//                         n if n == 8 || n == 16 => DynamicTone::new(n as usize),
+//                         n => return Err(DecodeError::from(DecodingError::UnsupportedValue(vec![n])))
+//                     };
 
-                    Ok(BitsPerSample::C4(tone))
-                }
-                n => {
-                    let type_name = std::any::type_name::<Self>();
-                    let err = DecodingError::InvalidCount(vec![(n, type_name)]);
+//                     Ok(BitsPerSample::C4(tone))
+//                 }
+//                 n => {
+//                     let type_name = std::any::type_name::<Self>();
+//                     let err = DecodingError::InvalidCount(vec![(n, type_name)]);
                     
-                    Err(DecodeError::from(err))
-                }
-            }
-        } else {
-            // count = 1
-            let val1 = entry.field().read_u16(&endian)?;
+//                     Err(DecodeError::from(err))
+//                 }
+//             }
+//         } else {
+//             // count = 1
+//             let val1 = entry.field().read_u16(&endian)?;
 
-            let tone = match val1 {
-                n if n == 8 || n == 16 => DynamicTone::new(n as usize),
-                n => return Err(DecodeError::from(DecodingError::UnsupportedValue(vec![n])))
-            };
+//             let tone = match val1 {
+//                 n if n == 8 || n == 16 => DynamicTone::new(n as usize),
+//                 n => return Err(DecodeError::from(DecodingError::UnsupportedValue(vec![n])))
+//             };
 
-            Ok(BitsPerSample::C1(tone))
-        }
-    }
-}
+//             Ok(BitsPerSample::C1(tone))
+//         }
+//     }
+// }
 
 /// Difference from the previous pixel
 ///
@@ -590,19 +678,19 @@ impl Decodable for Predictor {
     }
 }
 
-impl Decoded for Predictor {
-    fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
-        where
-            R: io::Read + io::Seek,
-            'a: 'b,
-            'a: 'c
-    {
-        valid_count!(entry, 1..2, std::any::type_name::<Self>())?;
-        let val = entry.field().read_u16(endian)?;
-        match val {
-            1 => Ok(Predictor::None),
-            2 => Ok(Predictor::Horizontal),
-            n => Err(DecodeError::from(DecodingError::UnsupportedValue(vec![n]))),
-        }
-    }
-}
+// impl Decoded for Predictor {
+//     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
+//         where
+//             R: io::Read + io::Seek,
+//             'a: 'b,
+//             'a: 'c
+//     {
+//         valid_count!(entry, 1..2, std::any::type_name::<Self>())?;
+//         let val = entry.field().read_u16(endian)?;
+//         match val {
+//             1 => Ok(Predictor::None),
+//             2 => Ok(Predictor::Horizontal),
+//             n => Err(DecodeError::from(DecodingError::UnsupportedValue(vec![n]))),
+//         }
+//     }
+// }

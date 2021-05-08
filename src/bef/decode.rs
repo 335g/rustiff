@@ -18,7 +18,7 @@ use std::marker::PhantomData;
 use std::{collections::HashSet, thread::current};
 
 trait DecodeBytes {
-    fn decode_bytes<R, W>(&mut self, reader: R, writer: W, compressed_length: usize, max_uncompressed_length: usize, predictor: Predictor) -> DecodeResult<usize>
+    fn decode_bytes<R, W>(&mut self, reader: R, writer: W, compressed_length: usize, max_uncompressed_length: usize, predictor: Predictor) -> Result<usize, DecodeError>
     where
         R: io::Read,
         W: io::Write;
@@ -27,7 +27,7 @@ trait DecodeBytes {
 struct SimpleDecoder;
 
 impl DecodeBytes for SimpleDecoder {
-    fn decode_bytes<R, W>(&mut self, mut reader: R, mut writer: W, _compressed_length: usize, _max_uncompressed_length: usize, _predictor: Predictor) -> DecodeResult<usize>
+    fn decode_bytes<R, W>(&mut self, mut reader: R, mut writer: W, _compressed_length: usize, _max_uncompressed_length: usize, _predictor: Predictor) -> Result<usize, DecodeError>
     where
         R: io::Read,
         W: io::Write,
@@ -51,7 +51,7 @@ impl LZWDecoder {
 }
 
 impl DecodeBytes for LZWDecoder {
-    fn decode_bytes<R, W>(&mut self, mut reader: R, mut writer: W, compressed_length: usize, max_uncompressed_length: usize, predictor: Predictor) -> DecodeResult<usize>
+    fn decode_bytes<R, W>(&mut self, mut reader: R, mut writer: W, compressed_length: usize, max_uncompressed_length: usize, predictor: Predictor) -> Result<usize, DecodeError>
     where
         R: io::Read,
         W: io::Write,
@@ -112,7 +112,7 @@ pub trait Decodable: Codable {
 }
 
 // pub trait Decoded: Sized {
-//     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self>
+//     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> Result<Self, DecodeError>
 //         where
 //             R: io::Read + io::Seek,
 //             'a: 'b, 
@@ -238,14 +238,14 @@ impl<R> Decoder<R> {
 
     #[inline]
     #[allow(missing_docs)]
-    pub fn get_entry<T: Tag>(&self) -> DecodeResult<Option<&Entry>> {
+    pub fn get_entry<T: Tag>(&self) -> Result<Option<&Entry>, DecodeError> {
         let ifd = self.ifd();
         
         self.get_entry_with::<T>(ifd)
     }
 
     #[inline]
-    fn get_entry_with<'a, 'b, T>(&'a self, ifd: &'b ImageFileDirectory) -> DecodeResult<Option<&'b Entry>> 
+    fn get_entry_with<'a, 'b, T>(&'a self, ifd: &'b ImageFileDirectory) -> Result<Option<&'b Entry>, DecodeError> 
         where
             T: Tag,
             'a: 'b
@@ -257,7 +257,7 @@ impl<R> Decoder<R> {
     }
 
     // #[allow(missing_docs)]
-    // fn strip_count(&self) -> DecodeResult<usize> {
+    // fn strip_count(&self) -> Result<usize, DecodeError> {
     //     let height = self.height() as usize;
     //     let rows_per_strip = self.rows_per_strip();
 
@@ -292,7 +292,7 @@ where
     /// 00000000 | 49 49 2A 00 08 00 00 00 -- -- -- -- -- -- -- --
     /// 00000010 | -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
     /// ```
-    pub fn new(mut reader: R) -> DecodeResult<Decoder<R>> {
+    pub fn new(mut reader: R) -> Result<Decoder<R>, DecodeError> {
         let mut byte_order = [0u8; 2];
         reader
             .read_exact(&mut byte_order)
@@ -339,7 +339,7 @@ where
     }
 
     /// change the target ifd in decoder
-    pub fn change_ifd(&mut self, at: usize) -> DecodeResult<()> {
+    pub fn change_ifd(&mut self, at: usize) -> Result<(), DecodeError> {
         // If it already is, nothing will be done.
         if self.header_index == at {
             return Ok(());
@@ -361,7 +361,7 @@ where
         Ok(())
     }
 
-    fn load_ifd(&mut self) -> DecodeResult<()> {
+    fn load_ifd(&mut self) -> Result<(), DecodeError> {
         let last_index = self.headers.len() - 1;
         let last_header = self.headers.last().unwrap();
         let next_addr = match last_header {
@@ -434,7 +434,7 @@ where
     /// ```
     ///
     /// [`ifd`]: decode.Decoder.ifd
-    fn ifd_and_next_addr(&mut self, from: u64) -> DecodeResult<(ImageFileDirectory, u64)> {
+    fn ifd_and_next_addr(&mut self, from: u64) -> Result<(ImageFileDirectory, u64), DecodeError> {
         let endian = self.endian().clone();
         let reader = self.reader();
         reader.goto(from)?;
@@ -458,7 +458,7 @@ where
 
     #[inline(always)]
     #[allow(missing_docs)]
-    fn get_element<T: Tag>(&mut self, entry: Entry) -> DecodeResult<<T::Value as Codable>::Element> {
+    fn get_element<T: Tag>(&mut self, entry: Entry) -> Result<<T::Value as Codable>::Element, DecodeError> {
         let endian = self.endian();
         let count = entry.count();
         let ty = entry.ty();
@@ -472,7 +472,7 @@ where
 
     /// Get the `Tag::Value` in `ImageFileDirectory`.
     /// This function returns default value if T has default value and IFD doesn't have the value.
-    pub fn get_value<T: Tag>(&mut self) -> DecodeResult<Option<T::Value>> {
+    pub fn get_value<T: Tag>(&mut self) -> Result<Option<T::Value>, DecodeError> {
         let entry = self.get_entry::<T>();
 
         match entry {
@@ -514,7 +514,7 @@ where
     }
 
     #[allow(missing_docs)]
-    fn get_value_with<T: Tag>(&mut self, ifd: &ImageFileDirectory) -> DecodeResult<Option<T::Value>> {
+    fn get_value_with<T: Tag>(&mut self, ifd: &ImageFileDirectory) -> Result<Option<T::Value>, DecodeError> {
         let entry = self.get_entry_with::<T>(ifd);
 
         match entry {
@@ -535,7 +535,7 @@ where
     /// but returns `DecodingError::NoValueThatShouldBe` if there is no value.
     /// If you want to use `Option` to get whether there is a value or not,
     /// you can use `Decoder::get_value`.
-    pub fn get_exist_value<T: Tag>(&mut self) -> DecodeResult<T::Value> {
+    pub fn get_exist_value<T: Tag>(&mut self) -> Result<T::Value, DecodeError> {
         let entry = self.get_entry::<T>();
 
         match entry {
@@ -554,7 +554,7 @@ where
     }
 
     // #[allow(missing_docs)]
-    fn get_exist_value_with<T: Tag>(&mut self, ifd: &ImageFileDirectory) -> DecodeResult<T::Value> {
+    fn get_exist_value_with<T: Tag>(&mut self, ifd: &ImageFileDirectory) -> Result<T::Value, DecodeError> {
         let entry = self.get_entry_with::<T>(ifd);
 
         match entry {
@@ -574,7 +574,7 @@ where
 
     // #[inline(always)]
     // #[allow(missing_docs)]
-    // fn decode<'a, 'b, D>(&'a mut self, entry: &'b Entry) -> DecodeResult<D>
+    // fn decode<'a, 'b, D>(&'a mut self, entry: &'b Entry) -> Result<D, DecodeError>
     //     where
     //         D: Decodable,
     //         'a: 'b,
@@ -582,7 +582,7 @@ where
     //     D::decode(&mut self.reader, &self.endian, entry)
     // }
 
-    // pub fn image(&mut self) -> DecodeResult<Data> {
+    // pub fn image(&mut self) -> Result<Data, DecodeError> {
     //     let width = self.width();
     //     let height = self.height();
     //     let bits_per_sample = self.bits_per_sample();
@@ -631,7 +631,7 @@ where
     //     return Ok(data);
     // }
 
-    // fn decode_bytes<D, W>(&mut self, mut decoder: D, mut writer: W) -> DecodeResult<usize>
+    // fn decode_bytes<D, W>(&mut self, mut decoder: D, mut writer: W) -> Result<usize, DecodeError>
     // where
     //     D: DecodeBytes,
     //     W: io::Write,

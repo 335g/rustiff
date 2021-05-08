@@ -1,13 +1,13 @@
+use crate::{data::DataType, element::Element, tag::Tag};
+use std::{io, marker::PhantomData};
 
-use std::fmt;
-use std::io;
-use crate::data::DataType;
+pub type DecodeResult<T> = Result<T, DecodeError>;
 
 #[derive(Debug)]
 pub struct DecodeError(DecodeErrorKind);
 
 impl DecodeError {
-    pub(crate) fn new(kind: DecodeErrorKind) -> DecodeError {
+    pub(crate) fn new(kind: DecodeErrorKind) -> Self {
         DecodeError(kind)
     }
 
@@ -27,35 +27,60 @@ impl DecodeError {
     }
 }
 
-impl std::error::Error for DecodeError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self.0 {
-            DecodeErrorKind::Io(ref err) => Some(err),
-            DecodeErrorKind::FileHeader(ref err) => Some(err),
-            // DecodeErrorKind::Tag(ref err) => Some(err),
-            // DecodeErrorKind::Value(ref err) => Some(err),
-        }
-    }
-}
-
-impl fmt::Display for DecodeError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let desc = match self.kind() {
-            DecodeErrorKind::Io(err) => format!("io error: {:?}", err),
-            DecodeErrorKind::FileHeader(err) => format!("file header error: {:?}", err),
-            // DecodeErrorKind::Tag(err) => format!("tag error: {:?}", err),
-            // DecodeErrorKind::Value(err) => format!("value error: {:?}", err),
-        };
-
-        write!(f, "{}", desc)
-    }
-}
-
 #[derive(Debug)]
 pub enum DecodeErrorKind {
     Io(io::Error),
     FileHeader(FileHeaderError),
+    UnsupportedDataType(u16),
+    Decoding(DecodingError),
+}
 
+impl From<io::Error> for DecodeError {
+    fn from(err: io::Error) -> Self {
+        DecodeError::new(DecodeErrorKind::Io(err))
+    }
+}
+
+impl From<FileHeaderError> for DecodeError {
+    fn from(err: FileHeaderError) -> Self {
+        DecodeError::new(DecodeErrorKind::FileHeader(err))
+    }
+}
+
+impl From<DecodingError> for DecodeError {
+    fn from(err: DecodingError) -> Self {
+        DecodeError::new(DecodeErrorKind::Decoding(err))
+    }
+}
+
+#[derive(Debug)]
+pub struct TagError<T: Tag> {
+    ghost: PhantomData<fn() -> T>,
+    kind: TagErrorKind,
+}
+
+impl<T: Tag> TagError<T> {
+    pub fn new(kind: TagErrorKind) -> Self {
+        TagError {
+            ghost: PhantomData,
+            kind,
+        }
+    }
+
+    pub fn kind(&self) -> &TagErrorKind {
+        &self.kind
+    }
+
+    pub fn into_kind(self) -> TagErrorKind {
+        self.kind
+    }
+}
+
+#[derive(Debug)]
+pub enum TagErrorKind {
+    UnauthorizedTag {
+        tag_ty: &'static str,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,92 +113,18 @@ pub enum FileHeaderError {
     NoIFDAddress,
 }
 
-impl fmt::Display for FileHeaderError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let desc = match self {
-            FileHeaderError::NoByteOrder => "no byte order".to_string(),
-            FileHeaderError::InvalidByteOrder { byte_order: x } => {
-                format!("invalid byte order: {:?}", x)
-            }
-            FileHeaderError::NoVersion => "no version".to_string(),
-            FileHeaderError::InvalidVersion { version: x } => format!("invalid version: {}", x),
-            FileHeaderError::NoIFDAddress => "no ifd address".to_string(),
-        };
-
-        write!(f, "{}", desc)
-    }
-}
-
-impl std::error::Error for FileHeaderError {}
-
 #[derive(Debug)]
 pub enum DecodingError {
-    ///
-    UnsupportedValueForDataType(u16),
-
-    ///
-    UnsupportedShortValueForData {
-        data: &'static str,
-        value: Vec<u16>,
-    },
-
-    ///
-    Element(DecodingElementError),
-
-
-}
-
-#[derive(Debug)]
-pub enum DecodingElementError {
     Io(io::Error),
-
-    ///
-    NoMatchDataType {
-        element: &'static str,
-        datatype: DataType,
-    }
+    InvalidDataCount(usize),
+    InvalidValue(Element),
+    InvalidDataType(DataType),
+    Tag(TagErrorKind),
+    NoExistShouldExist,
 }
 
-impl From<io::Error> for DecodingElementError {
+impl From<io::Error> for DecodingError {
     fn from(err: io::Error) -> Self {
-        DecodingElementError::Io(err)
+        DecodingError::Io(err)
     }
-}
-
-
-
-
-#[derive(Debug)]
-pub struct EncodeError(EncodeErrorKind);
-
-impl EncodeError {
-    pub(crate) fn new(kind: EncodeErrorKind) -> EncodeError {
-        EncodeError(kind)
-    }
-
-    pub fn kind(&self) -> &EncodeErrorKind {
-        &self.0
-    }
-
-    pub fn into_kind(self) -> EncodeErrorKind {
-        self.0
-    }
-
-    pub fn is_io_error(&self) -> bool {
-        match self.0 {
-            EncodeErrorKind::Io(_) => true,
-            _ => false,
-        }
-    }
-}
-
-#[derive(Debug)]
-pub enum EncodeErrorKind {
-    Io(io::Error),
-
-}
-
-#[derive(Debug)]
-pub enum EncodingError {
-    
 }

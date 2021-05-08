@@ -1,8 +1,9 @@
-
-mod element;
-mod decode;
-mod encode;
-mod tag;
-mod error;
-mod val;
 mod data;
+mod decode;
+mod element;
+mod encode;
+mod error;
+mod ifd;
+mod tag;
+mod val;
+mod pos;

@@ -1,9 +1,6 @@
+use std::ops::{Deref, DerefMut, RangeFrom};
 
-use std::ops::{Deref, RangeFrom};
-
-use crate::decode::Decoded;
-use crate::encode::Encoded;
-use crate::error::DecodingError;
+use crate::{decode::Decoded, element::Element, encode::Encoded, error::{DecodeErrorKind, DecodingError}};
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -12,6 +9,8 @@ pub enum Value {
 }
 
 impl Value {
+    #[allow(dead_code)]
+    #[allow(missing_docs)]
     pub fn as_long(self) -> u32 {
         match self {
             Value::Short(x) => x as u32,
@@ -19,6 +18,8 @@ impl Value {
         }
     }
 
+    #[allow(dead_code)]
+    #[allow(missing_docs)]
     pub fn as_size(self) -> usize {
         match self {
             Value::Short(x) => x as usize,
@@ -42,11 +43,12 @@ impl From<u32> for Value {
 #[derive(Debug, Clone)]
 pub struct ImageWidth(Value);
 
-impl Deref for ImageWidth {
-    type Target = Value;
-
-    fn deref(&self) -> &Value {
-        &self.0
+impl ImageWidth {
+    pub fn as_size(self) -> usize {
+        match self.0 {
+            Value::Short(x) => x as usize,
+            Value::Long(x) => x as usize,
+        }
     }
 }
 
@@ -72,11 +74,12 @@ impl Encoded<ImageWidth> for Value {
 #[derive(Debug, Clone)]
 pub struct ImageLength(Value);
 
-impl Deref for ImageLength {
-    type Target = Value;
-
-    fn deref(&self) -> &Value {
-        &self.0
+impl ImageLength {
+    pub fn as_size(self) -> usize {
+        match self.0 {
+            Value::Short(x) => x as usize,
+            Value::Long(x) => x as usize,
+        }
     }
 }
 
@@ -110,6 +113,8 @@ pub enum BitsPerSample {
 }
 
 impl BitsPerSample {
+    #[allow(dead_code)]
+    #[allow(missing_docs)]
     pub fn len(&self) -> usize {
         match self {
             BitsPerSample::C1(_) => 1,
@@ -131,11 +136,7 @@ impl Decoded for BitsPerSample {
                 let a = elements[0];
                 if a == 0 {
                     let ty = std::any::type_name::<Self>();
-
-                    Err(DecodingError::UnsupportedShortValueForData {
-                        data: ty,
-                        value: vec![0]
-                    })
+                    Err(DecodingError::InvalidValue(Element::U16(0)))
                 } else {
                     Ok(BitsPerSample::C1([a]))
                 }
@@ -147,11 +148,7 @@ impl Decoded for BitsPerSample {
 
                 if a == 0 || b == 0 || c == 0 {
                     let ty = std::any::type_name::<Self>();
-
-                    Err(DecodingError::UnsupportedShortValueForData {
-                        data: ty,
-                        value: vec![0]
-                    })
+                    Err(DecodingError::InvalidValue(Element::U16(0)))
                 } else {
                     Ok(BitsPerSample::C3([a, b, c]))
                 }
@@ -165,15 +162,12 @@ impl Decoded for BitsPerSample {
                 if a == 0 || b == 0 || c == 0 || d == 0 {
                     let ty = std::any::type_name::<Self>();
 
-                    Err(DecodingError::UnsupportedShortValueForData {
-                        data: ty,
-                        value: vec![0]
-                    })
+                    Err(DecodingError::InvalidValue(Element::U16(0)))
                 } else {
                     Ok(BitsPerSample::C4([a, b, c, d]))
                 }
             }
-            _ => unreachable!() // Possible limits the numbers to 1, 3, and 4.
+            _ => unreachable!(), // Possible limits the numbers to 1, 3, and 4.
         }
     }
 }
@@ -210,14 +204,7 @@ impl Decoded for Option<Compression> {
         match val {
             1 => Ok(None),
             5 => Ok(Some(Compression::LZW)),
-            n => {
-                let ty = std::any::type_name::<Self>();
-
-                Err(DecodingError::UnsupportedShortValueForData {
-                    data: ty,
-                    value: vec![n]
-                })
-            }
+            n => Err(DecodingError::InvalidValue(Element::U16(n)))
         }
     }
 }
@@ -320,14 +307,7 @@ impl Decoded for PhotometricInterpretation {
             5 => Ok(PhotometricInterpretation::CMYK),
             6 => Ok(PhotometricInterpretation::YCbCr),
             7 => Ok(PhotometricInterpretation::CIELab),
-            n => {
-                let ty = std::any::type_name::<Self>();
-
-                Err(DecodingError::UnsupportedShortValueForData {
-                    data: ty,
-                    value: vec![n]
-                })
-            }
+            n => Err(DecodingError::InvalidValue(Element::U16(n)))
         }
     }
 }
@@ -347,7 +327,7 @@ impl Encoded<PhotometricInterpretation> for u16 {
     }
 }
 
-/// 
+///
 #[derive(Debug)]
 pub struct StripOffsets(Vec<Value>);
 
@@ -378,7 +358,7 @@ impl Encoded<StripOffsets> for Vec<Value> {
     }
 }
 
-/// 
+///
 #[derive(Debug)]
 pub struct SamplesPerPixel(u16);
 
@@ -402,14 +382,7 @@ impl Decoded for SamplesPerPixel {
         // TODO: really 1,3,4 ?
         match val {
             1 | 3 | 4 => Ok(SamplesPerPixel(val)),
-            n => {
-                let ty = std::any::type_name::<Self>();
-
-                Err(DecodingError::UnsupportedShortValueForData {
-                    data: ty,
-                    value: vec![n]
-                })
-            }
+            n => Err(DecodingError::InvalidValue(Element::U16(n)))
         }
     }
 }
@@ -425,11 +398,12 @@ impl Encoded<SamplesPerPixel> for u16 {
 #[derive(Debug)]
 pub struct RowsPerStrip(Value);
 
-impl Deref for RowsPerStrip {
-    type Target = Value;
-
-    fn deref(&self) -> &Value {
-        &self.0
+impl RowsPerStrip {
+    pub fn as_size(self) -> usize {
+        match self.0 {
+            Value::Short(x) => x as usize,
+            Value::Long(x) => x as usize,
+        }
     }
 }
 
@@ -485,5 +459,40 @@ impl Encoded<StripByteCounts> for Vec<Value> {
     #[inline(always)]
     fn encoded(val: StripByteCounts) -> Self {
         val.0
+    }
+}
+
+/// Difference from the previous pixel
+///
+/// IFD constructs this with `tag::Predictor`.
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum Predictor {
+    None,
+    Horizontal,
+}
+
+impl Decoded for Predictor {
+    type Element = u16;
+    type Poss = usize;
+
+    const POSSIBLE_COUNT: Self::Poss = 1;
+
+    fn decoded(mut elements: Vec<Self::Element>) -> Result<Self, DecodingError> {
+        let val = elements.remove(0);
+
+        match val {
+            1 => Ok(Predictor::None),
+            2 => Ok(Predictor::Horizontal),
+            n => Err(DecodingError::InvalidValue(Element::U16(n)))
+        }
+    }
+}
+
+impl Encoded<Predictor> for u16 {
+    fn encoded(val: Predictor) -> Self {
+        match val {
+            Predictor::None => 1,
+            Predictor::Horizontal => 2,
+        }
     }
 }

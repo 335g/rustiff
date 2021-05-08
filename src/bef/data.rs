@@ -29,7 +29,7 @@ pub enum DataType {
 impl TryFrom<u16> for DataType {
     type Error = DecodeError;
 
-    fn try_from(n: u16) -> DecodeResult<Self> {
+    fn try_from(n: u16) -> Result<Self, DecodeError> {
         use DataType::*;
 
         let ty = match n {

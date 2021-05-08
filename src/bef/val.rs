@@ -104,7 +104,7 @@ impl Rational {
 // macro_rules! decodefrom_1 {
 //     ($name:ident, $datatype:ident, $method:path) => {
 //         impl Decoded for $name {
-//             fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<$name> 
+//             fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> Result<$name, DecodeError> 
 //                 where 
 //                     R: io::Read + io::Seek,
 //                     'a: 'b,
@@ -142,7 +142,7 @@ impl Rational {
 // macro_rules! decodefrom_n {
 //     ($name:ident, $datatype:pat, $method:path) => {
 //         impl Decoded for $name {
-//             fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<$name> 
+//             fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> Result<$name, DecodeError> 
 //                 where 
 //                     R: io::Read + io::Seek,
 //                     'a: 'b,
@@ -283,7 +283,7 @@ impl Decodable for Vec<u32> {
 // decodefrom_n!(Longs, DataType::Long, EndianRead::read_u32);
 
 // impl Decoded for Value {
-//     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
+//     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> Result<Self, DecodeError> 
 //         where
 //             R: io::Read + io::Seek,
 //             'a: 'b,
@@ -314,7 +314,7 @@ impl Decodable for Value {
 }
 
 // impl Decoded for Values {
-//     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
+//     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> Result<Self, DecodeError> 
 //         where
 //             R: io::Read + io::Seek,
 //             'a: 'b,
@@ -438,7 +438,7 @@ impl Decodable for PhotometricInterpretation {
 }
 
 // impl Decoded for PhotometricInterpretation {
-//     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
+//     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> Result<Self, DecodeError> 
 //         where
 //             R: io::Read + io::Seek,
 //             'a: 'b,
@@ -491,7 +491,7 @@ impl Decodable for Option<Compression> {
 }
 
 // impl Decoded for Option<Compression> {
-//     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
+//     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> Result<Self, DecodeError> 
 //         where
 //             R: io::Read + io::Seek,
 //             'a: 'b,
@@ -590,7 +590,7 @@ impl Decodable for BitsPerSample<DynamicTone> {
 }
 
 // impl Decoded for BitsPerSample<DynamicTone> {
-//     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
+//     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> Result<Self, DecodeError> 
 //         where
 //             R: io::Read + io::Seek,
 //             'a: 'b,
@@ -679,7 +679,7 @@ impl Decodable for Predictor {
 }
 
 // impl Decoded for Predictor {
-//     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> DecodeResult<Self> 
+//     fn decode<'a, 'b, 'c, R>(reader: &'a mut R, endian: &'b Endian, entry: &'c Entry) -> Result<Self, DecodeError> 
 //         where
 //             R: io::Read + io::Seek,
 //             'a: 'b,

@@ -26,7 +26,7 @@ impl ImageFileDirectory {
     /// Return value behavior confirms to `collections::HashMap`.
     /// If the map did not have the tag present, `Option<Entry>::None` returned.
     /// If the map did have this tag present, the `Entry` is updated, and the old `Entry` is returned.
-    pub(crate) fn insert<T: Tag>(&mut self, entry: Entry) -> DecodeResult<Option<Entry>> {
+    pub(crate) fn insert<T: Tag>(&mut self, entry: Entry) -> Result<Option<Entry>, DecodeError> {
         let anytag = AnyTag::try_from::<T>()?;
         let res = self.insert_tag(anytag, entry);
 
@@ -41,7 +41,7 @@ impl ImageFileDirectory {
 
     /// Returns the reference to the `ifd::Entry` to the tag.
     #[inline]
-    pub(crate) fn get<T: Tag>(&self) -> DecodeResult<Option<&Entry>> {
+    pub(crate) fn get<T: Tag>(&self) -> Result<Option<&Entry>, DecodeError> {
         let anytag = AnyTag::try_from::<T>()?;
         let res = self.get_tag(anytag);
 

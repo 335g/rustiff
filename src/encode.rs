@@ -1,4 +1,3 @@
-
 use crate::decode::Decoded;
 
 pub trait Encoded<T: Decoded>: Sized {

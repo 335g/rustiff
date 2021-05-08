@@ -1,4 +1,7 @@
-use rustiff::{BitsPerSample, Compression, Decoder, DynamicTone, FileHeaderError, PhotometricInterpretation, Tone, tag};
+use rustiff::{
+    tag, BitsPerSample, Compression, Decoder, DynamicTone, FileHeaderError,
+    PhotometricInterpretation, Tone,
+};
 use std::{error::Error, fs::File, io::Write};
 
 #[test]
@@ -66,7 +69,7 @@ fn decode_image_no_compression() {
     let bits_per_sample = decoder.bits_per_sample();
     let compression = decoder.compression();
     let photometric_interpretation = decoder.photometric_interpretation();
-    
+
     assert_eq!(width, 6);
     assert_eq!(height, 4);
     assert_eq!(bits_per_sample.tone().value(), 8);
@@ -75,13 +78,11 @@ fn decode_image_no_compression() {
     assert_eq!(photometric_interpretation, &PhotometricInterpretation::CMYK);
 
     let data = decoder.image();
-    
 }
 
 #[test]
 fn decode_image_interleave_ibm_lzw_compression() {
-    let f = File::open("tests/images/007_cmyk_tone_interleave_ibm_lzw.tif")
-        .expect("exist file");
+    let f = File::open("tests/images/007_cmyk_tone_interleave_ibm_lzw.tif").expect("exist file");
     let mut decoder = Decoder::new(f).expect("No probrem as tiff format");
 
     let width = decoder.width();

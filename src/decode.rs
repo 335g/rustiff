@@ -1,4 +1,15 @@
-use crate::{data::{DataType, Entry}, element::{Elemental, Endian, EndianRead, SeekExt}, error::{DecodeError, DecodingError, FileHeaderError, TagError, TagErrorKind}, ifd::ImageFileDirectory, tag::{self, AnyTag, Tag}, val::{BitsPerSample, Compression, PhotometricInterpretation, Predictor, StripByteCounts, StripOffsets}};
+use crate::{
+    data::{DataType, Entry, ImageData},
+    element::{Elemental, Endian, EndianRead, SeekExt},
+    error::{DecodeError, DecodingError, FileHeaderError, TagError, TagErrorKind},
+    ifd::ImageFileDirectory,
+    possible::Possible,
+    tag::{self, AnyTag, Tag},
+    val::{
+        BitsPerSample, Compression, PhotometricInterpretation, Predictor, StripByteCounts,
+        StripOffsets,
+    },
+};
 use std::{convert::TryFrom, io, ops::RangeBounds};
 
 pub trait Decoded: Sized {
@@ -10,83 +21,25 @@ pub trait Decoded: Sized {
     fn decoded(elements: Vec<Self::Element>) -> Result<Self, DecodingError>;
 }
 
-pub trait Possible {
-    fn contains_item(&self, item: &usize) -> bool;
-}
-
-impl Possible for usize {
-    fn contains_item(&self, item: &usize) -> bool {
-        *self == *item
-    }
-}
-
-impl Possible for std::ops::Range<usize> {
-    fn contains_item(&self, item: &usize) -> bool {
-        self.contains(item)
-    }
-}
-
-impl Possible for std::ops::RangeFrom<usize> {
-    fn contains_item(&self, item: &usize) -> bool {
-        self.contains(item)
-    }
-}
-
-impl Possible for std::ops::RangeTo<usize> {
-    fn contains_item(&self, item: &usize) -> bool {
-        self.contains(item)
-    }
-}
-
-impl Possible for std::ops::RangeFull {
-    fn contains_item(&self, item: &usize) -> bool {
-        self.contains(item)
-    }
-}
-
-impl Possible for std::ops::RangeToInclusive<usize> {
-    fn contains_item(&self, item: &usize) -> bool {
-        self.contains(item)
-    }
-}
-
-impl Possible for std::ops::RangeInclusive<usize> {
-    fn contains_item(&self, item: &usize) -> bool {
-        self.contains(item)
-    }
-}
-
-impl<const N: usize> Possible for [usize; N] {
-    fn contains_item(&self, item: &usize) -> bool {
-        for i in self {
-            if i == item {
-                return true;
-            }
-        }
-
-        false
-    }
-}
-
 #[derive(Debug)]
 enum Header {
-    Pointer { at: u64 },
-    Data { detail: HeaderDetail },
+    Pointer(u64),
+    Data(HeaderDetail),
 }
 
 impl Header {
     #[allow(dead_code)]
     #[allow(missing_docs)]
     fn new(at: u64) -> Self {
-        Header::Pointer { at }
+        Header::Pointer(at)
     }
 
     #[allow(dead_code)]
     #[allow(missing_docs)]
     fn unchecked_detail(&self) -> &HeaderDetail {
         match self {
-            Header::Data { detail: x } => x,
-            Header::Pointer { at: _ } => unreachable!(),
+            Header::Data(x) => x,
+            Header::Pointer(_) => unreachable!(),
         }
     }
 
@@ -94,8 +47,8 @@ impl Header {
     #[allow(missing_docs)]
     fn unchecked_detail_into(self) -> HeaderDetail {
         match self {
-            Header::Data { detail: x } => x,
-            Header::Pointer { at: _ } => unreachable!(),
+            Header::Data(x) => x,
+            Header::Pointer(_) => unreachable!(),
         }
     }
 }
@@ -306,7 +259,7 @@ where
         let last_index = self.headers.len() - 1;
 
         if last_index < at {
-            for i in last_index..(at - 1) {
+            for _ in last_index..(at - 1) {
                 self.load_ifd()?;
             }
 
@@ -365,26 +318,30 @@ where
         let last_index = self.headers.len() - 1;
         let last_header = self.headers.last().unwrap();
         let next_addr = match last_header {
-            Header::Pointer { at: next_addr } => *next_addr,
-            Header::Data { detail: _ } => {
+            Header::Pointer(next_addr) => *next_addr,
+            Header::Data(_) => {
                 // reached the end
-                return Ok(false)
+                return Ok(false);
             }
         };
         let (ifd, next_addr) = self.ifd_and_next_addr(next_addr)?;
 
-        let width = self.get_exist_value_with::<tag::ImageWidth>(&ifd)?.as_size();
-        let height = self.get_exist_value_with::<tag::ImageLength>(&ifd)?.as_size();
-        let rows_per_strip = self.get_value_with::<tag::RowsPerStrip>(&ifd)?
+        let width = self
+            .get_exist_value_with::<tag::ImageWidth>(&ifd)?
+            .as_size();
+        let height = self
+            .get_exist_value_with::<tag::ImageLength>(&ifd)?
+            .as_size();
+        let rows_per_strip = self
+            .get_value_with::<tag::RowsPerStrip>(&ifd)?
             .map(|x| x.as_size())
             .unwrap_or(height);
-        // let strip_offsets = self.get_exist_value_with::<tag::StripOffsets>(&ifd)?
-        //     .map(|x| u64::from(x), |x| u64::from(x));
         let strip_offsets = self.get_exist_value_with::<tag::StripOffsets>(&ifd)?;
         let strip_byte_counts = self.get_exist_value_with::<tag::StripByteCounts>(&ifd)?;
         let bits_per_sample = self.get_exist_value_with::<tag::BitsPerSample>(&ifd)?;
         let compression = self.get_exist_value_with::<tag::Compression>(&ifd)?;
-        let photometric_interpretation = self.get_exist_value_with::<tag::PhotometricInterpretation>(&ifd)?;
+        let photometric_interpretation =
+            self.get_exist_value_with::<tag::PhotometricInterpretation>(&ifd)?;
         let predictor = self.get_exist_value_with::<tag::Predictor>(&ifd)?;
 
         // // Each count must be equal.
@@ -398,13 +355,20 @@ where
         //     return Err(DecodeError::from(err))
         // }
 
-        // let header_detail = HeaderDetail {
-        //     ifd, width, height, bits_per_sample, compression, photometric_interpretation, rows_per_strip, strip_offsets, strip_byte_counts, predictor
-        // };
+        let header_detail = HeaderDetail {
+            ifd,
+            width,
+            height,
+            bits_per_sample,
+            compression,
+            photometric_interpretation,
+            rows_per_strip,
+            strip_offsets,
+            strip_byte_counts,
+            predictor,
+        };
 
-        // self.headers[last_index] = Header::Loaded {
-        //     detail: header_detail,
-        // };
+        self.headers[last_index] = Header::Data(header_detail);
 
         // append
         let next_header = Header::new(next_addr);
@@ -413,14 +377,17 @@ where
         Ok(true)
     }
 
-    fn get_elements<T: Tag>(&mut self, entry: Entry) -> Result<Vec<<T::Value as Decoded>::Element>, DecodingError> {
+    fn get_elements<T: Tag>(
+        &mut self,
+        entry: Entry,
+    ) -> Result<Vec<<T::Value as Decoded>::Element>, DecodingError> {
         let ty = entry.ty();
         let count = entry.count();
         let endian = self.endian().clone();
 
         let possible_count = <T::Value as Decoded>::POSSIBLE_COUNT;
         if !possible_count.contains_item(&count) {
-            return Err(DecodingError::InvalidDataCount(count))
+            return Err(DecodingError::InvalidDataCount(count));
         }
 
         let one_size = <<T as Tag>::Value as Decoded>::Element::size(&ty);
@@ -438,7 +405,7 @@ where
             let element = <T::Value as Decoded>::Element::read(reader, &endian, ty)?;
             elements.push(element);
         }
-        
+
         Ok(elements)
     }
 
@@ -460,7 +427,10 @@ where
     }
 
     #[allow(missing_docs)]
-    fn get_value_with<T: Tag>(&mut self, ifd: &ImageFileDirectory) -> Result<Option<T::Value>, DecodingError> {
+    fn get_value_with<T: Tag>(
+        &mut self,
+        ifd: &ImageFileDirectory,
+    ) -> Result<Option<T::Value>, DecodingError> {
         let entry = self.get_entry_with::<T>(ifd);
 
         match entry {
@@ -496,7 +466,10 @@ where
     }
 
     #[allow(missing_docs)]
-    fn get_exist_value_with<T: Tag>(&mut self, ifd: &ImageFileDirectory) -> Result<T::Value, DecodingError> {
+    fn get_exist_value_with<T: Tag>(
+        &mut self,
+        ifd: &ImageFileDirectory,
+    ) -> Result<T::Value, DecodingError> {
         let entry = self.get_entry_with::<T>(ifd);
 
         match entry {
@@ -509,5 +482,136 @@ where
             Ok(None) => T::DEFAULT_VALUE.ok_or(DecodingError::NoExistShouldExist),
             Err(e) => Err(DecodingError::Tag(e.into_kind())),
         }
+    }
+
+    pub fn image(&mut self) -> Result<ImageData, DecodeError> {
+        let width = self.width();
+        let height = self.height();
+        let bits_per_sample = self.bits_per_sample();
+        let bits_len = bits_per_sample.len();
+        let endian = self.endian().clone();
+
+        let buffer_size = width * height * bits_len;
+        let rows_per_strip = self.rows_per_strip();
+
+        // let mut buffer = vec![];
+
+        todo!()
+    }
+
+    fn decode_bytes<D, W>(&mut self, mut decoder: D, mut writer: W) -> Result<usize, DecodingError>
+    where
+        D: DecodeBytes,
+        W: io::Write,
+    {
+        let width = self.width();
+        let height = self.height();
+        let rows_per_strip = self.rows_per_strip();
+        let bits_len = self.bits_per_sample().len();
+        let predictor = self.predictor();
+
+        todo!()
+    }
+}
+
+trait DecodeBytes {
+    fn decode_bytes<R, W>(
+        &mut self,
+        reader: R,
+        writer: W,
+        compressed_length: usize,
+        max_uncompressed_length: usize,
+        predictor: Predictor,
+    ) -> Result<usize, DecodingError>
+    where
+        R: io::Read,
+        W: io::Write;
+}
+
+struct SimpleDecoder;
+
+impl DecodeBytes for SimpleDecoder {
+    fn decode_bytes<R, W>(
+        &mut self,
+        mut reader: R,
+        mut writer: W,
+        _compressed_length: usize,
+        _max_uncompressed_length: usize,
+        _predictor: Predictor,
+    ) -> Result<usize, DecodingError>
+    where
+        R: io::Read,
+        W: io::Write,
+    {
+        let copied_size = std::io::copy(&mut reader, &mut writer)?;
+
+        usize::try_from(copied_size).map_err(|_| DecodingError::OverCapacity)
+    }
+}
+
+struct LZWDecoder(weezl::decode::Decoder);
+
+impl LZWDecoder {
+    pub(crate) fn new() -> Self {
+        let inner = weezl::decode::Decoder::with_tiff_size_switch(weezl::BitOrder::Msb, 8);
+
+        return LZWDecoder(inner);
+    }
+}
+
+impl DecodeBytes for LZWDecoder {
+    fn decode_bytes<R, W>(
+        &mut self,
+        mut reader: R,
+        mut writer: W,
+        compressed_length: usize,
+        max_uncompressed_length: usize,
+        predictor: Predictor,
+    ) -> Result<usize, DecodingError>
+    where
+        R: io::Read,
+        W: io::Write,
+    {
+        let mut compressed_data = vec![0; compressed_length];
+        reader.read_exact(&mut compressed_data[..])?;
+        let mut uncompressed_data = Vec::with_capacity(max_uncompressed_length);
+
+        let mut read = 0;
+        while uncompressed_data.len() < max_uncompressed_length {
+            let written = uncompressed_data.len();
+            uncompressed_data.reserve(1 << 12);
+            let buffer_space = uncompressed_data.capacity().min(max_uncompressed_length);
+            uncompressed_data.resize(buffer_space, 0u8);
+
+            let result = self
+                .0
+                .decode_bytes(&compressed_data[read..], &mut uncompressed_data[written..]);
+            read += result.consumed_in;
+            uncompressed_data.truncate(written + result.consumed_out);
+
+            match result.status {
+                Ok(weezl::LzwStatus::Ok) => {}
+                Ok(weezl::LzwStatus::Done) => break,
+                Ok(weezl::LzwStatus::NoProgress) => {
+                    let err = io::Error::new(io::ErrorKind::UnexpectedEof, "no lzw end code found");
+                    return Err(DecodingError::Io(err));
+                }
+                Err(err) => {
+                    return Err(DecodingError::Io(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        err,
+                    )))
+                }
+            }
+        }
+
+        uncompressed_data.shrink_to_fit();
+
+        //
+
+        writer.write_all(&uncompressed_data[..])?;
+
+        let bytes = uncompressed_data.len();
+        Ok(bytes)
     }
 }

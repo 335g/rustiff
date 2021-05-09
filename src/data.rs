@@ -91,3 +91,9 @@ impl Entry {
         }
     }
 }
+
+#[derive(Debug)]
+pub enum ImageData {
+    U8(Vec<u8>),
+    U16(Vec<u16>),
+}

@@ -1,4 +1,9 @@
-use crate::{decode::Decoded, encode::Encoded, error::{TagError, TagErrorKind}, val};
+use crate::{
+    decode::Decoded,
+    encode::Encoded,
+    error::{TagError, TagErrorKind},
+    val,
+};
 use std::any::TypeId;
 use std::fmt;
 
@@ -40,6 +45,7 @@ macro_rules! define_tags {
             /// Identifier
             ///
             /// Same as the value obtained by `tag::Tag::ID`.
+            #[allow(dead_code)]
             pub fn id(&self) -> u16 {
                 match *self {
                     $(AnyTag::$name => $name::ID,)*
@@ -68,7 +74,7 @@ macro_rules! define_tags {
                 } else {
                     // A tag with the same T::ID already exists.
                     let typename = std::any::type_name::<T>();
-                    
+
                     let err = TagError::new(TagErrorKind::UnauthorizedTag {
                         tag_ty: typename
                     });

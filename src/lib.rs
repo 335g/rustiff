@@ -4,6 +4,6 @@ mod element;
 mod encode;
 mod error;
 mod ifd;
+mod possible;
 mod tag;
 mod val;
-mod pos;

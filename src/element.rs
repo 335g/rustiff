@@ -31,8 +31,11 @@ pub trait Elemental: Sized {
     fn size(datatype: &DataType) -> usize;
     fn element(&self) -> Element;
 
-    fn read<R: io::Read>(reader: &mut R, endian: &Endian, datatype: DataType)
-        -> Result<Self, DecodingError>;
+    fn read<R: io::Read>(
+        reader: &mut R,
+        endian: &Endian,
+        datatype: DataType,
+    ) -> Result<Self, DecodingError>;
 }
 
 impl Elemental for u8 {
@@ -238,7 +241,7 @@ impl Elemental for i32 {
 
                 Ok(val)
             }
-            ty => Err(DecodingError::InvalidDataType(ty))
+            ty => Err(DecodingError::InvalidDataType(ty)),
         }
     }
 }
@@ -310,7 +313,7 @@ impl Elemental for f32 {
 
                 Ok(val)
             }
-            ty => Err(DecodingError::InvalidDataType(ty))
+            ty => Err(DecodingError::InvalidDataType(ty)),
         }
     }
 }

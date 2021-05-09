@@ -78,9 +78,7 @@ impl<T: Tag> TagError<T> {
 
 #[derive(Debug)]
 pub enum TagErrorKind {
-    UnauthorizedTag {
-        tag_ty: &'static str,
-    }
+    UnauthorizedTag { tag_ty: &'static str },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -121,6 +119,7 @@ pub enum DecodingError {
     InvalidDataType(DataType),
     Tag(TagErrorKind),
     NoExistShouldExist,
+    OverCapacity,
 }
 
 impl From<io::Error> for DecodingError {

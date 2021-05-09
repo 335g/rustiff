@@ -1,6 +1,11 @@
-use std::ops::{Deref, DerefMut, RangeFrom};
+use std::ops::{Deref, RangeFrom};
 
-use crate::{decode::Decoded, element::Element, encode::Encoded, error::{DecodeErrorKind, DecodingError}};
+use crate::{
+    decode::Decoded,
+    element::Element,
+    encode::Encoded,
+    error::{DecodeErrorKind, DecodingError},
+};
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -113,7 +118,6 @@ pub enum BitsPerSample {
 }
 
 impl BitsPerSample {
-    #[allow(dead_code)]
     #[allow(missing_docs)]
     pub fn len(&self) -> usize {
         match self {
@@ -204,7 +208,7 @@ impl Decoded for Option<Compression> {
         match val {
             1 => Ok(None),
             5 => Ok(Some(Compression::LZW)),
-            n => Err(DecodingError::InvalidValue(Element::U16(n)))
+            n => Err(DecodingError::InvalidValue(Element::U16(n))),
         }
     }
 }
@@ -307,7 +311,7 @@ impl Decoded for PhotometricInterpretation {
             5 => Ok(PhotometricInterpretation::CMYK),
             6 => Ok(PhotometricInterpretation::YCbCr),
             7 => Ok(PhotometricInterpretation::CIELab),
-            n => Err(DecodingError::InvalidValue(Element::U16(n)))
+            n => Err(DecodingError::InvalidValue(Element::U16(n))),
         }
     }
 }
@@ -382,7 +386,7 @@ impl Decoded for SamplesPerPixel {
         // TODO: really 1,3,4 ?
         match val {
             1 | 3 | 4 => Ok(SamplesPerPixel(val)),
-            n => Err(DecodingError::InvalidValue(Element::U16(n)))
+            n => Err(DecodingError::InvalidValue(Element::U16(n))),
         }
     }
 }
@@ -483,7 +487,7 @@ impl Decoded for Predictor {
         match val {
             1 => Ok(Predictor::None),
             2 => Ok(Predictor::Horizontal),
-            n => Err(DecodingError::InvalidValue(Element::U16(n)))
+            n => Err(DecodingError::InvalidValue(Element::U16(n))),
         }
     }
 }

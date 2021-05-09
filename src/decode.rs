@@ -1,7 +1,7 @@
 use crate::{
     data::{DataType, Entry, ImageData},
     element::{Elemental, Endian, EndianRead, SeekExt},
-    error::{DecodeError, DecodingError, FileHeaderError, TagError, TagErrorKind},
+    error::{DecodeError, DecodingError, FileHeaderError, TagError},
     ifd::ImageFileDirectory,
     possible::Possible,
     tag::{self, AnyTag, Tag},
@@ -10,7 +10,7 @@ use crate::{
         StripOffsets,
     },
 };
-use std::{convert::TryFrom, io, ops::RangeBounds};
+use std::{convert::TryFrom, fs::File, io, path::Path};
 
 pub trait Decoded: Sized {
     type Element: Elemental;
@@ -199,11 +199,18 @@ impl<R> Decoder<R> {
     }
 }
 
+impl Decoder<File> {
+    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Decoder<File>, DecodeError> {
+        let f = File::open(path)?;
+        Decoder::from_reader(f)
+    }
+}
+
 impl<R> Decoder<R>
 where
     R: io::Read + io::Seek,
 {
-    pub fn new(mut reader: R) -> Result<Decoder<R>, DecodeError> {
+    pub fn from_reader(mut reader: R) -> Result<Decoder<R>, DecodeError> {
         let mut byte_order = [0u8; 2];
         reader
             .read_exact(&mut byte_order)

@@ -9,3 +9,5 @@ pub struct Encoder<W> {
     writer: W,
     endian: Endian,
 }
+
+impl<W> Encoder<W> {}

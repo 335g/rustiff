@@ -4,6 +4,7 @@ use crate::{
     error::{DecodeError, DecodingError, FileHeaderError, TagError},
     ifd::ImageFileDirectory,
     possible::Possible,
+    header::Header,
     tag::{self, AnyTag, Tag},
     val::{
         BitsPerSample, Compression, PhotometricInterpretation, Predictor, StripByteCounts,
@@ -19,61 +20,6 @@ pub trait Decoded: Sized {
     const POSSIBLE_COUNT: Self::Poss;
 
     fn decoded(elements: Vec<Self::Element>) -> Result<Self, DecodingError>;
-}
-
-#[derive(Debug)]
-enum Header {
-    Pointer(u64),
-    Data(HeaderDetail),
-}
-
-impl Header {
-    #[allow(dead_code)]
-    #[allow(missing_docs)]
-    fn new(at: u64) -> Self {
-        Header::Pointer(at)
-    }
-
-    #[allow(dead_code)]
-    #[allow(missing_docs)]
-    fn unchecked_detail(&self) -> &HeaderDetail {
-        match self {
-            Header::Data(x) => x,
-            Header::Pointer(_) => unreachable!(),
-        }
-    }
-
-    #[allow(dead_code)]
-    #[allow(missing_docs)]
-    fn unchecked_detail_into(self) -> HeaderDetail {
-        match self {
-            Header::Data(x) => x,
-            Header::Pointer(_) => unreachable!(),
-        }
-    }
-}
-
-#[derive(Debug)]
-struct HeaderDetail {
-    ifd: ImageFileDirectory,
-    width: usize,
-    height: usize,
-    bits_per_sample: BitsPerSample,
-    compression: Option<Compression>,
-    photometric_interpretation: PhotometricInterpretation,
-    rows_per_strip: usize,
-    strip_offsets: StripOffsets,
-    strip_byte_counts: StripByteCounts,
-    predictor: Predictor,
-}
-
-impl HeaderDetail {
-    #[inline]
-    #[allow(dead_code)]
-    #[allow(missing_docs)]
-    fn ifd(&self) -> &ImageFileDirectory {
-        &self.ifd
-    }
 }
 
 #[derive(Debug)]
@@ -99,79 +45,15 @@ impl<R> Decoder<R> {
 
     #[allow(dead_code)]
     #[allow(missing_docs)]
-    pub fn width(&self) -> usize {
-        self.headers[self.header_index].unchecked_detail().width
-    }
-
-    #[allow(dead_code)]
-    #[allow(missing_docs)]
-    pub fn height(&self) -> usize {
-        self.headers[self.header_index].unchecked_detail().height
-    }
-
-    #[allow(dead_code)]
-    #[allow(missing_docs)]
-    pub fn bits_per_sample(&self) -> &BitsPerSample {
-        &self.headers[self.header_index]
-            .unchecked_detail()
-            .bits_per_sample
-    }
-
-    #[allow(dead_code)]
-    #[allow(missing_docs)]
-    pub fn compression(&self) -> Option<&Compression> {
-        self.headers[self.header_index]
-            .unchecked_detail()
-            .compression
-            .as_ref()
-    }
-
-    #[allow(dead_code)]
-    #[allow(missing_docs)]
-    pub fn photometric_interpretation(&self) -> &PhotometricInterpretation {
-        &self.headers[self.header_index]
-            .unchecked_detail()
-            .photometric_interpretation
-    }
-
-    #[allow(dead_code)]
-    #[allow(missing_docs)]
-    pub fn rows_per_strip(&self) -> usize {
-        self.headers[self.header_index]
-            .unchecked_detail()
-            .rows_per_strip
-    }
-
-    #[allow(dead_code)]
-    #[allow(missing_docs)]
-    pub fn strip_byte_counts(&self) -> &StripByteCounts {
-        &self.headers[self.header_index]
-            .unchecked_detail()
-            .strip_byte_counts
-    }
-
-    #[allow(dead_code)]
-    #[allow(missing_docs)]
-    pub fn strip_offsets(&self) -> &StripOffsets {
-        &self.headers[self.header_index]
-            .unchecked_detail()
-            .strip_offsets
-    }
-
-    #[allow(dead_code)]
-    #[allow(missing_docs)]
-    pub fn predictor(&self) -> Predictor {
-        self.headers[self.header_index].unchecked_detail().predictor
+    #[inline]
+    pub fn header(&self) -> &Header {
+        self.headers.get(self.header_index).unwrap()
     }
 
     #[allow(dead_code)]
     #[allow(missing_docs)]
     pub fn ifd(&self) -> &ImageFileDirectory {
-        self.headers
-            .get(self.header_index)
-            .unwrap() // managing `ifd_index` with `ifds`, so there's always element.
-            .unchecked_detail()
-            .ifd()
+        self.header().ifd()
     }
 
     #[allow(dead_code)]
@@ -199,18 +81,11 @@ impl<R> Decoder<R> {
     }
 }
 
-impl Decoder<File> {
-    pub fn from_path<P: AsRef<Path>>(path: P) -> Result<Decoder<File>, DecodeError> {
-        let f = File::open(path)?;
-        Decoder::from_reader(f)
-    }
-}
-
 impl<R> Decoder<R>
 where
     R: io::Read + io::Seek,
 {
-    pub fn from_reader(mut reader: R) -> Result<Decoder<R>, DecodeError> {
+    pub fn new(mut reader: R) -> Result<Decoder<R>, DecodeError> {
         let mut byte_order = [0u8; 2];
         reader
             .read_exact(&mut byte_order)
@@ -241,7 +116,8 @@ where
             .read_u32(&endian)
             .map_err(|_| FileHeaderError::NoIFDAddress)?
             .into();
-        let headers = vec![Header::new(start)];
+        // let headers = vec![Header::new(start)];
+        let headers = vec![];
 
         let mut decoder = Decoder {
             reader,
@@ -251,7 +127,7 @@ where
         };
 
         // load the first ifd
-        decoder.load_ifd()?;
+        decoder.load_ifd(Some(start))?;
 
         Ok(decoder)
     }
@@ -267,10 +143,8 @@ where
 
         if last_index < at {
             for _ in last_index..(at - 1) {
-                self.load_ifd()?;
+                self.load_ifd(None)?;
             }
-
-            self.load_ifd()?;
         }
 
         // No preblem, I'll update the index
@@ -321,16 +195,24 @@ where
         Ok((ifd, next))
     }
 
-    fn load_ifd(&mut self) -> Result<bool, DecodeError> {
+    fn load_ifd(&mut self, next_addr: Option<u64>) -> Result<bool, DecodeError> {
         let last_index = self.headers.len() - 1;
-        let last_header = self.headers.last().unwrap();
-        let next_addr = match last_header {
-            Header::Pointer(next_addr) => *next_addr,
-            Header::Data(_) => {
-                // reached the end
-                return Ok(false);
+        let next_addr = if last_index < 0 {
+            // initial
+            next_addr.unwrap()
+
+        } else {
+            // other
+            let last_header = self.headers.last().unwrap();
+            if let Some(addr) = last_header.next_addr() {
+                addr
+
+            } else {
+                // already reached the end
+                return Ok(false)
             }
         };
+
         let (ifd, next_addr) = self.ifd_and_next_addr(next_addr)?;
 
         let width = self
@@ -361,8 +243,15 @@ where
 
         //     return Err(DecodeError::from(err))
         // }
+        
+        let next_addr = if next_addr == 0 {
+            None
+        } else {
+            Some(next_addr)
+        };
 
-        let header_detail = HeaderDetail {
+        let header = Header::new(
+            next_addr,
             ifd,
             width,
             height,
@@ -372,14 +261,10 @@ where
             rows_per_strip,
             strip_offsets,
             strip_byte_counts,
-            predictor,
-        };
+            predictor
+        );
 
-        self.headers[last_index] = Header::Data(header_detail);
-
-        // append
-        let next_header = Header::new(next_addr);
-        self.headers.push(next_header);
+        self.headers.push(header);
 
         Ok(true)
     }
@@ -492,14 +377,15 @@ where
     }
 
     pub fn image(&mut self) -> Result<ImageData, DecodeError> {
-        let width = self.width();
-        let height = self.height();
-        let bits_per_sample = self.bits_per_sample();
+        let header = self.header();
+        let width = header.width();
+        let height = header.height();
+        let bits_per_sample = header.bits_per_sample();
         let bits_len = bits_per_sample.len();
         let endian = self.endian().clone();
 
         let buffer_size = width * height * bits_len;
-        let rows_per_strip = self.rows_per_strip();
+        let rows_per_strip = header.rows_per_strip();
 
         // let mut buffer = vec![];
 
@@ -511,11 +397,12 @@ where
         D: DecodeBytes,
         W: io::Write,
     {
-        let width = self.width();
-        let height = self.height();
-        let rows_per_strip = self.rows_per_strip();
-        let bits_len = self.bits_per_sample().len();
-        let predictor = self.predictor();
+        let header = self.header();
+        let width = header.width();
+        let height = header.height();
+        let rows_per_strip = header.rows_per_strip();
+        let bits_len = header.bits_per_sample().len();
+        let predictor = header.predictor();
 
         todo!()
     }

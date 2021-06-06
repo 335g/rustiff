@@ -1,17 +1,15 @@
+use io::SeekFrom;
+
 use crate::{
-    data::{DataType, Entry, ImageData},
+    data::{DataType, Entry},
     element::{Elemental, Endian, EndianRead, SeekExt},
     error::{DecodeError, DecodingError, FileHeaderError, TagError},
     ifd::ImageFileDirectory,
     possible::Possible,
-    header::Header,
     tag::{self, AnyTag, Tag},
-    val::{
-        BitsPerSample, Compression, PhotometricInterpretation, Predictor, StripByteCounts,
-        StripOffsets,
-    },
+    val::Predictor,
 };
-use std::{convert::TryFrom, fs::File, io, path::Path};
+use std::{convert::TryFrom, io};
 
 pub trait Decoded: Sized {
     type Element: Elemental;
@@ -26,8 +24,9 @@ pub trait Decoded: Sized {
 pub struct Decoder<R> {
     reader: R,
     endian: Endian,
-    header_index: usize,
-    headers: Vec<Header>,
+    addr_index: usize,
+    addrs: Vec<u64>,
+    ifd: ImageFileDirectory,
 }
 
 impl<R> Decoder<R> {
@@ -39,21 +38,14 @@ impl<R> Decoder<R> {
 
     #[allow(dead_code)]
     #[allow(missing_docs)]
-    pub(crate) fn reader(&mut self) -> &mut R {
+    pub(crate) fn reader_mut(&mut self) -> &mut R {
         &mut self.reader
     }
 
     #[allow(dead_code)]
     #[allow(missing_docs)]
-    #[inline]
-    pub fn header(&self) -> &Header {
-        self.headers.get(self.header_index).unwrap()
-    }
-
-    #[allow(dead_code)]
-    #[allow(missing_docs)]
     pub fn ifd(&self) -> &ImageFileDirectory {
-        self.header().ifd()
+        &self.ifd
     }
 
     #[allow(dead_code)]
@@ -76,8 +68,17 @@ impl<R> Decoder<R> {
     {
         let anytag = AnyTag::try_from::<T>()?;
 
-        let entry = ifd.get_tag(anytag);
+        let entry = ifd.get_tag(&anytag);
         Ok(entry)
+    }
+
+    #[allow(dead_code)]
+    pub fn addresses<'a>(&'a mut self) -> Addresses<'a, R> {
+        let start = *self.addrs.first().unwrap();
+        let endian = self.endian().clone();
+        let reader = self.reader_mut();
+
+        Addresses::new(start, endian, reader)
     }
 }
 
@@ -116,49 +117,78 @@ where
             .read_u32(&endian)
             .map_err(|_| FileHeaderError::NoIFDAddress)?
             .into();
-        // let headers = vec![Header::new(start)];
-        let headers = vec![];
-
-        let mut decoder = Decoder {
+        let ifd = Decoder::load_ifd_with(&mut reader, &endian, start)?;
+        let decoder = Decoder {
             reader,
             endian,
-            header_index: 0,
-            headers,
+            addr_index: 0,
+            addrs: vec![start],
+            ifd,
         };
-
-        // load the first ifd
-        decoder.load_ifd(Some(start))?;
 
         Ok(decoder)
     }
 
     /// change the target ifd in decoder
-    pub fn change_ifd(&mut self, at: usize) -> Result<(), DecodeError> {
+    pub fn change_ifd(&mut self, at: usize) -> Result<bool, DecodeError> {
         // If it already is, nothing will be done.
-        if self.header_index == at {
-            return Ok(());
+        if self.addr_index == at {
+            return Ok(true);
         }
 
-        let last_index = self.headers.len() - 1;
+        let last_index = self.addrs.len() - 1;
 
         if last_index < at {
+            let mut from = self.addrs[last_index];
+
             for _ in last_index..(at - 1) {
-                self.load_ifd(None)?;
+                let next = self.next_addr(from);
+
+                if let Some(next) = next {
+                    self.addrs.push(next);
+
+                    // update
+                    from = next;
+                } else {
+                    return Ok(false);
+                }
             }
         }
 
         // No preblem, I'll update the index
-        self.header_index = at;
+        self.addr_index = at;
 
-        Ok(())
+        // load ifd
+        let addr = self.addrs[at];
+        self.load_ifd(addr)?;
+
+        // fin
+        Ok(true)
+    }
+
+    fn next_addr(&mut self, from: u64) -> Option<u64> {
+        self.reader.goto(from).ok()?;
+
+        let entry_count = self.reader.read_u16(&self.endian).ok()?;
+
+        // 2byte: tag id
+        // 2byte: data type
+        // 4byte: count field
+        // 4byte: data field or pointer
+        let skip_bytes = i64::from(entry_count * 12);
+        self.reader.seek(SeekFrom::Current(skip_bytes)).ok()?;
+
+        self.reader
+            .read_u32(&self.endian)
+            .ok()
+            .map(|x| u64::from(x))
     }
 
     /// IFD constructor
     ///
-    /// This function returns IFD and next IFD address.
-    /// If you don't use multiple IFD, it's usually better to use [`ifd`] function.
+    /// This function makes `ImageFileDirectory`
     ///
-    /// ### for_example
+    /// ### figure of memory dump
     ///
     /// ```ignore
     ///                                                       +---- (4 byte) Entry.count (u32)
@@ -173,100 +203,35 @@ where
     /// ```
     ///
     /// [`ifd`]: decode.Decoder.ifd
-    fn ifd_and_next_addr(&mut self, from: u64) -> Result<(ImageFileDirectory, u64), DecodeError> {
-        let endian = self.endian().clone();
-        let reader = self.reader();
+    fn load_ifd_with(
+        mut reader: &mut R,
+        endian: &Endian,
+        from: u64,
+    ) -> Result<ImageFileDirectory, DecodeError> {
         reader.goto(from)?;
 
-        let entry_count = reader.read_u16(&endian)?;
+        let entry_count = reader.read_u16(endian)?;
         let mut ifd = ImageFileDirectory::new();
         for _ in 0..entry_count {
-            let tag = AnyTag::from_u16(reader.read_u16(&endian)?);
-            let ty = DataType::try_from(reader.read_u16(&endian)?)?;
-            let count = reader.read_u32(&endian)? as usize;
+            let tag = AnyTag::from_u16(reader.read_u16(endian)?);
+            let ty = DataType::try_from(reader.read_u16(endian)?)?;
+            let count = reader.read_u32(endian)? as usize;
             let field = reader.read_4byte()?;
 
             let entry = Entry::new(ty, count, field);
             ifd.insert_tag(tag, entry);
         }
 
-        let next = self.reader.read_u32(&self.endian)?.into();
-
-        Ok((ifd, next))
+        Ok(ifd)
     }
 
-    fn load_ifd(&mut self, next_addr: Option<u64>) -> Result<bool, DecodeError> {
-        let last_index = self.headers.len() - 1;
-        let next_addr = if last_index < 0 {
-            // initial
-            next_addr.unwrap()
+    fn load_ifd(&mut self, from: u64) -> Result<(), DecodeError> {
+        let endian = self.endian().clone();
+        let reader = self.reader_mut();
 
-        } else {
-            // other
-            let last_header = self.headers.last().unwrap();
-            if let Some(addr) = last_header.next_addr() {
-                addr
+        self.ifd = Self::load_ifd_with(reader, &endian, from)?;
 
-            } else {
-                // already reached the end
-                return Ok(false)
-            }
-        };
-
-        let (ifd, next_addr) = self.ifd_and_next_addr(next_addr)?;
-
-        let width = self
-            .get_exist_value_with::<tag::ImageWidth>(&ifd)?
-            .as_size();
-        let height = self
-            .get_exist_value_with::<tag::ImageLength>(&ifd)?
-            .as_size();
-        let rows_per_strip = self
-            .get_value_with::<tag::RowsPerStrip>(&ifd)?
-            .map(|x| x.as_size())
-            .unwrap_or(height);
-        let strip_offsets = self.get_exist_value_with::<tag::StripOffsets>(&ifd)?;
-        let strip_byte_counts = self.get_exist_value_with::<tag::StripByteCounts>(&ifd)?;
-        let bits_per_sample = self.get_exist_value_with::<tag::BitsPerSample>(&ifd)?;
-        let compression = self.get_exist_value_with::<tag::Compression>(&ifd)?;
-        let photometric_interpretation =
-            self.get_exist_value_with::<tag::PhotometricInterpretation>(&ifd)?;
-        let predictor = self.get_exist_value_with::<tag::Predictor>(&ifd)?;
-
-        // // Each count must be equal.
-        // if strip_offsets.len() != strip_byte_counts.len() {
-        //     let infos = vec![
-        //         (strip_offsets.len(), tag::StripOffsets::typename()),
-        //         (strip_byte_counts.len(), tag::StripByteCounts::typename()),
-        //     ];
-        //     let err = DecodingError::InvalidCount(infos);
-
-        //     return Err(DecodeError::from(err))
-        // }
-        
-        let next_addr = if next_addr == 0 {
-            None
-        } else {
-            Some(next_addr)
-        };
-
-        let header = Header::new(
-            next_addr,
-            ifd,
-            width,
-            height,
-            bits_per_sample,
-            compression,
-            photometric_interpretation,
-            rows_per_strip,
-            strip_offsets,
-            strip_byte_counts,
-            predictor
-        );
-
-        self.headers.push(header);
-
-        Ok(true)
+        Ok(())
     }
 
     fn get_elements<T: Tag>(
@@ -290,7 +255,7 @@ where
             self.reader.goto(u64::from(addr))?;
         }
 
-        let reader = self.reader();
+        let reader = self.reader_mut();
 
         let mut elements = vec![];
         for _ in 0..count {
@@ -376,33 +341,34 @@ where
         }
     }
 
-    pub fn image(&mut self) -> Result<ImageData, DecodeError> {
-        let header = self.header();
-        let width = header.width();
-        let height = header.height();
-        let bits_per_sample = header.bits_per_sample();
-        let bits_len = bits_per_sample.len();
-        let endian = self.endian().clone();
+    // pub fn image(&mut self) -> Result<ImageData, DecodeError> {
+    //     let header = self.header();
+    //     let width = header.width();
+    //     let height = header.height();
+    //     let bits_per_sample = header.bits_per_sample();
+    //     let bits_len = bits_per_sample.len();
+    //     let endian = self.endian().clone();
 
-        let buffer_size = width * height * bits_len;
-        let rows_per_strip = header.rows_per_strip();
+    //     let buffer_size = width * height * bits_len;
+    //     let rows_per_strip = header.rows_per_strip();
 
-        // let mut buffer = vec![];
+    //     // let mut buffer = vec![];
 
-        todo!()
-    }
+    //     todo!()
+    // }
 
     fn decode_bytes<D, W>(&mut self, mut decoder: D, mut writer: W) -> Result<usize, DecodingError>
     where
         D: DecodeBytes,
         W: io::Write,
     {
-        let header = self.header();
-        let width = header.width();
-        let height = header.height();
-        let rows_per_strip = header.rows_per_strip();
-        let bits_len = header.bits_per_sample().len();
-        let predictor = header.predictor();
+        let width = self.get_exist_value::<tag::ImageWidth>()?.as_size();
+        let height = self.get_exist_value::<tag::ImageLength>()?.as_size();
+        let rows_per_strip = self
+            .get_value::<tag::RowsPerStrip>()?
+            .map(|x| x.as_size())
+            .unwrap_or(height);
+        let bits_per_sample = self.get_value::<tag::BitsPerSample>()?;
 
         todo!()
     }
@@ -507,5 +473,52 @@ impl DecodeBytes for LZWDecoder {
 
         let bytes = uncompressed_data.len();
         Ok(bytes)
+    }
+}
+
+pub struct Addresses<'a, R> {
+    addr: u64,
+    idx: usize,
+    endian: Endian,
+    reader: &'a mut R,
+}
+
+impl<'a, R> Addresses<'a, R> {
+    fn new(start: u64, endian: Endian, reader: &'a mut R) -> Self {
+        Addresses {
+            addr: start,
+            idx: 0,
+            endian,
+            reader,
+        }
+    }
+}
+
+impl<'a, R> Iterator for Addresses<'a, R>
+where
+    R: io::Read + io::Seek,
+{
+    type Item = u64;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.idx == 0 {
+            Some(self.addr)
+        } else {
+            self.reader.goto(self.addr).ok()?;
+
+            let entry_count = self.reader.read_u16(&self.endian).ok()?;
+
+            // 2byte: tag id
+            // 2byte: data type
+            // 4byte: count field
+            // 4byte: data field or pointer
+            let skip_bytes = i64::from(entry_count * 12);
+            self.reader.seek(SeekFrom::Current(skip_bytes)).ok()?;
+
+            self.reader
+                .read_u32(&self.endian)
+                .ok()
+                .map(|x| u64::from(x))
+        }
     }
 }

@@ -87,7 +87,7 @@ macro_rules! define_tags {
         impl fmt::Display for AnyTag {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 match *self {
-                    $(AnyTag::$name => write!(f, "tag::{}", std::any::type_name::<$name>()),)*
+                    $(AnyTag::$name => write!(f, "{}", std::any::type_name::<$name>()),)*
                     AnyTag::Custom(n) => write!(f, "Unknown tag (id: {})", n),
                 }
             }
@@ -206,6 +206,7 @@ define_tags! {
     BitsPerSample,
     Compression,
     PhotometricInterpretation,
+    Predictor,
     StripOffsets,
     SamplesPerPixel,
     RowsPerStrip,

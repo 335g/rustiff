@@ -1,7 +1,32 @@
 use crate::{data::DataType, element::Element, tag::Tag};
-use std::{io, marker::PhantomData};
+use std::{fmt, io, marker::PhantomData};
 
 pub type DecodeResult<T> = Result<T, DecodeError>;
+pub type EncodeResult<T> = Result<T, EncodeError>;
+
+#[derive(Debug)]
+pub struct EncodeError(EncodeErrorKind);
+
+impl EncodeError {
+    pub(crate) fn new(kind: EncodeErrorKind) -> Self {
+        EncodeError(kind)
+    }
+
+    pub fn kind(&self) -> &EncodeErrorKind {
+        &self.0
+    }
+
+    pub fn into_kind(self) -> EncodeErrorKind {
+        self.0
+    }
+
+    pub fn is_io_error(&self) -> bool {
+        false
+    }
+}
+
+#[derive(Debug)]
+pub enum EncodeErrorKind {}
 
 #[derive(Debug)]
 pub struct DecodeError(DecodeErrorKind);
@@ -23,6 +48,32 @@ impl DecodeError {
         match self.0 {
             DecodeErrorKind::Io(_) => true,
             _ => false,
+        }
+    }
+}
+
+impl fmt::Display for DecodeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            DecodeErrorKind::Io(ref e) => e.fmt(f),
+            DecodeErrorKind::FileHeader(ref e) => e.fmt(f),
+            DecodeErrorKind::UnsupportedDataType(x) => write!(
+                f,
+                "Unsupported data type: {}",
+                x
+            ),
+            DecodeErrorKind::Decoding(ref e) => e.fmt(f)
+        }
+    }
+}
+
+impl std::error::Error for DecodeError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self.0 {
+            DecodeErrorKind::Io(ref e) => Some(e),
+            DecodeErrorKind::FileHeader(ref e) => Some(e),
+            DecodeErrorKind::UnsupportedDataType(x) => None,
+            DecodeErrorKind::Decoding(ref e) => Some(e),
         }
     }
 }
@@ -111,6 +162,18 @@ pub enum FileHeaderError {
     NoIFDAddress,
 }
 
+impl fmt::Display for FileHeaderError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        todo!()
+    }
+}
+
+impl std::error::Error for FileHeaderError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
+}
+
 #[derive(Debug)]
 pub enum DecodingError {
     Io(io::Error),
@@ -125,5 +188,20 @@ pub enum DecodingError {
 impl From<io::Error> for DecodingError {
     fn from(err: io::Error) -> Self {
         DecodingError::Io(err)
+    }
+}
+
+impl fmt::Display for DecodingError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        todo!()
+    }
+}
+
+impl std::error::Error for DecodingError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            DecodingError::Io(ref e) => Some(e),
+            _ => None,
+        }
     }
 }

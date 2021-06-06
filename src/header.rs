@@ -1,9 +1,10 @@
-use crate::{ifd::ImageFileDirectory, val::{BitsPerSample, Compression, PhotometricInterpretation, Predictor, RowsPerStrip, StripByteCounts, StripOffsets}};
+use crate::val::{
+    BitsPerSample, Compression, PhotometricInterpretation, Predictor, RowsPerStrip,
+    StripByteCounts, StripOffsets,
+};
 
 #[derive(Debug)]
 pub struct Header {
-    next_addr: Option<u64>,
-    ifd: ImageFileDirectory,
     width: usize,
     height: usize,
     bits_per_sample: BitsPerSample,
@@ -17,8 +18,6 @@ pub struct Header {
 
 impl Header {
     pub fn new(
-        next_addr: Option<u64>,
-        ifd: ImageFileDirectory,
         width: usize,
         height: usize,
         bits_per_sample: BitsPerSample,
@@ -30,8 +29,6 @@ impl Header {
         predictor: Predictor,
     ) -> Self {
         Self {
-            next_addr,
-            ifd,
             width,
             height,
             bits_per_sample,
@@ -42,14 +39,6 @@ impl Header {
             strip_byte_counts,
             predictor,
         }
-    }
-
-    pub fn ifd(&self) -> &ImageFileDirectory {
-        &self.ifd
-    }
-
-    pub(crate) fn next_addr(&self) -> Option<u64> {
-        self.next_addr.clone()
     }
 
     pub fn width(&self) -> usize {

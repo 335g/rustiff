@@ -1,7 +1,7 @@
 use crate::tag::{AnyTag, Tag};
 use crate::{data::Entry, error::TagError};
 
-use std::collections::HashMap;
+use std::collections::{self, HashMap};
 
 /// IFD (Image File Directory)
 #[derive(Debug, Clone)]
@@ -33,7 +33,27 @@ impl ImageFileDirectory {
     #[inline]
     #[allow(dead_code)]
     #[allow(missing_docs)]
-    pub(crate) fn get_tag(&self, tag: AnyTag) -> Option<&Entry> {
-        self.0.get(&tag)
+    pub fn get_tag(&self, tag: &AnyTag) -> Option<&Entry> {
+        self.0.get(tag)
+    }
+
+    #[allow(dead_code)]
+    #[allow(missing_docs)]
+    pub fn keys(&self) -> Keys<'_> {
+        Keys {
+            inner: self.0.keys(),
+        }
+    }
+}
+
+pub struct Keys<'a> {
+    inner: collections::hash_map::Keys<'a, AnyTag, Entry>,
+}
+
+impl<'a> Iterator for Keys<'a> {
+    type Item = &'a AnyTag;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next()
     }
 }

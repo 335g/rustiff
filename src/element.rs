@@ -500,7 +500,7 @@ pub trait EndianRead: io::Read {
     /// This method also returns error, If read value is not ascii char.
     ///
     #[inline(always)]
-    fn read_ascii(&mut self) -> io::Result<char> {
+    fn read_ascii(&mut self, _byte_order: &Endian) -> io::Result<char> {
         <Self as ReadBytesExt>::read_u8(self).and_then(|x| {
             x.is_ascii().then(|| char::from(x)).ok_or(io::Error::new(
                 io::ErrorKind::InvalidData,

@@ -43,6 +43,34 @@ impl TryFrom<u16> for DataType {
     }
 }
 
+#[derive(Debug)]
+pub struct Rational<T> {
+    pub numerator: T,
+    pub denominator: T,
+}
+
+impl<T> Rational<T> {
+    pub fn new(numerator: T, denominator: T) -> Self {
+        Self { numerator, denominator }
+    }
+}
+
+#[derive(Debug)]
+pub enum AnyData {
+    Byte(Vec<u8>),
+    Ascii(Vec<char>),
+    Short(Vec<u16>),
+    Long(Vec<u32>),
+    Rational(Vec<Rational<u32>>),
+    SByte(Vec<i8>),
+    Undefined(Vec<u8>),
+    SShort(Vec<i16>),
+    SLong(Vec<i32>),
+    SRational(Vec<Rational<i32>>),
+    Float(Vec<f32>),
+    Double(Vec<f64>),
+}
+
 #[derive(Debug, Clone)]
 pub struct Entry {
     ty: DataType,
@@ -76,6 +104,12 @@ impl Entry {
     #[allow(missing_docs)]
     pub fn field(&self) -> &[u8] {
         &self.field
+    }
+
+    #[inline]
+    #[allow(missing_docs)]
+    pub fn field_mut(&mut self) -> &mut [u8] {
+        &mut self.field
     }
 
     #[allow(dead_code)]

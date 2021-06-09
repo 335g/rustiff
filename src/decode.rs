@@ -1,15 +1,18 @@
 use io::SeekFrom;
 
-use crate::{
-    data::{DataType, Entry},
-    element::{Elemental, Endian, EndianRead, SeekExt},
-    error::{DecodeError, DecodingError, FileHeaderError, TagError},
-    ifd::ImageFileDirectory,
-    possible::Possible,
-    tag::{self, AnyTag, Tag},
-    val::Predictor,
-};
+use crate::{DecodeResult, data::{AnyData, DataType, Entry, Rational}, element::{Elemental, Endian, EndianRead, SeekExt}, error::{DecodeError, DecodingError, FileHeaderError, TagError}, ifd::ImageFileDirectory, possible::Possible, tag::{self, AnyTag, Tag}, val::Predictor};
 use std::{convert::TryFrom, io};
+
+macro_rules! read {
+    ($count:ident, $reader:ident, $func:ident, $anydata:path, $endian:ident) => {
+        {
+            let vals = (0..$count).into_iter()
+                .map(|_| $reader.$func(&$endian))
+                .collect::<Result<Vec<_>, _>>()?;
+            $anydata(vals)
+        }
+    };
+}
 
 pub trait Decoded: Sized {
     type Element: Elemental;
@@ -30,7 +33,6 @@ pub struct Decoder<R> {
 }
 
 impl<R> Decoder<R> {
-    #[allow(dead_code)]
     #[allow(missing_docs)]
     pub fn endian(&self) -> &Endian {
         &self.endian
@@ -42,13 +44,11 @@ impl<R> Decoder<R> {
         &mut self.reader
     }
 
-    #[allow(dead_code)]
     #[allow(missing_docs)]
     pub fn ifd(&self) -> &ImageFileDirectory {
         &self.ifd
     }
 
-    #[allow(dead_code)]
     #[allow(missing_docs)]
     pub fn get_entry<T: Tag>(&self) -> Result<Option<&Entry>, TagError<T>> {
         let ifd = self.ifd();
@@ -56,7 +56,6 @@ impl<R> Decoder<R> {
         self.get_entry_with::<T>(ifd)
     }
 
-    #[allow(dead_code)]
     #[allow(missing_docs)]
     fn get_entry_with<'a, 'b, T>(
         &'a self,
@@ -247,20 +246,24 @@ where
             return Err(DecodingError::InvalidDataCount(count));
         }
 
-        let one_size = <<T as Tag>::Value as Decoded>::Element::size(&ty);
-        let total_size = one_size * count;
-
-        if total_size > 4 {
-            let addr = self.reader.read_u32(&endian)?;
-            self.reader.goto(u64::from(addr))?;
-        }
-
-        let reader = self.reader_mut();
-
         let mut elements = vec![];
-        for _ in 0..count {
-            let element = <T::Value as Decoded>::Element::read(reader, &endian, ty)?;
-            elements.push(element);
+        if entry.overflow() {
+            let addr = self.reader.read_u32(&endian)?.into();
+            self.reader.goto(addr)?;
+
+            let mut reader = self.reader_mut();
+
+            for _ in 0..count {
+                let element = <T::Value as Decoded>::Element::read(reader, &endian, ty)?;
+                elements.push(element);
+            }
+        } else {
+            let mut reader = entry.field();
+
+            for _ in 0..count {
+                let element = <T::Value as Decoded>::Element::read(&mut reader, &endian, ty)?;
+                elements.push(element);
+            }
         }
 
         Ok(elements)
@@ -338,6 +341,117 @@ where
             }
             Ok(None) => T::DEFAULT_VALUE.ok_or(DecodingError::NoExistShouldExist),
             Err(e) => Err(DecodingError::Tag(e.into_kind())),
+        }
+    }
+
+    #[allow(missing_docs)]
+    pub fn get_any_data(&mut self, tag: AnyTag) -> DecodeResult<Option<AnyData>> {
+        let ifd = self.ifd();
+        let entry = ifd.get_tag(&tag);
+
+        if let Some(entry) = entry {
+            let endian = self.endian().clone();
+            let ty = entry.ty();
+            let count = entry.count();
+            let field = entry.field();
+
+            if entry.overflow() {
+                let addr = entry.field().read_u32(&endian)?.into();
+                let reader = self.reader_mut();
+                reader.goto(addr)?;
+
+                let data = match ty {
+                    DataType::Byte => read!(count, reader, read_u8, AnyData::Byte, endian),
+                    DataType::Ascii => read!(count, reader, read_ascii, AnyData::Ascii, endian),
+                    DataType::Short => read!(count, reader, read_u16, AnyData::Short, endian),
+                    DataType::Long => read!(count, reader, read_u32, AnyData::Long, endian),
+                    DataType::Rational => {
+                        let vals = (0..count).into_iter()
+                            .map(|_| {
+                                let x = reader.read_u32(&endian);
+                                let y = reader.read_u32(&endian);
+
+                                x.and_then(|x| {
+                                    y.map(|y| Rational::new(x, y))
+                                })
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+
+                        AnyData::Rational(vals)
+                    }
+                    DataType::SByte => read!(count, reader, read_i8, AnyData::SByte, endian),
+                    DataType::Undefined => read!(count, reader, read_u8, AnyData::Undefined, endian),
+                    DataType::SShort => read!(count, reader, read_i16, AnyData::SShort, endian),
+                    DataType::SLong => read!(count, reader, read_i32, AnyData::SLong, endian),
+                    DataType::SRational => {
+                        let vals = (0..count).into_iter()
+                            .map(|_| {
+                                let x = reader.read_i32(&endian);
+                                let y = reader.read_i32(&endian);
+
+                                x.and_then(|x| {
+                                    y.map(|y| Rational::new(x, y))
+                                })
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+
+                        AnyData::SRational(vals)
+                    }
+                    DataType::Float => read!(count, reader, read_f32, AnyData::Float, endian),
+                    DataType::Double => read!(count, reader, read_f64, AnyData::Double, endian),
+                };
+
+                Ok(Some(data))
+                
+            } else {
+                let mut reader = field;
+
+                let data = match ty {
+                    DataType::Byte => read!(count, reader, read_u8, AnyData::Byte, endian),
+                    DataType::Ascii => read!(count, reader, read_ascii, AnyData::Ascii, endian),
+                    DataType::Short => read!(count, reader, read_u16, AnyData::Short, endian),
+                    DataType::Long => read!(count, reader, read_u32, AnyData::Long, endian),
+                    DataType::Rational => {
+                        let vals = (0..count).into_iter()
+                            .map(|_| {
+                                let x = reader.read_u32(&endian);
+                                let y = reader.read_u32(&endian);
+
+                                x.and_then(|x| {
+                                    y.map(|y| Rational::new(x, y))
+                                })
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+
+                        AnyData::Rational(vals)
+                    }
+                    DataType::SByte => read!(count, reader, read_i8, AnyData::SByte, endian),
+                    DataType::Undefined => read!(count, reader, read_u8, AnyData::Undefined, endian),
+                    DataType::SShort => read!(count, reader, read_i16, AnyData::SShort, endian),
+                    DataType::SLong => read!(count, reader, read_i32, AnyData::SLong, endian),
+                    DataType::SRational => {
+                        let vals = (0..count).into_iter()
+                            .map(|_| {
+                                let x = reader.read_i32(&endian);
+                                let y = reader.read_i32(&endian);
+
+                                x.and_then(|x| {
+                                    y.map(|y| Rational::new(x, y))
+                                })
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+
+                        AnyData::SRational(vals)
+                    }
+                    DataType::Float => read!(count, reader, read_f32, AnyData::Float, endian),
+                    DataType::Double => read!(count, reader, read_f64, AnyData::Double, endian),
+                };
+
+                Ok(Some(data))
+            }
+
+        } else {
+            Ok(None)
         }
     }
 

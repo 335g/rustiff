@@ -2,7 +2,7 @@ use std::ops::{Deref, RangeFrom};
 
 use crate::{
     decode::Decoded,
-    element::Element,
+    element::AnyElement,
     encode::Encoded,
     error::{DecodeErrorKind, DecodingError},
 };
@@ -140,7 +140,7 @@ impl Decoded for BitsPerSample {
                 let a = elements[0];
                 if a == 0 {
                     let ty = std::any::type_name::<Self>();
-                    Err(DecodingError::InvalidValue(Element::U16(0)))
+                    Err(DecodingError::InvalidValue(AnyElement::U16(0)))
                 } else {
                     Ok(BitsPerSample::C1([a]))
                 }
@@ -152,7 +152,7 @@ impl Decoded for BitsPerSample {
 
                 if a == 0 || b == 0 || c == 0 {
                     let ty = std::any::type_name::<Self>();
-                    Err(DecodingError::InvalidValue(Element::U16(0)))
+                    Err(DecodingError::InvalidValue(AnyElement::U16(0)))
                 } else {
                     Ok(BitsPerSample::C3([a, b, c]))
                 }
@@ -166,7 +166,7 @@ impl Decoded for BitsPerSample {
                 if a == 0 || b == 0 || c == 0 || d == 0 {
                     let ty = std::any::type_name::<Self>();
 
-                    Err(DecodingError::InvalidValue(Element::U16(0)))
+                    Err(DecodingError::InvalidValue(AnyElement::U16(0)))
                 } else {
                     Ok(BitsPerSample::C4([a, b, c, d]))
                 }
@@ -208,7 +208,7 @@ impl Decoded for Option<Compression> {
         match val {
             1 => Ok(None),
             5 => Ok(Some(Compression::LZW)),
-            n => Err(DecodingError::InvalidValue(Element::U16(n))),
+            n => Err(DecodingError::InvalidValue(AnyElement::U16(n))),
         }
     }
 }
@@ -311,7 +311,7 @@ impl Decoded for PhotometricInterpretation {
             5 => Ok(PhotometricInterpretation::CMYK),
             6 => Ok(PhotometricInterpretation::YCbCr),
             7 => Ok(PhotometricInterpretation::CIELab),
-            n => Err(DecodingError::InvalidValue(Element::U16(n))),
+            n => Err(DecodingError::InvalidValue(AnyElement::U16(n))),
         }
     }
 }
@@ -386,7 +386,7 @@ impl Decoded for SamplesPerPixel {
         // TODO: really 1,3,4 ?
         match val {
             1 | 3 | 4 => Ok(SamplesPerPixel(val)),
-            n => Err(DecodingError::InvalidValue(Element::U16(n))),
+            n => Err(DecodingError::InvalidValue(AnyElement::U16(n))),
         }
     }
 }
@@ -487,7 +487,7 @@ impl Decoded for Predictor {
         match val {
             1 => Ok(Predictor::None),
             2 => Ok(Predictor::Horizontal),
-            n => Err(DecodingError::InvalidValue(Element::U16(n))),
+            n => Err(DecodingError::InvalidValue(AnyElement::U16(n))),
         }
     }
 }

@@ -1,4 +1,4 @@
-use crate::{data::DataType, error::DecodingError, val::Value};
+use crate::{data::{DataType, Rational}, error::DecodingError, val::Value};
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use std::io;
 
@@ -14,7 +14,7 @@ pub enum Endian {
 
 #[derive(Debug, Clone)]
 #[non_exhaustive]
-pub enum Element {
+pub enum AnyElement {
     U8(u8),
     U16(u16),
     U32(u32),
@@ -25,11 +25,13 @@ pub enum Element {
     F32(f32),
     F64(f64),
     Value(Value),
+    URational(Rational<u32>),
+    IRational(Rational<i32>),
 }
 
 pub trait Elemental: Sized {
     fn size(datatype: &DataType) -> usize;
-    fn element(&self) -> Element;
+    fn element(&self) -> AnyElement;
 
     fn read<R: io::Read>(
         reader: &mut R,
@@ -43,8 +45,8 @@ impl Elemental for u8 {
         1
     }
 
-    fn element(&self) -> Element {
-        Element::U8(*self)
+    fn element(&self) -> AnyElement {
+        AnyElement::U8(*self)
     }
 
     /// Reads an u8 value.
@@ -75,8 +77,8 @@ impl Elemental for i8 {
         1
     }
 
-    fn element(&self) -> Element {
-        Element::I8(*self)
+    fn element(&self) -> AnyElement {
+        AnyElement::I8(*self)
     }
 
     /// Reads an i8 value.
@@ -107,8 +109,8 @@ impl Elemental for u16 {
         2
     }
 
-    fn element(&self) -> Element {
-        Element::U16(*self)
+    fn element(&self) -> AnyElement {
+        AnyElement::U16(*self)
     }
 
     /// Reads an u16 value with Endian.
@@ -143,8 +145,8 @@ impl Elemental for i16 {
         2
     }
 
-    fn element(&self) -> Element {
-        Element::I16(*self)
+    fn element(&self) -> AnyElement {
+        AnyElement::I16(*self)
     }
 
     /// Reads an i16 value with Endian.
@@ -179,8 +181,8 @@ impl Elemental for u32 {
         4
     }
 
-    fn element(&self) -> Element {
-        Element::U32(*self)
+    fn element(&self) -> AnyElement {
+        AnyElement::U32(*self)
     }
 
     /// Reads an u32 value with Endian.
@@ -215,8 +217,8 @@ impl Elemental for i32 {
         4
     }
 
-    fn element(&self) -> Element {
-        Element::I32(*self)
+    fn element(&self) -> AnyElement {
+        AnyElement::I32(*self)
     }
 
     /// Reads an i32 value with Endian.
@@ -251,8 +253,8 @@ impl Elemental for char {
         1
     }
 
-    fn element(&self) -> Element {
-        Element::Char(*self)
+    fn element(&self) -> AnyElement {
+        AnyElement::Char(*self)
     }
 
     /// Reads an ascii char.
@@ -291,8 +293,8 @@ impl Elemental for f32 {
         4
     }
 
-    fn element(&self) -> Element {
-        Element::F32(*self)
+    fn element(&self) -> AnyElement {
+        AnyElement::F32(*self)
     }
 
     fn read<R: io::Read>(
@@ -323,8 +325,8 @@ impl Elemental for f64 {
         8
     }
 
-    fn element(&self) -> Element {
-        Element::F64(*self)
+    fn element(&self) -> AnyElement {
+        AnyElement::F64(*self)
     }
 
     fn read<R: io::Read>(
@@ -359,8 +361,8 @@ impl Elemental for Value {
         }
     }
 
-    fn element(&self) -> Element {
-        Element::Value(self.clone())
+    fn element(&self) -> AnyElement {
+        AnyElement::Value(self.clone())
     }
 
     fn read<R: io::Read>(
@@ -376,6 +378,75 @@ impl Elemental for Value {
             DataType::Long => {
                 let val = EndianRead::read_u32(reader, endian)?;
                 Ok(Value::Long(val))
+            }
+            ty => Err(DecodingError::InvalidDataType(ty)),
+        }
+    }
+}
+
+impl Elemental for Rational<u32> {
+    fn size(_datatype: &DataType) -> usize {
+        8
+    }
+
+    fn element(&self) -> AnyElement {
+        AnyElement::URational(self.clone())
+    }
+
+    fn read<R: io::Read>(
+        reader: &mut R,
+        endian: &Endian,
+        datatype: DataType,
+    ) -> Result<Self, DecodingError> {
+        
+        match datatype {
+            DataType::Long => {
+                let numerator = match *endian {
+                    Endian::Big => <R as ReadBytesExt>::read_u32::<BigEndian>(reader),
+                    Endian::Little => <R as ReadBytesExt>::read_u32::<LittleEndian>(reader),
+                }?;
+
+                let denominator = match *endian {
+                    Endian::Big => <R as ReadBytesExt>::read_u32::<BigEndian>(reader),
+                    Endian::Little => <R as ReadBytesExt>::read_u32::<LittleEndian>(reader),
+                }?;
+
+                let val = Rational::new(numerator, denominator);
+                Ok(val)
+            }
+            ty => Err(DecodingError::InvalidDataType(ty)),
+        }
+    }
+}
+
+impl Elemental for Rational<i32> {
+    fn size(_datatype: &DataType) -> usize {
+        8
+    }
+
+    fn element(&self) -> AnyElement {
+        AnyElement::IRational(self.clone())
+    }
+
+    fn read<R: io::Read>(
+        reader: &mut R,
+        endian: &Endian,
+        datatype: DataType,
+    ) -> Result<Self, DecodingError> {
+        match datatype {
+            DataType::Long => {
+                let numerator = match *endian {
+                    Endian::Big => <R as ReadBytesExt>::read_i32::<BigEndian>(reader),
+                    Endian::Little => <R as ReadBytesExt>::read_i32::<LittleEndian>(reader),
+                }?;
+
+                let denominator = match *endian {
+                    Endian::Big => <R as ReadBytesExt>::read_i32::<BigEndian>(reader),
+                    Endian::Little => <R as ReadBytesExt>::read_i32::<LittleEndian>(reader),
+                }?;
+
+                let val = Rational::new(numerator, denominator);
+                Ok(val)
             }
             ty => Err(DecodingError::InvalidDataType(ty)),
         }

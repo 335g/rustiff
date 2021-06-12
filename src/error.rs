@@ -1,4 +1,4 @@
-use crate::{data::DataType, element::Element, tag::Tag};
+use crate::{data::DataType, element::AnyElement, tag::Tag};
 use std::{fmt, io, marker::PhantomData};
 
 pub type DecodeResult<T> = Result<T, DecodeError>;
@@ -178,7 +178,7 @@ impl std::error::Error for FileHeaderError {
 pub enum DecodingError {
     Io(io::Error),
     InvalidDataCount(usize),
-    InvalidValue(Element),
+    InvalidValue(AnyElement),
     InvalidDataType(DataType),
     Tag(TagErrorKind),
     NoExistShouldExist,

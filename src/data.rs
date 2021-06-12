@@ -43,7 +43,7 @@ impl TryFrom<u16> for DataType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Rational<T> {
     pub numerator: T,
     pub denominator: T,
@@ -56,7 +56,7 @@ impl<T> Rational<T> {
 }
 
 #[derive(Debug)]
-pub enum AnyData {
+pub enum AnyElements {
     Byte(Vec<u8>),
     Ascii(Vec<char>),
     Short(Vec<u16>),

@@ -1,6 +1,6 @@
 use io::SeekFrom;
 
-use crate::{DecodeResult, data::{AnyData, DataType, Entry, Rational}, element::{Elemental, Endian, EndianRead, SeekExt}, error::{DecodeError, DecodingError, FileHeaderError, TagError}, ifd::ImageFileDirectory, possible::Possible, tag::{self, AnyTag, Tag}, val::Predictor};
+use crate::{DecodeResult, data::{AnyElements, DataType, Entry, Rational}, element::{Elemental, Endian, EndianRead, SeekExt}, error::{DecodeError, DecodingError, FileHeaderError, TagError}, ifd::ImageFileDirectory, possible::Possible, tag::{self, AnyTag, Tag}, val::Predictor};
 use std::{convert::TryFrom, io};
 
 macro_rules! read {
@@ -251,7 +251,7 @@ where
             let addr = self.reader.read_u32(&endian)?.into();
             self.reader.goto(addr)?;
 
-            let mut reader = self.reader_mut();
+            let reader = self.reader_mut();
 
             for _ in 0..count {
                 let element = <T::Value as Decoded>::Element::read(reader, &endian, ty)?;
@@ -345,7 +345,7 @@ where
     }
 
     #[allow(missing_docs)]
-    pub fn get_any_data(&mut self, tag: AnyTag) -> DecodeResult<Option<AnyData>> {
+    pub fn get_any_data(&mut self, tag: AnyTag) -> DecodeResult<Option<AnyElements>> {
         let ifd = self.ifd();
         let entry = ifd.get_tag(&tag);
 
@@ -361,10 +361,10 @@ where
                 reader.goto(addr)?;
 
                 let data = match ty {
-                    DataType::Byte => read!(count, reader, read_u8, AnyData::Byte, endian),
-                    DataType::Ascii => read!(count, reader, read_ascii, AnyData::Ascii, endian),
-                    DataType::Short => read!(count, reader, read_u16, AnyData::Short, endian),
-                    DataType::Long => read!(count, reader, read_u32, AnyData::Long, endian),
+                    DataType::Byte => read!(count, reader, read_u8, AnyElements::Byte, endian),
+                    DataType::Ascii => read!(count, reader, read_ascii, AnyElements::Ascii, endian),
+                    DataType::Short => read!(count, reader, read_u16, AnyElements::Short, endian),
+                    DataType::Long => read!(count, reader, read_u32, AnyElements::Long, endian),
                     DataType::Rational => {
                         let vals = (0..count).into_iter()
                             .map(|_| {
@@ -377,12 +377,12 @@ where
                             })
                             .collect::<Result<Vec<_>, _>>()?;
 
-                        AnyData::Rational(vals)
+                        AnyElements::Rational(vals)
                     }
-                    DataType::SByte => read!(count, reader, read_i8, AnyData::SByte, endian),
-                    DataType::Undefined => read!(count, reader, read_u8, AnyData::Undefined, endian),
-                    DataType::SShort => read!(count, reader, read_i16, AnyData::SShort, endian),
-                    DataType::SLong => read!(count, reader, read_i32, AnyData::SLong, endian),
+                    DataType::SByte => read!(count, reader, read_i8, AnyElements::SByte, endian),
+                    DataType::Undefined => read!(count, reader, read_u8, AnyElements::Undefined, endian),
+                    DataType::SShort => read!(count, reader, read_i16, AnyElements::SShort, endian),
+                    DataType::SLong => read!(count, reader, read_i32, AnyElements::SLong, endian),
                     DataType::SRational => {
                         let vals = (0..count).into_iter()
                             .map(|_| {
@@ -395,10 +395,10 @@ where
                             })
                             .collect::<Result<Vec<_>, _>>()?;
 
-                        AnyData::SRational(vals)
+                        AnyElements::SRational(vals)
                     }
-                    DataType::Float => read!(count, reader, read_f32, AnyData::Float, endian),
-                    DataType::Double => read!(count, reader, read_f64, AnyData::Double, endian),
+                    DataType::Float => read!(count, reader, read_f32, AnyElements::Float, endian),
+                    DataType::Double => read!(count, reader, read_f64, AnyElements::Double, endian),
                 };
 
                 Ok(Some(data))
@@ -407,10 +407,10 @@ where
                 let mut reader = field;
 
                 let data = match ty {
-                    DataType::Byte => read!(count, reader, read_u8, AnyData::Byte, endian),
-                    DataType::Ascii => read!(count, reader, read_ascii, AnyData::Ascii, endian),
-                    DataType::Short => read!(count, reader, read_u16, AnyData::Short, endian),
-                    DataType::Long => read!(count, reader, read_u32, AnyData::Long, endian),
+                    DataType::Byte => read!(count, reader, read_u8, AnyElements::Byte, endian),
+                    DataType::Ascii => read!(count, reader, read_ascii, AnyElements::Ascii, endian),
+                    DataType::Short => read!(count, reader, read_u16, AnyElements::Short, endian),
+                    DataType::Long => read!(count, reader, read_u32, AnyElements::Long, endian),
                     DataType::Rational => {
                         let vals = (0..count).into_iter()
                             .map(|_| {
@@ -423,12 +423,12 @@ where
                             })
                             .collect::<Result<Vec<_>, _>>()?;
 
-                        AnyData::Rational(vals)
+                        AnyElements::Rational(vals)
                     }
-                    DataType::SByte => read!(count, reader, read_i8, AnyData::SByte, endian),
-                    DataType::Undefined => read!(count, reader, read_u8, AnyData::Undefined, endian),
-                    DataType::SShort => read!(count, reader, read_i16, AnyData::SShort, endian),
-                    DataType::SLong => read!(count, reader, read_i32, AnyData::SLong, endian),
+                    DataType::SByte => read!(count, reader, read_i8, AnyElements::SByte, endian),
+                    DataType::Undefined => read!(count, reader, read_u8, AnyElements::Undefined, endian),
+                    DataType::SShort => read!(count, reader, read_i16, AnyElements::SShort, endian),
+                    DataType::SLong => read!(count, reader, read_i32, AnyElements::SLong, endian),
                     DataType::SRational => {
                         let vals = (0..count).into_iter()
                             .map(|_| {
@@ -441,10 +441,10 @@ where
                             })
                             .collect::<Result<Vec<_>, _>>()?;
 
-                        AnyData::SRational(vals)
+                        AnyElements::SRational(vals)
                     }
-                    DataType::Float => read!(count, reader, read_f32, AnyData::Float, endian),
-                    DataType::Double => read!(count, reader, read_f64, AnyData::Double, endian),
+                    DataType::Float => read!(count, reader, read_f32, AnyElements::Float, endian),
+                    DataType::Double => read!(count, reader, read_f64, AnyElements::Double, endian),
                 };
 
                 Ok(Some(data))

@@ -51,7 +51,10 @@ pub struct Rational<T> {
 
 impl<T> Rational<T> {
     pub fn new(numerator: T, denominator: T) -> Self {
-        Self { numerator, denominator }
+        Self {
+            numerator,
+            denominator,
+        }
     }
 }
 

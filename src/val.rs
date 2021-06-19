@@ -1,11 +1,6 @@
 use std::ops::{Deref, RangeFrom};
 
-use crate::{
-    decode::Decoded,
-    element::AnyElement,
-    encode::Encoded,
-    error::{DecodeErrorKind, DecodingError},
-};
+use crate::{decode::Decoded, element::AnyElement, encode::Encoded, error::DecodingError};
 
 #[derive(Debug, Clone)]
 pub enum Value {

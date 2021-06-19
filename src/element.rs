@@ -1,4 +1,8 @@
-use crate::{data::{DataType, Rational}, error::DecodingError, val::Value};
+use crate::{
+    data::{DataType, Rational},
+    error::DecodingError,
+    val::Value,
+};
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use std::io;
 
@@ -398,7 +402,6 @@ impl Elemental for Rational<u32> {
         endian: &Endian,
         datatype: DataType,
     ) -> Result<Self, DecodingError> {
-        
         match datatype {
             DataType::Long => {
                 let numerator = match *endian {

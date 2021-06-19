@@ -1,17 +1,25 @@
 use io::SeekFrom;
 
-use crate::{DecodeResult, data::{AnyElements, DataType, Entry, Rational}, element::{Elemental, Endian, EndianRead, SeekExt}, error::{DecodeError, DecodingError, FileHeaderError, TagError}, ifd::ImageFileDirectory, possible::Possible, tag::{self, AnyTag, Tag}, val::Predictor};
+use crate::{
+    data::{AnyElements, DataType, Entry, Rational},
+    element::{Elemental, Endian, EndianRead, SeekExt},
+    error::{DecodeError, DecodingError, FileHeaderError, TagError},
+    ifd::ImageFileDirectory,
+    possible::Possible,
+    tag::{self, AnyTag, Tag},
+    val::Predictor,
+    DecodeResult,
+};
 use std::{convert::TryFrom, io};
 
 macro_rules! read {
-    ($count:ident, $reader:ident, $func:ident, $anydata:path, $endian:ident) => {
-        {
-            let vals = (0..$count).into_iter()
-                .map(|_| $reader.$func(&$endian))
-                .collect::<Result<Vec<_>, _>>()?;
-            $anydata(vals)
-        }
-    };
+    ($count:ident, $reader:ident, $func:ident, $anydata:path, $endian:ident) => {{
+        let vals = (0..$count)
+            .into_iter()
+            .map(|_| $reader.$func(&$endian))
+            .collect::<Result<Vec<_>, _>>()?;
+        $anydata(vals)
+    }};
 }
 
 pub trait Decoded: Sized {
@@ -345,7 +353,7 @@ where
     }
 
     #[allow(missing_docs)]
-    pub fn get_any_data(&mut self, tag: AnyTag) -> DecodeResult<Option<AnyElements>> {
+    pub fn get_any_elements(&mut self, tag: AnyTag) -> DecodeResult<Option<AnyElements>> {
         let ifd = self.ifd();
         let entry = ifd.get_tag(&tag);
 
@@ -366,32 +374,32 @@ where
                     DataType::Short => read!(count, reader, read_u16, AnyElements::Short, endian),
                     DataType::Long => read!(count, reader, read_u32, AnyElements::Long, endian),
                     DataType::Rational => {
-                        let vals = (0..count).into_iter()
+                        let vals = (0..count)
+                            .into_iter()
                             .map(|_| {
                                 let x = reader.read_u32(&endian);
                                 let y = reader.read_u32(&endian);
 
-                                x.and_then(|x| {
-                                    y.map(|y| Rational::new(x, y))
-                                })
+                                x.and_then(|x| y.map(|y| Rational::new(x, y)))
                             })
                             .collect::<Result<Vec<_>, _>>()?;
 
                         AnyElements::Rational(vals)
                     }
                     DataType::SByte => read!(count, reader, read_i8, AnyElements::SByte, endian),
-                    DataType::Undefined => read!(count, reader, read_u8, AnyElements::Undefined, endian),
+                    DataType::Undefined => {
+                        read!(count, reader, read_u8, AnyElements::Undefined, endian)
+                    }
                     DataType::SShort => read!(count, reader, read_i16, AnyElements::SShort, endian),
                     DataType::SLong => read!(count, reader, read_i32, AnyElements::SLong, endian),
                     DataType::SRational => {
-                        let vals = (0..count).into_iter()
+                        let vals = (0..count)
+                            .into_iter()
                             .map(|_| {
                                 let x = reader.read_i32(&endian);
                                 let y = reader.read_i32(&endian);
 
-                                x.and_then(|x| {
-                                    y.map(|y| Rational::new(x, y))
-                                })
+                                x.and_then(|x| y.map(|y| Rational::new(x, y)))
                             })
                             .collect::<Result<Vec<_>, _>>()?;
 
@@ -402,7 +410,6 @@ where
                 };
 
                 Ok(Some(data))
-                
             } else {
                 let mut reader = field;
 
@@ -412,32 +419,32 @@ where
                     DataType::Short => read!(count, reader, read_u16, AnyElements::Short, endian),
                     DataType::Long => read!(count, reader, read_u32, AnyElements::Long, endian),
                     DataType::Rational => {
-                        let vals = (0..count).into_iter()
+                        let vals = (0..count)
+                            .into_iter()
                             .map(|_| {
                                 let x = reader.read_u32(&endian);
                                 let y = reader.read_u32(&endian);
 
-                                x.and_then(|x| {
-                                    y.map(|y| Rational::new(x, y))
-                                })
+                                x.and_then(|x| y.map(|y| Rational::new(x, y)))
                             })
                             .collect::<Result<Vec<_>, _>>()?;
 
                         AnyElements::Rational(vals)
                     }
                     DataType::SByte => read!(count, reader, read_i8, AnyElements::SByte, endian),
-                    DataType::Undefined => read!(count, reader, read_u8, AnyElements::Undefined, endian),
+                    DataType::Undefined => {
+                        read!(count, reader, read_u8, AnyElements::Undefined, endian)
+                    }
                     DataType::SShort => read!(count, reader, read_i16, AnyElements::SShort, endian),
                     DataType::SLong => read!(count, reader, read_i32, AnyElements::SLong, endian),
                     DataType::SRational => {
-                        let vals = (0..count).into_iter()
+                        let vals = (0..count)
+                            .into_iter()
                             .map(|_| {
                                 let x = reader.read_i32(&endian);
                                 let y = reader.read_i32(&endian);
 
-                                x.and_then(|x| {
-                                    y.map(|y| Rational::new(x, y))
-                                })
+                                x.and_then(|x| y.map(|y| Rational::new(x, y)))
                             })
                             .collect::<Result<Vec<_>, _>>()?;
 
@@ -449,7 +456,6 @@ where
 
                 Ok(Some(data))
             }
-
         } else {
             Ok(None)
         }

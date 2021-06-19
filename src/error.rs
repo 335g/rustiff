@@ -57,12 +57,8 @@ impl fmt::Display for DecodeError {
         match self.0 {
             DecodeErrorKind::Io(ref e) => e.fmt(f),
             DecodeErrorKind::FileHeader(ref e) => e.fmt(f),
-            DecodeErrorKind::UnsupportedDataType(x) => write!(
-                f,
-                "Unsupported data type: {}",
-                x
-            ),
-            DecodeErrorKind::Decoding(ref e) => e.fmt(f)
+            DecodeErrorKind::UnsupportedDataType(x) => write!(f, "Unsupported data type: {}", x),
+            DecodeErrorKind::Decoding(ref e) => e.fmt(f),
         }
     }
 }

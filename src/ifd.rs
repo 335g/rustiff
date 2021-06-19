@@ -1,89 +1,59 @@
+use crate::tag::{AnyTag, Tag};
+use crate::{data::Entry, error::TagError};
 
-use std::collections::HashMap;
-use std::fmt::{
-    self,
-    Display,
-};
-use tag::{
-    TagType,
-    AnyTag,
-};
+use std::collections::{self, HashMap};
 
-#[derive(Debug, Clone, Copy)]
-pub enum DataType {
-    Byte,
-    Short,
-    Long,
-    Rational,
-    Unknown(u16),
-}
-
-impl From<u16> for DataType {
-    fn from(n: u16) -> DataType {
-        match n {
-            1 => DataType::Byte,
-            3 => DataType::Short,
-            4 => DataType::Long,
-            5 => DataType::Rational,
-            n => DataType::Unknown(n),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Fail)]
-pub struct Entry {
-    datatype: DataType,
-    count: u32,
-    offset: [u8; 4],
-}
-
-impl Entry {
-    pub fn new(datatype: DataType, count: u32, offset: [u8; 4]) -> Entry {
-        Entry {
-            datatype: datatype,
-            count: count,
-            offset: offset,
-        }
-    }
-
-    pub fn datatype(&self) -> DataType {
-        self.datatype
-    }
-
-    pub fn count(&self) -> u32 {
-        self.count
-    }
-
-    pub fn offset(&self) -> &[u8] {
-        &self.offset
-    }
-}
-
-impl Display for Entry {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Entry(datatype: {:?}, count: {}, offset: {:?}", self.datatype, self.count, self.offset)
-    }
-}
-
+/// IFD (Image File Directory)
 #[derive(Debug, Clone)]
-pub struct IFD(HashMap<u16, Entry>);
+pub struct ImageFileDirectory(HashMap<AnyTag, Entry>);
 
-impl IFD {
-    pub fn new() -> IFD {
-        IFD(HashMap::new())
+impl ImageFileDirectory {
+    #[allow(dead_code)]
+    #[allow(missing_docs)]
+    pub(crate) fn new() -> Self {
+        ImageFileDirectory(HashMap::new())
     }
 
-    pub fn insert<T: TagType>(&mut self, k: T, v: Entry) -> Option<Entry> {
-        self.0.insert(k.id(), v)
+    #[allow(dead_code)]
+    #[allow(missing_docs)]
+    pub(crate) fn insert<T: Tag>(&mut self, entry: Entry) -> Result<Option<Entry>, TagError<T>> {
+        let anytag = AnyTag::try_from::<T>()?;
+        let res = self.insert_tag(anytag, entry);
+
+        Ok(res)
     }
 
-    pub fn insert_anytag(&mut self, k: AnyTag, v: Entry) -> Option<Entry> {
-        self.0.insert(k.id(), v)
-    }
-    
     #[inline]
-    pub fn get<T: TagType>(&self, k: T) -> Option<&Entry> {
-        self.0.get(&k.id())
+    #[allow(dead_code)]
+    #[allow(missing_docs)]
+    pub(crate) fn insert_tag(&mut self, tag: AnyTag, entry: Entry) -> Option<Entry> {
+        self.0.insert(tag, entry)
+    }
+
+    #[inline]
+    #[allow(dead_code)]
+    #[allow(missing_docs)]
+    pub fn get_tag(&self, tag: &AnyTag) -> Option<&Entry> {
+        self.0.get(tag)
+    }
+
+    #[allow(dead_code)]
+    #[allow(missing_docs)]
+    pub fn keys(&self) -> Keys<'_> {
+        Keys {
+            inner: self.0.keys(),
+        }
     }
 }
 
+pub struct Keys<'a> {
+    inner: collections::hash_map::Keys<'a, AnyTag, Entry>,
+}
+
+impl<'a> Iterator for Keys<'a> {
+    type Item = &'a AnyTag;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next()
+    }
+}

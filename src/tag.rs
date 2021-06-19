@@ -1,226 +1,214 @@
+use crate::{
+    decode::Decoded,
+    encode::Encoded,
+    error::{TagError, TagErrorKind},
+    val,
+};
+use std::any::TypeId;
+use std::fmt;
 
-use std::fmt::{
-    self,
-    Display,
-};
-use std::io::{
-    Read,
-    Seek,
-};
-use error::{
-    DecodeResult,
-    DecodeError,
-    DecodeErrorKind,
-};
-use ifd::DataType;
-use byte::{
-    Endian,
-    EndianReadExt,
-    SeekExt,
-};
+pub trait Tag: 'static {
+    type Value: Decoded;
+    type Elements: Encoded<Self::Value>;
 
-pub trait TagType: Clone + Copy {
-    type Value;
+    /// Default value when `ifd::IFD` doesn't have the value with this tag.
+    const DEFAULT_VALUE: Option<Self::Value> = None;
 
-    fn id(&self) -> u16;
-    fn default_value() -> Option<Self::Value>;
-    fn decode<'a, R: Read + Seek + 'a>(&'a self, reader: R, offset: &'a [u8], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value>;
+    /// Identifer.
+    ///
+    /// This must not be equal to supported tag's identifer.
+    /// If both identifer are equal, error occurs when you use this tag.
+    const ID: u16;
 }
 
 macro_rules! define_tags {
-    ($($name:ident, $id:expr;)*) => {
-        $(#[derive(Debug, Clone, Copy, PartialEq, Eq, Fail)]
-        pub struct $name;
-
-        impl Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-                write!(f, "{}", $name)
-            }
-        })*
-        
-        #[derive(Debug, Fail)]
+    ($($name:ident,)*) => {
+        /// Tag to get associated value from `ifd::ImageFileDirectory`.
+        ///
+        /// A tag that conforms to `tag::Tag` changes this automatically.
+        #[non_exhaustive]
+        #[derive(Debug, Clone, Hash, Eq, PartialEq)]
         pub enum AnyTag {
-            $($name,)*
-            Unknown(u16),
+            $(
+                #[allow(missing_docs)]
+                $name,
+            )*
+
+            /// Unsupported tag.
+            ///
+            /// `rustiff` user can use unsupported tag to implement `tag::Tag`.
+            /// This tag changes to `AnyTag::Custom` with `tag::Tag::ID`.
+            Custom(u16),
         }
 
         impl AnyTag {
+            /// Identifier
+            ///
+            /// Same as the value obtained by `tag::Tag::ID`.
+            #[allow(dead_code)]
             pub fn id(&self) -> u16 {
                 match *self {
-                    $(AnyTag::$name => $id,)*
-                    AnyTag::Unknown(n) => n,
+                    $(AnyTag::$name => $name::ID,)*
+                    AnyTag::Custom(n) => n
+                }
+            }
+
+            pub(crate) fn from_u16(n: u16) -> AnyTag {
+                match n {
+                    $($name::ID => AnyTag::$name,)*
+                    _ => AnyTag::Custom(n),
+                }
+            }
+
+            pub(crate) fn eq<T: Tag>(&self) -> bool {
+                match *self {
+                    $(AnyTag::$name => TypeId::of::<$name>() == TypeId::of::<T>(),)*
+                    AnyTag::Custom(n) => n == T::ID,
+                }
+            }
+            pub(crate) fn try_from<T: Tag>() -> Result<AnyTag, TagError<T>> {
+                let anytag = AnyTag::from_u16(T::ID);
+
+                if anytag.eq::<T>() {
+                    Ok(anytag)
+                } else {
+                    // A tag with the same T::ID already exists.
+                    let typename = std::any::type_name::<T>();
+
+                    let err = TagError::new(TagErrorKind::UnauthorizedTag {
+                        tag_ty: typename
+                    });
+
+                    Err(err)
                 }
             }
         }
 
-        impl Display for AnyTag {
+        impl fmt::Display for AnyTag {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 match *self {
-                    $(AnyTag::$name => $name.fmt(f),)*
-                    AnyTag::Unknown(n) => write!(f, "Unknown tag: {}", n),
-                }
-            }
-        }
-
-        impl<T> From<T> for AnyTag where T: TagType {
-            fn from(x: T) -> AnyTag {
-                match x.id() {
-                    $($id => AnyTag::$name,)*
-                    _ => AnyTag::Unknown(x.id()),
-                }
-            }
-        }
-
-        impl From<u16> for AnyTag {
-            fn from(n: u16) -> AnyTag {
-                match n {
-                    $($id => AnyTag::$name,)*
-                    _ => AnyTag::Unknown(n),
+                    $(AnyTag::$name => write!(f, "{}", std::any::type_name::<$name>()),)*
+                    AnyTag::Custom(n) => write!(f, "Unknown tag (id: {})", n),
                 }
             }
         }
     }
 }
 
-macro_rules! tag_short_or_long_value {
-    ($($name:ident, $id:expr, $def:expr;)*) => {
-        $(impl TagType for $name {
-            type Value = u32;
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum ImageWidth {}
 
-            fn id(&self) -> u16 { $id }
-            fn default_value() -> Option<u32> { $def }
-            fn decode<'a, R: Read + Seek + 'a>(&'a self, mut _reader: R, mut offset: &'a [u8], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value> {
-                match datatype {
-                    DataType::Short if count == 1 => Ok(offset.read_u16(endian)? as u32),
-                    DataType::Long if count == 1 => Ok(offset.read_u32(endian)?),
-                    _ => Err(DecodeError::from(DecodeErrorKind::NoSupportDataType { tag: AnyTag::from(*self), datatype: datatype, count: count })),
-                }
-            }
-        })*
-    };
+impl Tag for ImageWidth {
+    type Value = val::ImageWidth;
+    type Elements = val::Value;
+
+    const ID: u16 = 256;
 }
 
-macro_rules! tag_short_value {
-    ($($name:ident, $id:expr, $def:expr;)*) => {
-        $(impl TagType for $name {
-            type Value = u16;
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum ImageLength {}
 
-            fn id(&self) -> u16 { $id }
-            fn default_value() -> Option<u16> { $def }
-            fn decode<'a, R: Read + Seek + 'a>(&'a self, mut _reader: R, mut offset: &'a [u8], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value> {
-                match datatype {
-                    DataType::Short if count == 1 => Ok(offset.read_u16(endian)?),
-                    _ => Err(DecodeError::from(DecodeErrorKind::NoSupportDataType { tag: AnyTag::from(*self), datatype: datatype, count: count })),
-                }
-            }
-        })*
-    };
+impl Tag for ImageLength {
+    type Value = val::ImageLength;
+    type Elements = val::Value;
+
+    const ID: u16 = 257;
 }
 
-macro_rules! tag_short_or_long_values {
-    ($($name:ident, $id:expr, $def:expr;)*) => {
-        $(impl TagType for $name {
-            type Value = Vec<u32>;
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum BitsPerSample {}
 
-            fn id(&self) -> u16 { $id }
-            fn default_value() -> Option<Vec<u32>> { $def }
-            fn decode<'a, R: Read + Seek + 'a>(&'a self, mut reader: R, mut offset: &'a [u8], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value> {
-                match datatype {
-                    DataType::Short if count == 1 => Ok(vec![offset.read_u16(endian)? as u32]),
-                    DataType::Short if count == 2 => Ok(vec![
-                        offset.read_u16(endian)? as u32,
-                        offset.read_u16(endian)? as u32,
-                    ]),
-                    DataType::Short if count > 2 => {
-                        let offset = offset.read_u32(endian)? as u64;
-                        reader.goto(offset)?;
-                        let mut v = Vec::with_capacity(count);
-                        for _ in 0..count {
-                            v.push(reader.read_u16(endian)? as u32);
-                        }
+impl Tag for BitsPerSample {
+    type Value = val::BitsPerSample;
+    type Elements = Vec<u16>;
 
-                        Ok(v)
-                    }
-                    DataType::Long if count == 1 => Ok(vec![offset.read_u32(endian)?]),
-                    DataType::Long if count > 1 => {
-                        let offset = offset.read_u32(endian)? as u64;
-                        reader.goto(offset)?;
-                        let mut v = Vec::with_capacity(count);
-                        for _ in 0..count {
-                            v.push(reader.read_u32(endian)?);
-                        }
-
-                        Ok(v)
-                    }
-                    _ => Err(DecodeError::from(DecodeErrorKind::NoSupportDataType { tag: AnyTag::from(*self), datatype: datatype, count: count })),
-                }
-            }
-        })*
-    };
+    const ID: u16 = 258;
+    const DEFAULT_VALUE: Option<val::BitsPerSample> = Some(val::BitsPerSample::C1([1]));
 }
 
-macro_rules! tag_short_values {
-    ($($name:ident, $id:expr, $def:expr;)*) => {
-        $(impl TagType for $name {
-            type Value = Vec<u16>;
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum Compression {}
 
-            fn id(&self) -> u16 { $id }
-            fn default_value() -> Option<Vec<u16>> { $def }
-            fn decode<'a, R: Read + Seek + 'a>(&'a self, mut reader: R, mut offset: &'a [u8], endian: Endian, datatype: DataType, count: usize) -> DecodeResult<Self::Value> {
-                match datatype {
-                    DataType::Short if count == 1 => Ok(vec![offset.read_u16(endian)?]),
-                    DataType::Short if count == 2 => Ok(vec![
-                        offset.read_u16(endian)?,
-                        offset.read_u16(endian)?,
-                    ]),
-                    DataType::Short if count > 2 => {
-                        let offset = offset.read_u32(endian)? as u64;
-                        reader.goto(offset)?;
-                        let mut v = Vec::with_capacity(count);
-                        for _ in 0..count {
-                            v.push(reader.read_u16(endian)?);
-                        }
+impl Tag for Compression {
+    type Value = Option<val::Compression>;
+    type Elements = u16;
 
-                        Ok(v)
-                    }
-                    _ => Err(DecodeError::from(DecodeErrorKind::NoSupportDataType { tag: AnyTag::from(*self), datatype: datatype, count: count })),
-                }
-            }
-        })*
-    };
+    const ID: u16 = 259;
+    const DEFAULT_VALUE: Option<Option<val::Compression>> = Some(None);
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum PhotometricInterpretation {}
+
+impl Tag for PhotometricInterpretation {
+    type Value = val::PhotometricInterpretation;
+    type Elements = u16;
+
+    const ID: u16 = 262;
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum StripOffsets {}
+
+impl Tag for StripOffsets {
+    type Value = val::StripOffsets;
+    type Elements = Vec<val::Value>;
+
+    const ID: u16 = 273;
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum SamplesPerPixel {}
+
+impl Tag for SamplesPerPixel {
+    type Value = val::SamplesPerPixel;
+    type Elements = u16;
+
+    const ID: u16 = 277;
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum RowsPerStrip {}
+
+impl Tag for RowsPerStrip {
+    type Value = val::RowsPerStrip;
+    type Elements = val::Value;
+
+    const ID: u16 = 278;
+    const DEFAULT_VALUE: Option<val::RowsPerStrip> = Some(val::RowsPerStrip::default_value());
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum StripByteCounts {}
+
+impl Tag for StripByteCounts {
+    type Value = val::StripByteCounts;
+    type Elements = Vec<val::Value>;
+
+    const ID: u16 = 279;
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum Predictor {}
+
+impl Tag for Predictor {
+    type Value = val::Predictor;
+    type Elements = u16;
+
+    const ID: u16 = 317;
+
+    const DEFAULT_VALUE: Option<Self::Value> = Some(val::Predictor::None);
 }
 
 define_tags! {
-    ImageWidth, 256;
-    ImageLength, 257;
-    BitsPerSample, 258;
-    Compression, 259;
-    PhotometricInterpretation, 262;
-    StripOffsets, 273;
-    SamplesPerPixel, 277;
-    RowsPerStrip, 278;
-    StripByteCounts, 279;
+    ImageWidth,
+    ImageLength,
+    BitsPerSample,
+    Compression,
+    PhotometricInterpretation,
+    Predictor,
+    StripOffsets,
+    SamplesPerPixel,
+    RowsPerStrip,
+    StripByteCounts,
 }
-
-tag_short_or_long_value! {
-    ImageWidth, 256, None;
-    ImageLength, 257, None;
-    RowsPerStrip, 278, Some(u32::max_value());
-}
-
-tag_short_or_long_values! {
-    StripOffsets, 273, None;
-    StripByteCounts, 279, None;
-}
-
-tag_short_value! {
-    PhotometricInterpretation, 262, None;
-    Compression, 259, Some(1);
-    SamplesPerPixel, 277, Some(1);
-}
-
-tag_short_values! {
-    BitsPerSample, 258, Some(vec![1]);
-}
-
-

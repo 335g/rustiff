@@ -1,29 +1,17 @@
+#![allow(dead_code)]
 
-extern crate byteorder;
-extern crate lzw;
-#[macro_use] extern crate failure;
-
-mod error;
-mod byte;
+mod data;
 mod decode;
+mod element;
+mod encode;
+mod error;
+mod header;
 mod ifd;
 mod image;
+mod possible;
 pub mod tag;
+mod val;
 
-pub use decode::Decoder;
-pub use ifd::IFD;
-pub use error::{
-    DecodeError,
-    DecodeErrorKind,
-    DecodeResult,
-};
-pub use image::{
-    Image,
-    ImageData,
-    ImageHeader,
-    ImageHeaderError,
-    Compression,
-    BitsPerSample,
-    BitsPerSampleError,
-    PhotometricInterpretation,
-};
+pub use decode::{Decoded, Decoder};
+pub use error::{DecodeError, DecodeErrorKind, DecodeResult, DecodingError, FileHeaderError};
+pub use val::{BitsPerSample, Compression, PhotometricInterpretation};
